@@ -1,0 +1,63 @@
+{
+  "id": "filmora",
+  "name": "Filmora",
+  "builtin": true,
+  "order": -1,
+  "windows": [
+    {
+      "id": "main",
+      "root": {
+        "split": "v",
+        "sizes": [
+          0.57,
+          0.43
+        ],
+        "children": [
+          {
+            "split": "h",
+            "sizes": [
+              0.355,
+              0.235,
+              0.41
+            ],
+            "children": [
+              {
+                "panels": [
+                  {
+                    "type": "assets",
+                    "tab": "media"
+                  }
+                ],
+                "active": 0
+              },
+              {
+                "panels": [
+                  {
+                    "type": "properties"
+                  }
+                ],
+                "active": 0
+              },
+              {
+                "panels": [
+                  {
+                    "type": "preview"
+                  }
+                ],
+                "active": 0
+              }
+            ]
+          },
+          {
+            "panels": [
+              {
+                "type": "timeline"
+              }
+            ],
+            "active": 0
+          }
+        ]
+      }
+    }
+  ]
+}

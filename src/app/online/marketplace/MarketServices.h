@@ -3,6 +3,7 @@
 #include "app/mcp/tools/McpMarket.h"
 #include "app/online/assets/DriftAssetStore.h"
 #include "app/online/assets/SfxLibrary.h"
+#include "app/online/free/FreeLibrary.h"
 #include "app/online/marketplace/CommunityInstaller.h"
 #include "app/online/marketplace/MarketInstallRouter.h"
 #include "app/online/marketplace/MarketplaceManifest.h"
@@ -24,6 +25,8 @@ public:
     StockInstaller stock;
     DriftAssetStore driftAssets;
     SfxLibrary sfx;
+    // Stock Media tab: free stock video / SFX / Lottie from the user-editable catalog.
+    FreeLibrary freeLibrary;
     CommunityInstaller community;
     MarketplaceManifest manifest;
     MarketInstallRouter router;

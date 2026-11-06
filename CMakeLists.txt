@@ -1065,6 +1065,8 @@ qt_add_executable(drift
     src/ui/imageproviders/TextStylePreviewImageProvider.cpp
     src/ui/imageproviders/ShapePreviewImageProvider.h
     src/ui/imageproviders/ShapePreviewImageProvider.cpp
+    src/ui/imageproviders/LottieFramePreviewImageProvider.h
+    src/ui/imageproviders/LottieFramePreviewImageProvider.cpp
     src/app/online/addons/AddonEndpoint.h
     src/app/online/addons/AddonManager.h
     src/app/online/addons/AddonManager.cpp
@@ -1165,6 +1167,8 @@ target_sources(driftapp PRIVATE
     src/app/online/assets/DriftAssetStore.cpp
     src/app/online/assets/SfxLibrary.h
     src/app/online/assets/SfxLibrary.cpp
+    src/app/online/free/FreeLibrary.h
+    src/app/online/free/FreeLibrary.cpp
     src/app/editor/AppController.h
     src/app/editor/AppController.cpp
     src/app/editor/appcontroller/AppControllerInternal.h
@@ -1483,6 +1487,7 @@ qt_add_resources(drift "drift_themes"
         resources/themes/light.json
         resources/themes/graphite.json
         resources/themes/frost.json
+        resources/themes/filmora.json
         resources/themes/theme.schema.json
 )
 
@@ -1492,6 +1497,7 @@ qt_add_resources(drift "drift_workspaces"
     PREFIX "/workspaces"
     BASE resources/workspaces
     FILES
+        resources/workspaces/filmora.json
         resources/workspaces/edit.json
         resources/workspaces/edit-portrait.json
         resources/workspaces/source-lab.json
@@ -1503,6 +1509,14 @@ qt_add_resources(drift "drift_workspaces"
         resources/workspaces/keyframes.json
         resources/workspaces/masking-tracking.json
         resources/workspaces/3d.json
+)
+
+# Stock Media tab: the built-in source catalog (copied to app data on first run for editing).
+qt_add_resources(drift "drift_free_library"
+    PREFIX "/free-library"
+    BASE resources/free-library
+    FILES
+        resources/free-library/catalog.json
 )
 
 qt_add_resources(drift "drift_marketplace"
@@ -1789,6 +1803,8 @@ qt_add_qml_module(drift
         src/qml/components/assets/AssetDragSource.qml
         src/qml/components/assets/MasksTab.qml
         src/qml/components/assets/SoundsTab.qml
+        src/qml/components/assets/StockMediaTab.qml
+        src/qml/components/assets/StockMediaCard.qml
         src/qml/components/assets/TransitionsTab.qml
         src/qml/components/assets/MediaAssetsTab.qml
         src/qml/components/marketplace/MarketplaceView.qml
@@ -1844,6 +1860,7 @@ qt_add_qml_module(drift
         src/qml/components/assets/DownloadsJobRow.qml
         src/qml/components/assets/AudioEffectPresetCard.qml
         src/qml/components/assets/AssetsPanelTabRail.qml
+        src/qml/components/assets/AssetsPanelTopTabBar.qml
         src/qml/components/assets/AssetsPanelTabButton.qml
         src/qml/components/assets/AssetsPanelImportSplit.qml
         src/qml/components/assets/AssetsPanelImportOverlay.qml

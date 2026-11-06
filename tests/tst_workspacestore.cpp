@@ -86,12 +86,13 @@ void WorkspaceStoreTest::presetsLoadAndValidate()
 {
     WorkspaceStore store;
     const QVariantList list = store.workspaces();
-    QCOMPARE(list.size(), 11);
-    QCOMPARE(list.at(0).toMap().value("id").toString(), QStringLiteral("edit"));
-    QCOMPARE(list.at(1).toMap().value("id").toString(), QStringLiteral("edit-portrait"));
+    QCOMPARE(list.size(), 12);
+    QCOMPARE(list.at(0).toMap().value("id").toString(), QStringLiteral("filmora"));
+    QCOMPARE(list.at(1).toMap().value("id").toString(), QStringLiteral("edit"));
+    QCOMPARE(list.at(2).toMap().value("id").toString(), QStringLiteral("edit-portrait"));
     for (const QVariant &v : list)
         QCOMPARE(store.validate(v.toMap()), QString());
-    QCOMPARE(store.activeId(), QStringLiteral("edit"));
+    QCOMPARE(store.activeId(), QStringLiteral("filmora"));
 }
 
 void WorkspaceStoreTest::everyBuiltinPresetValidates()

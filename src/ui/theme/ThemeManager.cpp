@@ -39,6 +39,7 @@ constexpr BuiltinTheme kBuiltinThemes[] = {
     {"light", kLightResource},
     {"graphite", ":/themes/graphite.json"},
     {"frost", ":/themes/frost.json"},
+    {"filmora", ":/themes/filmora.json"},
 };
 
 QString builtinResource(const QString &id)
@@ -1081,7 +1082,7 @@ void ThemeManager::restorePersisted()
 {
     QSettings settings;
     settings.beginGroup(QStringLiteral("Theme"));
-    const QString saved = settings.value(QStringLiteral("selection"), QStringLiteral("system")).toString().trimmed();
+    const QString saved = settings.value(QStringLiteral("selection"), QStringLiteral("filmora")).toString().trimmed();
     if (saved.isEmpty() || saved == QLatin1String("system")) {
         m_selection = QStringLiteral("system");
         return;

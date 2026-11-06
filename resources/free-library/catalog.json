@@ -1,0 +1,149 @@
+{
+  "version": 1,
+  "_help": [
+    "The Stock Media tab is built from this file. Edit the copy Drift puts in your app data folder",
+    "(Stock Media tab -> ... -> Edit catalog) and press Reload; the built-in copy is never changed.",
+    "",
+    "Every source has: id, name, kind (video | audio | lottie | image), and either",
+    "  type 'static' + items[]              a fixed list of files, or",
+    "  type 'api'    + search/browse/map    any JSON search API.",
+    "",
+    "static item fields: title, url (direct file link), thumb (optional image), preview (optional",
+    "  small video/audio for hover), tags, author, license, page (where it came from).",
+    "",
+    "api: 'search' and 'browse' are URL templates. {query} {page} {perPage} {apiKey} are filled in.",
+    "  'browse' is used while the search box is empty. 'headers' are sent with every request.",
+    "  'items' is the path to the result array; 'map' says where each field lives in one result.",
+    "  Paths use dots: 'videos.tiny.url'. A number picks an array element: 'video_files.0.link'.",
+    "  'list{width<=1920}' picks the element with the largest width not above 1920;",
+    "  'list{width>=480}' picks the smallest width not below 480.",
+    "  Fields can be joined: 'user.name' or a literal in quotes, e.g. \"'Pexels'\".",
+    "",
+    "Downloads go to a temporary folder that is deleted when Drift closes. Media you used in a",
+    "project you saved is stored inside the .drift file, so it is never lost."
+  ],
+  "sources": [
+    {
+      "id": "pexels-video",
+      "name": "Pexels",
+      "kind": "video",
+      "type": "api",
+      "needsKey": true,
+      "keyUrl": "https://www.pexels.com/api/new/",
+      "license": "Pexels License: free to use, no attribution required",
+      "homepage": "https://www.pexels.com/videos/",
+      "perPage": 30,
+      "headers": { "Authorization": "{apiKey}" },
+      "browse": "https://api.pexels.com/videos/popular?per_page={perPage}&page={page}",
+      "search": "https://api.pexels.com/videos/search?query={query}&per_page={perPage}&page={page}",
+      "items": "videos",
+      "map": {
+        "id": "id",
+        "title": "url",
+        "author": "user.name",
+        "thumb": "image",
+        "preview": "video_files{width<=640}.link",
+        "download": "video_files{width<=1920}.link",
+        "width": "width",
+        "height": "height",
+        "duration": "duration",
+        "page": "url"
+      }
+    },
+    {
+      "id": "pixabay-video",
+      "name": "Pixabay Videos",
+      "kind": "video",
+      "type": "api",
+      "needsKey": true,
+      "keyUrl": "https://pixabay.com/api/docs/",
+      "license": "Pixabay Content License: free to use, attribution appreciated",
+      "homepage": "https://pixabay.com/videos/",
+      "perPage": 30,
+      "browse": "https://pixabay.com/api/videos/?key={apiKey}&order=popular&per_page={perPage}&page={page}",
+      "search": "https://pixabay.com/api/videos/?key={apiKey}&q={query}&per_page={perPage}&page={page}",
+      "items": "hits",
+      "map": {
+        "id": "id",
+        "title": "tags",
+        "author": "user",
+        "thumb": "videos.tiny.thumbnail",
+        "preview": "videos.tiny.url",
+        "download": "videos.medium.url",
+        "width": "videos.medium.width",
+        "height": "videos.medium.height",
+        "duration": "duration",
+        "page": "pageURL"
+      }
+    },
+    {
+      "id": "freesound-sfx",
+      "name": "Freesound",
+      "kind": "audio",
+      "type": "api",
+      "needsKey": true,
+      "keyUrl": "https://freesound.org/apiv2/apply/",
+      "license": "Creative Commons (each sound shows its own licence; some need attribution)",
+      "homepage": "https://freesound.org/",
+      "perPage": 30,
+      "browse": "https://freesound.org/apiv2/search/text/?query=whoosh&sort=downloads_desc&page_size={perPage}&page={page}&fields=id,name,username,duration,license,previews,images,url&token={apiKey}",
+      "search": "https://freesound.org/apiv2/search/text/?query={query}&page_size={perPage}&page={page}&fields=id,name,username,duration,license,previews,images,url&token={apiKey}",
+      "items": "results",
+      "map": {
+        "id": "id",
+        "title": "name",
+        "author": "username",
+        "thumb": "images.waveform_m",
+        "preview": "previews.preview-lq-mp3",
+        "download": "previews.preview-hq-mp3",
+        "duration": "duration",
+        "license": "license",
+        "page": "url"
+      }
+    },
+    {
+      "id": "lottie-starter",
+      "name": "Lottie starter set",
+      "kind": "lottie",
+      "type": "static",
+      "license": "Apache-2.0 (airbnb/lottie-android samples)",
+      "homepage": "https://github.com/airbnb/lottie-android",
+      "items": [
+        {
+          "title": "Android wave",
+          "url": "https://raw.githubusercontent.com/airbnb/lottie-android/master/sample/src/main/assets/AndroidWave.json",
+          "tags": "wave android hello",
+          "author": "Airbnb"
+        },
+        {
+          "title": "Hamburger to arrow",
+          "url": "https://raw.githubusercontent.com/airbnb/lottie-android/master/sample/src/main/assets/HamburgerArrow.json",
+          "tags": "menu icon arrow",
+          "author": "Airbnb"
+        },
+        {
+          "title": "Lottie logo 1",
+          "url": "https://raw.githubusercontent.com/airbnb/lottie-android/master/sample/src/main/assets/Lottie%20Logo%201.json",
+          "tags": "logo intro",
+          "author": "Airbnb"
+        },
+        {
+          "title": "Lottie logo 2",
+          "url": "https://raw.githubusercontent.com/airbnb/lottie-android/master/sample/src/main/assets/Lottie%20Logo%202.json",
+          "tags": "logo intro",
+          "author": "Airbnb"
+        }
+      ]
+    },
+    {
+      "id": "my-lotties",
+      "name": "My Lotties",
+      "kind": "lottie",
+      "type": "static",
+      "license": "Check each animation's page. LottieFiles free animations use the Lottie Simple License.",
+      "homepage": "https://lottiefiles.com/free-animations",
+      "_howto": "On lottiefiles.com open a free animation, choose 'Lottie JSON' > 'Copy URL' and paste it into the Stock Media tab's link box (it is added here for you), or add it below by hand.",
+      "items": []
+    }
+  ]
+}

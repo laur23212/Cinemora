@@ -322,6 +322,7 @@ qt_add_executable(tst_mcp
     ../src/app/online/marketplace/CommunityInstaller.cpp
     ../src/app/online/marketplace/MarketInstallRouter.cpp
     ../src/app/online/assets/SfxLibrary.cpp
+    ../src/app/online/free/FreeLibrary.cpp
     ../src/app/online/downloads/DownloadCenter.cpp
     ../src/app/online/marketplace/MarketTransport.cpp
     ../src/app/online/assets/DriftAssetStore.cpp
@@ -416,6 +417,7 @@ qt_add_resources(tst_workspacestore "workspace_presets"
     PREFIX "/workspaces"
     BASE ../resources/workspaces
     FILES
+        ../resources/workspaces/filmora.json
         ../resources/workspaces/edit.json
         ../resources/workspaces/edit-portrait.json
         ../resources/workspaces/source-lab.json

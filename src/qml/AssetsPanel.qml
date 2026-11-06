@@ -763,7 +763,7 @@ PanelFrame {
 
     function assetVisible(kind) {
         const tabId = tabsModel.get(activeTab).tabId
-        if (tabId === "text" || tabId === "subtitles" || tabId === "speech" || tabId === "stickers" || tabId === "shapes"
+        if (tabId === "stock" || tabId === "text" || tabId === "subtitles" || tabId === "speech" || tabId === "stickers" || tabId === "shapes"
                 || tabId === "effects" || tabId === "templates" || tabId === "adjustment"
                 || tabId === "sounds" || tabId === "transitions" || tabId === "masks"
                 || tabId === "scenes")
@@ -776,7 +776,8 @@ PanelFrame {
     // evaluated. Labels are translated via tabLabels below.
     property var tabLabels: ({
         "media": qsTr("Media"),
-        "text": qsTr("Text"),
+        "stock": qsTr("Stock Media"),
+        "text": root.topTabs ? qsTr("Titles") : qsTr("Text"),
         "subtitles": qsTr("Subtitles"),
         "speech": qsTr("Speech"),
         "stickers": qsTr("Stickers"),
@@ -786,7 +787,7 @@ PanelFrame {
         "effects": qsTr("Effects"),
         "templates": qsTr("Templates"),
         "transitions": qsTr("Transitions"),
-        "sounds": qsTr("Audio FX")
+        "sounds": root.topTabs ? qsTr("Audio") : qsTr("Audio FX")
     })
 
     // Rail order: project media → on-canvas graphics → processing → prefs.
@@ -794,7 +795,8 @@ PanelFrame {
     // tabId "sounds" is kept for favorites persistence (settings key).
     ListModel {
         id: tabsModel
-        ListElement { tabId: "media"; icon: 0; separatorAfter: true }
+        ListElement { tabId: "media"; icon: 0; separatorAfter: false }
+        ListElement { tabId: "stock"; icon: 14; separatorAfter: true }
         ListElement { tabId: "text"; icon: 1; separatorAfter: false }
         ListElement { tabId: "subtitles"; icon: 2; separatorAfter: false }
         ListElement { tabId: "speech"; icon: 13; separatorAfter: false }
@@ -821,8 +823,22 @@ PanelFrame {
         Theme.icons.listVideo,
         Theme.icons.mask,
         Theme.icons.store,
-        Theme.icons.micVocal
+        Theme.icons.micVocal,
+        Theme.icons.download
     ]
+
+    // Filmora-style horizontal category bar instead of the vertical rail. Remembered per user;
+    // the phone sheet and locked single-tab panels never show it.
+    property bool topTabs: !root.railHidden && LayoutMemory.layoutString("assets/tabStyle", "top") === "top"
+    function setTopTabs(on) {
+        LayoutMemory.setLayoutString("assets/tabStyle", on ? "top" : "rail")
+        root.topTabs = Qt.binding(() => !root.railHidden
+                                  && LayoutMemory.layoutString("assets/tabStyle", "top") === "top")
+    }
+    // Filmora's order first; Drift's extra tabs follow after the divider.
+    readonly property var topTabOrder: ["media", "stock", "sounds", "text", "transitions", "effects",
+                                        "stickers", "templates", "|", "subtitles", "speech", "shapes",
+                                        "masks", "scenes"]
     property int activeTab: locked ? tabIndexOf(lockedTab) : tabIndexOf(LayoutMemory.layoutString("assets/tab", "media"))
     readonly property string currentTabId: tabsModel.get(activeTab).tabId
 
@@ -901,14 +917,34 @@ PanelFrame {
         active: root.importing && assetDropArea.enabled
     }
 
+    AssetsPanelTopTabBar {
+        id: topTabBar
+        visible: root.topTabs
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.margins: Theme.c.assetsPanel.borderWidth
+        height: visible ? implicitHeight : 0
+        tabs: tabsModel
+        tabLabels: root.tabLabels
+        tabIcons: root.tabIcons
+        activeTab: root.activeTab
+        order: root.topTabOrder
+        onTabSelected: (index) => root.activeTab = index
+    }
+
     Row {
-        anchors.fill: parent
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.top: root.topTabs ? topTabBar.bottom : parent.top
         anchors.margins: root.sheetMode ? 0 : Theme.c.assetsPanel.borderWidth
+        anchors.topMargin: root.topTabs ? 0 : (root.sheetMode ? 0 : Theme.c.assetsPanel.borderWidth)
         spacing: 0
 
         AssetsPanelTabRail {
             id: tabRail
-            sheetMode: root.railHidden
+            sheetMode: root.railHidden || root.topTabs
             railWidth: root.railWidth
             activeTab: root.activeTab
             tabCount: tabsModel.count
@@ -919,9 +955,9 @@ PanelFrame {
         }
 
         Rectangle {
-            width: root.railHidden ? 0 : Theme.c.assetsPanel.borderWidth
+            width: (root.railHidden || root.topTabs) ? 0 : Theme.c.assetsPanel.borderWidth
             height: parent.height
-            visible: !root.railHidden
+            visible: !root.railHidden && !root.topTabs
             color: Theme.c.assetsPanel.railBorder
 
             MouseArea {
@@ -948,14 +984,14 @@ PanelFrame {
 
         Column {
             id: assetsContent
-            width: parent.width - (root.railHidden ? 0 : (tabRail.width + Theme.c.assetsPanel.borderWidth))
+            width: parent.width - ((root.railHidden || root.topTabs) ? 0 : (tabRail.width + Theme.c.assetsPanel.borderWidth))
             height: parent.height
 
             AssetsPanelHeader {
                 id: assetsHeader
                 readonly property string tabId: tabsModel.get(root.activeTab).tabId
                 readonly property bool hasActions: kindsForTab(tabId).length > 0
-                readonly property bool searchBarTab: ["text", "stickers", "shapes", "effects", "templates",
+                readonly property bool searchBarTab: ["stock", "text", "stickers", "shapes", "effects", "templates",
                                                       "transitions", "sounds"].indexOf(tabId) >= 0
                 width: parent.width
                 height: (searchBarTab && !root.locked) || (root.sheetMode && !hasActions) ? 0 : Theme.panelHeaderHeight
@@ -974,7 +1010,7 @@ PanelFrame {
                 id: emojiPicker
                 // Hangs off the stickers search bar's + at the panel's right edge, and slides back
                 // rather than running off-window when the panel is dragged narrow.
-                x: Math.max(root.railHidden ? 0 : -tabRail.width, assetsContent.width - width - Theme.pagePadding)
+                x: Math.max((root.railHidden || root.topTabs) ? 0 : -tabRail.width, assetsContent.width - width - Theme.pagePadding)
                 y: assetsHeader.height + Theme.pagePadding + Theme.controlHeight + 4
                 onExtrasRequested: ShellBridge.main.openAddonManager("stickers")
                 onAdded: root.addCompleted()
@@ -1025,6 +1061,23 @@ PanelFrame {
                 opacity: root.tabOpacity
                 sourceComponent: Component {
                     SpeechTab { }
+                }
+            }
+
+            Loader {
+                active: root.currentTabId === "stock"
+                visible: active
+                width: parent.width
+                height: parent.height - assetsHeader.height
+                clip: true
+                opacity: root.tabOpacity
+                sourceComponent: Component {
+                    StockMediaTab {
+                        Component.onCompleted: root.restoreBrowserTab(this, "stock")
+                        onSearchTextChanged: root.rememberTab("stock", "search", searchText)
+                        onActiveCategoryChanged: root.rememberTab("stock", "category", activeCategory)
+                        onAdded: root.addCompleted()
+                    }
                 }
             }
 

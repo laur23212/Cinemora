@@ -21,6 +21,7 @@ MarketServices::MarketServices(AssetLibrary &library, EditorState &state, AddonM
     const auto importIntoBin = [&library](const QStringList &paths) { return library.importLocalPaths(paths); };
     driftAssets.setImporter(importIntoBin);
     sfx.setImporter(importIntoBin);
+    freeLibrary.setImporter(importIntoBin);
     driftAssets.setPropImporter([&state](const QString &dir) {
         return state.importFaceProps(QUrl::fromLocalFile(dir)).value(QStringLiteral("installed")).toStringList();
     });

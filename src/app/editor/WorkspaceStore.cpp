@@ -15,7 +15,7 @@ namespace {
 
 constexpr auto kListKey = "ui/workspaces/list";
 constexpr auto kActiveKey = "ui/workspaces/active";
-constexpr auto kDefaultId = "edit";
+constexpr auto kDefaultId = "filmora"; // Filmora-style layout is the default for this fork
 constexpr auto kPresetDir = ":/workspaces";
 
 struct PanelType

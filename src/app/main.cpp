@@ -48,6 +48,7 @@
 #include "ui/imageproviders/multicam/MulticamImageProvider.h"
 #include "ui/imageproviders/segment/SegmentImageProvider.h"
 #include "ui/imageproviders/ShapePreviewImageProvider.h"
+#include "ui/imageproviders/LottieFramePreviewImageProvider.h"
 #include "ui/imageproviders/TextStylePreviewImageProvider.h"
 #include "playback/stats/PerfLog.h"
 #include "ui/color/ColorWheelPad.h"
@@ -814,6 +815,7 @@ int main(int argc, char *argv[])
     qmlRegisterSingletonInstance("Drift", 1, 0, "MarketInstall", &market.router);
     qmlRegisterSingletonInstance("Drift", 1, 0, "DriftAssets", &market.driftAssets);
     qmlRegisterSingletonInstance("Drift", 1, 0, "Sfx", &market.sfx);
+    qmlRegisterSingletonInstance("Drift", 1, 0, "FreeLibrary", &market.freeLibrary);
     qmlRegisterSingletonInstance("Drift", 1, 0, "Marketplace", &market.manifest);
     qmlRegisterType<MarketSourceBrowser>("Drift", 1, 0, "MarketSourceBrowser");
     qmlRegisterType<MarketItemLoader>("Drift", 1, 0, "MarketItemLoader");
@@ -875,6 +877,7 @@ int main(int argc, char *argv[])
     engine.addImageProvider(QStringLiteral("multicam"), new MulticamImageProvider());
     engine.addImageProvider(QStringLiteral("textstyle"), new TextStylePreviewImageProvider());
     engine.addImageProvider(QStringLiteral("shape"), new ShapePreviewImageProvider());
+    engine.addImageProvider(QStringLiteral("lottieframe"), new LottieFramePreviewImageProvider());
     engine.addImageProvider(QStringLiteral("textanim"), new TextAnimPreviewImageProvider());
     engine.addImageProvider(QStringLiteral("textlook"), new TextLookPreviewImageProvider());
     engine.addImageProvider(QStringLiteral("color"), new ColorImageProvider());
