@@ -31,7 +31,8 @@ public:
     void migrateLegacyKeys();
 
     Credentials credentials(const QString &providerId) const;
-    void storeCredentials(const QString &providerId, const Credentials &credentials);
+    // Returns false when the secret store refused the write (the value is then kept in memory only).
+    bool storeCredentials(const QString &providerId, const Credentials &credentials);
     void markExpired(const QString &providerId, const QString &message);
 
     ConnectionState state(const QString &providerId) const;

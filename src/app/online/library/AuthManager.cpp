@@ -32,19 +32,22 @@ Credentials AuthManager::credentials(const QString &providerId) const
     return m_cache.value(providerId);
 }
 
-void AuthManager::storeCredentials(const QString &providerId, const Credentials &credentials)
+bool AuthManager::storeCredentials(const QString &providerId, const Credentials &credentials)
 {
     m_loaded.insert(providerId);
     if (credentials.isEmpty()) {
         m_cache.remove(providerId);
         if (m_store)
             m_store->remove(storeKey(providerId));
-        return;
+        return true;
     }
     m_cache.insert(providerId, credentials);
     if (m_store && !m_store->write(storeKey(providerId),
-                                   QJsonDocument(QJsonObject::fromVariantMap(credentials)).toJson(QJsonDocument::Compact)))
+                                   QJsonDocument(QJsonObject::fromVariantMap(credentials)).toJson(QJsonDocument::Compact))) {
         setState(providerId, ConnectionState::Error, tr("Could not save the sign-in securely. It works until Cadra closes."));
+        return false;
+    }
+    return true;
 }
 
 QStringList AuthManager::storedFieldIds(const QString &providerId) const
@@ -95,12 +98,15 @@ void AuthManager::migrateLegacyKeys()
         if (value.isEmpty())
             continue;
         const QString id = renamed.value(k, QStringLiteral("catalog-") + k);
-        if (credentials(id).isEmpty())
-            storeCredentials(id, {{QStringLiteral("apiKey"), value}});
+        // The plain-text copy goes only once the secure store holds the key; a refused write
+        // leaves it for the next start.
+        if (!credentials(id).isEmpty() || storeCredentials(id, {{QStringLiteral("apiKey"), value}}))
+            settings.remove(k);
     }
+    const bool emptied = settings.childKeys().isEmpty();
     settings.endGroup();
-    // The plain-text copies go once they are in the secure store.
-    settings.remove(QStringLiteral("FreeLibrary/keys"));
+    if (emptied)
+        settings.remove(QStringLiteral("FreeLibrary/keys"));
 }
 
 ConnectionState AuthManager::state(const QString &providerId) const
