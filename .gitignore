@@ -16,7 +16,7 @@ CMakeLists.txt.user
 # development overrides, pointed at with DRIFT_FONTS_DIR / DRIFT_STICKERS_DIR /
 # DRIFT_WHISPER_MODEL_DIR / DRIFT_FACE_PROPS_DIR, and are never part of a build.
 /fonts/
-stickers/
+/stickers/
 emoji-fonts/
 resources/stickers/
 /models/
