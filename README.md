@@ -8,15 +8,6 @@
   <strong>The free, open-source video editor that lets you edit without a subscription.”</strong>
 </p>
 
-
-<p align="center">
-  <a href="https://cutwire.org/Dafin"><strong>cutwire.org/Dafin</strong></a>
-</p>
-
-<p align="center">
-
-</p>
-
 Dafin is a video editor for Linux, Windows and macOS based on Drift from CutWire Studios. Drop in clips, add effects, captions, stickers,
 and music, then export a polished video — with **no subscription, no watermark, and no account**.
 
