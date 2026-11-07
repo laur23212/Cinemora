@@ -27,7 +27,7 @@ public:
     SfxLibrary sfx;
     // Online asset panels (Stickers, Audio, Stock Video, Titles): providers, sign-ins, search,
     // downloads, thumbnails and the local asset database.
-    cadra::assets::OnlineAssets onlineAssets;
+    dafin::assets::OnlineAssets onlineAssets;
     CommunityInstaller community;
     MarketplaceManifest manifest;
     MarketInstallRouter router;

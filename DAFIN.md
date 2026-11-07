@@ -1,9 +1,9 @@
-# Cadra
+# Dafin
 
-Cadra (from the Romanian *cadru*, a film frame) is a video editor for Windows and Linux based on
+Dafin (Romanian for the laurel tree, the leaf in its icon) is a video editor for Windows and Linux based on
 [Drift](https://github.com/CutWire-Studios/Drift) by CutWire Studios (GPL-3.0). It has a layout
 familiar to Filmora users, a built-in Stock Media library and Cool Edit-style volume dots.
-Cadra is not affiliated with Wondershare or CutWire Studios.
+Dafin is not affiliated with Wondershare or CutWire Studios.
 
 ## What is different from Drift
 
@@ -15,7 +15,7 @@ Cadra is not affiliated with Wondershare or CutWire Studios.
 | Stock Media | Free stock video (Pexels, Pixabay), sound effects (Freesound) and Lottie animations, with hover previews and a download button | `src/app/online/free/`, `StockMediaTab.qml`, `StockMediaCard.qml`, `resources/free-library/catalog.json` |
 | Lottie previews | Animated hover previews drawn by Drift's own Lottie renderer | `LottieFramePreviewImageProvider.*` |
 | Volume dots | Cool Edit Pro-style volume line on every clip with sound: click the line to add a dot, drag dots to shape the volume (middle = 100 %, top = +6 dB, bottom = silent), Shift-drag for level only, double-click or right-click a dot to remove it. Uses Drift's volume keyframes, so playback and export follow it | `TimelineVolumeEnvelope.qml`, `TimelineTrackItem.cpp` |
-| Name | Shown as Cadra everywhere (window, menus, About, installer). The About box keeps the credit to Drift. Settings live in their own "Cadra" folder; the in-app updater is off so it never offers upstream Drift | `PreferencesController.cpp` (BrandingTranslator), `main.cpp`, `installer/windows/Drift.iss`, `CMakeLists.txt` |
+| Name | Shown as Dafin everywhere (window, menus, About, installer). The About box keeps the credit to Drift. Settings live in their own "Dafin" folder; the in-app updater is off so it never offers upstream Drift | `PreferencesController.cpp` (BrandingTranslator), `main.cpp`, `installer/windows/Drift.iss`, `CMakeLists.txt` |
 | Cleanup | Everything downloaded from Stock Media goes to a temp folder that is deleted when Drift closes. Media a saved project uses is embedded in the `.drift` file, so projects never lose it | `FreeLibrary.cpp`, `ProjectFileController.cpp` (captureSave) |
 
 To switch the asset panel back to Drift's vertical rail, set `assets/tabStyle` to `rail` (Settings
@@ -24,8 +24,8 @@ UI for it is still to do). The old layout is still available as the "Edit" works
 ## Stock Media sources
 
 The tab is driven by a JSON catalog. On first run Drift copies the built-in one to your app data
-folder (`%APPDATA%\Cadra\Cadra\free-library\catalog.json` on Windows,
-`~/.local/share/Cadra/Cadra/free-library/catalog.json` on Linux) — use **Edit catalog** in the tab to open
+folder (`%APPDATA%\Dafin\Dafin\free-library\catalog.json` on Windows,
+`~/.local/share/Dafin/Dafin/free-library/catalog.json` on Linux) — use **Edit catalog** in the tab to open
 it, then **Reload catalog**. The `_help` block at the top of the file explains the format; any JSON
 search API can be added without code changes.
 
@@ -41,6 +41,6 @@ box — it is downloaded and also saved under "My Lotties" in the catalog for ne
 1. Push this branch to your fork of Drift.
 2. On GitHub: **Actions** → **Build** → **Run workflow**, pick this branch, platforms = `windows`.
 3. When it finishes (first run ≈ 1 h because Skia and Qt are built/cached), download the
-   `Cadra-Setup-*.exe` / portable zip from the run's **Artifacts**.
+   `Dafin-Setup-*.exe` / portable zip from the run's **Artifacts**.
 
 Linux: same workflow with `linux` (AppImage) or `flatpak`, or build locally per `docs/BUILDING.md`.

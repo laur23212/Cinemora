@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Regenerate every packaged app icon from the single master image.
 
-Master: Drift_icon.png at the repository root (Cadra's icon artwork, kept as supplied).
+Master: Drift_icon.png at the repository root (Dafin's icon artwork, kept as supplied).
 Outputs are plain downscales of it; nothing is recoloured, cropped or padded.
 
     python3 tools/icons/generate_icons.py          # needs Pillow

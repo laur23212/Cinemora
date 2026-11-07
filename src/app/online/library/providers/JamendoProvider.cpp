@@ -4,7 +4,7 @@
 #include <QJsonObject>
 #include <QUrlQuery>
 
-namespace cadra::assets {
+namespace dafin::assets {
 
 ProviderInfo JamendoProvider::info() const
 {
@@ -120,4 +120,4 @@ RequestHandle JamendoProvider::search(const SearchRequest &request, SearchCallba
     });
 }
 
-} // namespace cadra::assets
+} // namespace dafin::assets

@@ -2,7 +2,7 @@
 
 #include "app/online/library/AssetProvider.h"
 
-namespace cadra::assets {
+namespace dafin::assets {
 
 // Pixabay stock video. Free API key (query parameter). Terms: show Pixabay as the source, cache
 // search requests for 24 hours, no permanent hotlinking (files are downloaded before use).
@@ -18,4 +18,4 @@ public:
     static SearchPage parse(const QJsonDocument &doc, int page, int pageSize);
 };
 
-} // namespace cadra::assets
+} // namespace dafin::assets

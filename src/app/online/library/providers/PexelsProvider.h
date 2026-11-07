@@ -2,7 +2,7 @@
 
 #include "app/online/library/AssetProvider.h"
 
-namespace cadra::assets {
+namespace dafin::assets {
 
 // Pexels stock video. Free API key (Authorization header). Terms: show a prominent link to
 // Pexels, credit the videographer, do not replicate Pexels' core functionality.
@@ -20,4 +20,4 @@ public:
     static SearchPage parse(const QJsonDocument &doc, int pageSize);
 };
 
-} // namespace cadra::assets
+} // namespace dafin::assets

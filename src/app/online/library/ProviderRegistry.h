@@ -9,7 +9,7 @@
 
 class QNetworkAccessManager;
 
-namespace cadra::assets {
+namespace dafin::assets {
 
 class AuthManager;
 
@@ -47,4 +47,4 @@ private:
     std::vector<std::unique_ptr<AssetProvider>> m_providers;
 };
 
-} // namespace cadra::assets
+} // namespace dafin::assets

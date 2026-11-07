@@ -2,7 +2,7 @@
 
 #include "app/online/library/AssetProvider.h"
 
-namespace cadra::assets {
+namespace dafin::assets {
 
 // Freesound sound effects. An API key gives search and HQ MP3 previews (downloadable without
 // OAuth); an optional OAuth2 sign-in (the user's own client id/secret) unlocks original-quality
@@ -28,4 +28,4 @@ private:
                                AuthCallback callback);
 };
 
-} // namespace cadra::assets
+} // namespace dafin::assets

@@ -9,7 +9,7 @@
 
 #include <memory>
 
-namespace cadra::assets::session {
+namespace dafin::assets::session {
 
 namespace {
 constexpr qint64 kStaleSecs = 24 * 3600;
@@ -17,7 +17,7 @@ const char kPrefix[] = "session-";
 
 QString baseDir()
 {
-    return QStandardPaths::writableLocation(QStandardPaths::TempLocation) + QStringLiteral("/cadra-assets");
+    return QStandardPaths::writableLocation(QStandardPaths::TempLocation) + QStringLiteral("/dafin-assets");
 }
 
 struct Session
@@ -85,7 +85,7 @@ void sweepStale()
         QLockFile lock(info.absoluteFilePath() + QStringLiteral("/.lock"));
         lock.setStaleLockTime(0);
         if (!lock.tryLock(0))
-            continue; // a running Cadra owns it
+            continue; // a running Dafin owns it
         lock.unlock();
         if (info.lastModified().toUTC().secsTo(now) < kStaleSecs)
             continue; // likely a crash: keep it a day for crash recovery
@@ -93,4 +93,4 @@ void sweepStale()
     }
 }
 
-} // namespace cadra::assets::session
+} // namespace dafin::assets::session

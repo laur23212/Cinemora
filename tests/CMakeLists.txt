@@ -435,7 +435,7 @@ qt_add_resources(tst_workspacestore "workspace_presets"
 add_test(NAME WorkspaceStore COMMAND tst_workspacestore)
 
 # Online asset providers, search, credentials, downloads and the local asset database.
-set(CADRA_ASSET_LIBRARY_SOURCES
+set(DAFIN_ASSET_LIBRARY_SOURCES
     ../src/app/online/library/AssetProvider.cpp
     ../src/app/online/library/AssetSearchService.cpp
     ../src/app/online/library/AuthManager.cpp
@@ -445,22 +445,22 @@ set(CADRA_ASSET_LIBRARY_SOURCES
     ../src/app/online/library/SecretStore.cpp
     ../src/app/online/library/SessionFiles.cpp
     ../src/app/online/library/ThumbnailCache.cpp
-    ../src/app/online/library/providers/CadraLibraryProvider.cpp
+    ../src/app/online/library/providers/DafinLibraryProvider.cpp
     ../src/app/online/library/providers/CatalogProvider.cpp
     ../src/app/online/library/providers/FreesoundProvider.cpp
     ../src/app/online/library/providers/JamendoProvider.cpp
     ../src/app/online/library/providers/OpenverseProvider.cpp
     ../src/app/online/library/providers/PexelsProvider.cpp
     ../src/app/online/library/providers/PixabayProvider.cpp)
-qt_add_executable(tst_onlineassets tst_onlineassets.cpp ${CADRA_ASSET_LIBRARY_SOURCES})
+qt_add_executable(tst_onlineassets tst_onlineassets.cpp ${DAFIN_ASSET_LIBRARY_SOURCES})
 target_include_directories(tst_onlineassets PRIVATE ../src)
-target_compile_definitions(tst_onlineassets PRIVATE CADRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+target_compile_definitions(tst_onlineassets PRIVATE DAFIN_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 target_link_libraries(tst_onlineassets PRIVATE Qt6::Test Qt6::Core Qt6::Network Qt6::Gui Qt6::Quick)
 if(WIN32)
     target_link_libraries(tst_onlineassets PRIVATE crypt32)
 endif()
 add_test(NAME OnlineAssets COMMAND tst_onlineassets)
-set_tests_properties(OnlineAssets PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;CADRA_PLAIN_SECRETS=1")
+set_tests_properties(OnlineAssets PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;DAFIN_PLAIN_SECRETS=1")
 
 qt_add_executable(tst_searchindex tst_searchindex.cpp ../src/app/editor/SearchIndex.cpp)
 target_include_directories(tst_searchindex PRIVATE ../src)

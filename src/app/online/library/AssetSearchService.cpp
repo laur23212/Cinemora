@@ -6,7 +6,7 @@
 
 #include <QSet>
 
-namespace cadra::assets {
+namespace dafin::assets {
 
 // ─── service ─────────────────────────────────────────────────────────────────────────────────
 
@@ -371,4 +371,4 @@ QVariantList AssetSearchModel::sources() const
     return out;
 }
 
-} // namespace cadra::assets
+} // namespace dafin::assets

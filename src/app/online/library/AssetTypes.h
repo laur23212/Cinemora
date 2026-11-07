@@ -12,7 +12,7 @@
 #include <QUrl>
 #include <QVariantMap>
 
-namespace cadra::assets {
+namespace dafin::assets {
 
 // What a panel shows. One provider can serve several kinds.
 enum class AssetKind { Video, Music, SoundEffect, Sticker, Title };
@@ -150,4 +150,4 @@ struct DownloadSpec
     qint64 expectedBytes = -1;
 };
 
-} // namespace cadra::assets
+} // namespace dafin::assets

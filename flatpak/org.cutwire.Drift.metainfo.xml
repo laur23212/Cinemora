@@ -2,11 +2,11 @@
 <!-- Copyright 2026 CutWire Studios -->
 <component type="desktop-application">
   <id>org.cutwire.Drift</id>
-  <name>Drift</name>
+  <name>Dafin</name>
   <summary>Edit and export videos easily</summary>
   <description>
     <p>
-      Drift is a free desktop video editor that feels simple from the first cut.
+      Dafin is a free desktop video editor, based on Drift, that feels simple from the first cut.
       Drop in video, photos, and music, add effects and stickers, generate captions
       automatically, and export — no subscription, no watermark, and no account
       required.

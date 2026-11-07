@@ -108,7 +108,7 @@ set(DRIFT_MARKET_CLIENT_KEY "5409a0bebab4446f88e51d06024a5cf9a694ee141a6a1c6be7a
 # Set it to an empty string for builds a package manager owns — the Flatpak manifests and the Arch
 # PKGBUILD all do. There, pacman or flatpak fetches the update on its own schedule and an in-app
 # nag is noise the user cannot act on (Flathub's quality guidelines say as much).
-# Cadra: no release feed of its own yet, and upstream Drift's feed would offer to replace Cadra
+# Dafin: no release feed of its own yet, and upstream Drift's feed would offer to replace Dafin
 # with plain Drift, so the update check is off.
 set(DRIFT_UPDATE_FEED_URL ""
     CACHE STRING "Release feed polled for updates; empty disables the update check")
@@ -1061,6 +1061,8 @@ endif()
 
 qt_add_executable(drift
     src/app/main.cpp
+    src/app/brand/RenameMigration.h
+    src/app/brand/RenameMigration.cpp
     src/ui/imageproviders/DriftImageProvider.h
     src/ui/imageproviders/DriftImageProvider.cpp
     src/ui/imageproviders/segment/SegmentImageProvider.h
@@ -1204,8 +1206,8 @@ target_sources(driftapp PRIVATE
     src/app/online/library/providers/JamendoProvider.cpp
     src/app/online/library/providers/OpenverseProvider.h
     src/app/online/library/providers/OpenverseProvider.cpp
-    src/app/online/library/providers/CadraLibraryProvider.h
-    src/app/online/library/providers/CadraLibraryProvider.cpp
+    src/app/online/library/providers/DafinLibraryProvider.h
+    src/app/online/library/providers/DafinLibraryProvider.cpp
     src/app/online/library/providers/CatalogProvider.h
     src/app/online/library/providers/CatalogProvider.cpp
     src/app/editor/AppController.h
@@ -1551,7 +1553,7 @@ qt_add_resources(drift "drift_workspaces"
         resources/workspaces/3d.json
 )
 
-# Cadra Open Library (stickers + title templates), bundled so the panels work offline; the
+# Dafin Open Library (stickers + title templates), bundled so the panels work offline; the
 # provider prefers the published copy of asset-library/index.json when it can reach it.
 qt_add_resources(drift "drift_asset_library"
     PREFIX "/asset-library"
@@ -3005,8 +3007,8 @@ function(drift_install_metadata source destination name)
     endif()
     file(READ "${CMAKE_SOURCE_DIR}/${source}" _content)
     string(REPLACE "org.cutwire.Drift" "${DRIFT_APP_ID}" _content "${_content}")
-    string(REPLACE "Name=Drift\n" "Name=${DRIFT_APP_NAME}\n" _content "${_content}")
-    string(REPLACE "<name>Drift</name>" "<name>${DRIFT_APP_NAME}</name>" _content "${_content}")
+    string(REPLACE "Name=Dafin\n" "Name=Dafin Nightly\n" _content "${_content}")
+    string(REPLACE "<name>Dafin</name>" "<name>Dafin Nightly</name>" _content "${_content}")
     set(_generated "${CMAKE_CURRENT_BINARY_DIR}/metadata/${name}")
     file(WRITE "${_generated}" "${_content}")
     install(FILES "${_generated}" DESTINATION "${destination}" COMPONENT drift)

@@ -6,21 +6,21 @@
 
 #include <utility>
 
-namespace cadra::assets {
+namespace dafin::assets {
 
-// Cadra Open Library: stickers and animated title templates (Lottie) whose licences allow
-// redistribution — Cadra's own CC0 designs plus permissively licensed samples. The index is a
-// JSON file published in the Cadra repository (updatable without a release) with a copy bundled
+// Dafin Open Library: stickers and animated title templates (Lottie) whose licences allow
+// redistribution — Dafin's own CC0 designs plus permissively licensed samples. The index is a
+// JSON file published in the Dafin repository (updatable without a release) with a copy bundled
 // in the app, so the panels work offline. No account.
 //
 // Index format (asset-library/index.json):
 //   { "version": 1, "items": [ { "id", "kind": "sticker"|"title", "title", "tags", "file",
 //     "license", "licenseUrl", "author", "authorUrl", "page", "editableText": bool } ] }
 // "file" is relative to the index URL.
-class CadraLibraryProvider : public AssetProvider
+class DafinLibraryProvider : public AssetProvider
 {
 public:
-    explicit CadraLibraryProvider(ProviderContext *context, QUrl remoteIndex = defaultRemoteIndex());
+    explicit DafinLibraryProvider(ProviderContext *context, QUrl remoteIndex = defaultRemoteIndex());
 
     static QUrl defaultRemoteIndex();
     static QUrl bundledIndex() { return QUrl(QStringLiteral("qrc:/asset-library/index.json")); }
@@ -42,4 +42,4 @@ private:
     QList<std::function<void()>> m_waiting;
 };
 
-} // namespace cadra::assets
+} // namespace dafin::assets

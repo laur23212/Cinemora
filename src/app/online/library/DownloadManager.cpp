@@ -19,7 +19,7 @@
 
 #include <memory>
 
-namespace cadra::assets {
+namespace dafin::assets {
 
 namespace {
 constexpr int kMaxParallel = 3;
@@ -472,4 +472,4 @@ void DownloadManager::fetchPreview(const AssetItem &item)
     });
 }
 
-} // namespace cadra::assets
+} // namespace dafin::assets

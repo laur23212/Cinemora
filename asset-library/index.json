@@ -1,7 +1,7 @@
 {
  "version": 1,
- "name": "Cadra Open Library",
- "note": "Cadra originals are dedicated to the public domain (CC0 1.0). Third-party items keep their own licence.",
+ "name": "Dafin Open Library",
+ "note": "Dafin originals are dedicated to the public domain (CC0 1.0). Third-party items keep their own licence.",
  "items": [
   {
    "id": "heart-pop",
@@ -11,7 +11,7 @@
    "file": "stickers/heart-pop.json",
    "license": "CC0 1.0",
    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
-   "author": "Cadra",
+   "author": "Dafin",
    "previewAt": 0.5,
    "duration": 2.0
   },
@@ -23,7 +23,7 @@
    "file": "stickers/star-burst.json",
    "license": "CC0 1.0",
    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
-   "author": "Cadra",
+   "author": "Dafin",
    "previewAt": 0.6,
    "duration": 1.5
   },
@@ -35,7 +35,7 @@
    "file": "stickers/check-draw.json",
    "license": "CC0 1.0",
    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
-   "author": "Cadra",
+   "author": "Dafin",
    "previewAt": 0.8,
    "duration": 1.5
   },
@@ -47,7 +47,7 @@
    "file": "stickers/arrow-nudge.json",
    "license": "CC0 1.0",
    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
-   "author": "Cadra",
+   "author": "Dafin",
    "previewAt": 0.5,
    "duration": 1.33
   },
@@ -59,7 +59,7 @@
    "file": "stickers/sparkles.json",
    "license": "CC0 1.0",
    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
-   "author": "Cadra",
+   "author": "Dafin",
    "previewAt": 0.25,
    "duration": 2.0
   },
@@ -71,7 +71,7 @@
    "file": "stickers/ring-highlight.json",
    "license": "CC0 1.0",
    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
-   "author": "Cadra",
+   "author": "Dafin",
    "previewAt": 0.9,
    "duration": 1.33
   },
@@ -83,7 +83,7 @@
    "file": "stickers/speech-bubble.json",
    "license": "CC0 1.0",
    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
-   "author": "Cadra",
+   "author": "Dafin",
    "previewAt": 0.6,
    "duration": 2.0
   },
@@ -95,7 +95,7 @@
    "file": "stickers/confetti-pop.json",
    "license": "CC0 1.0",
    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
-   "author": "Cadra",
+   "author": "Dafin",
    "previewAt": 0.4,
    "duration": 1.67
   },
@@ -107,7 +107,7 @@
    "file": "stickers/lightning.json",
    "license": "CC0 1.0",
    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
-   "author": "Cadra",
+   "author": "Dafin",
    "previewAt": 0.5,
    "duration": 1.2
   },
@@ -119,7 +119,7 @@
    "file": "titles/lower-third-slide.json",
    "license": "CC0 1.0",
    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
-   "author": "Cadra",
+   "author": "Dafin",
    "previewAt": 0.3,
    "duration": 5.0,
    "editableText": true
@@ -132,7 +132,7 @@
    "file": "titles/title-fade-up.json",
    "license": "CC0 1.0",
    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
-   "author": "Cadra",
+   "author": "Dafin",
    "previewAt": 0.45,
    "duration": 4.0,
    "editableText": true
@@ -145,7 +145,7 @@
    "file": "titles/chapter-line.json",
    "license": "CC0 1.0",
    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
-   "author": "Cadra",
+   "author": "Dafin",
    "previewAt": 0.5,
    "duration": 4.0,
    "editableText": true
@@ -158,7 +158,7 @@
    "file": "titles/pop-title.json",
    "license": "CC0 1.0",
    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
-   "author": "Cadra",
+   "author": "Dafin",
    "previewAt": 0.4,
    "duration": 3.0,
    "editableText": true
@@ -171,7 +171,7 @@
    "file": "titles/corner-tag.json",
    "license": "CC0 1.0",
    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
-   "author": "Cadra",
+   "author": "Dafin",
    "previewAt": 0.5,
    "duration": 4.0,
    "editableText": true

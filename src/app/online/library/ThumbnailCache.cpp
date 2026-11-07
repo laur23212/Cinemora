@@ -16,7 +16,7 @@
 
 #include <algorithm>
 
-namespace cadra::assets {
+namespace dafin::assets {
 
 namespace {
 constexpr int kMaxParallel = 6;
@@ -232,4 +232,4 @@ QQuickImageResponse *AssetThumbnailImageProvider::requestImageResponse(const QSt
     return new ThumbResponse(m_cache.data(), providerId, url, requestedSize);
 }
 
-} // namespace cadra::assets
+} // namespace dafin::assets

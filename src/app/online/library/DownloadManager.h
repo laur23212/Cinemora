@@ -14,7 +14,7 @@ class QNetworkAccessManager;
 class QSaveFile;
 class QTimer;
 
-namespace cadra::assets {
+namespace dafin::assets {
 
 class LocalAssetDatabase;
 class ProviderRegistry;
@@ -22,7 +22,7 @@ class ProviderRegistry;
 // Fetches full assets: asks the provider what to download (download()), streams it to disk,
 // checks it, records it in the local asset database and imports it into the media bin.
 //
-// Where files go: a per-session temporary folder that is deleted when Cadra quits (sessions left
+// Where files go: a per-session temporary folder that is deleted when Dafin quits (sessions left
 // by a crash are swept a day later), or — with "Keep downloaded assets" on — a permanent library
 // folder. Session files a saved project uses are embedded into the .drift file on save
 // (ProjectFileController::captureSave asks isSessionFile()).
@@ -104,4 +104,4 @@ private:
     QHash<QString, QPointer<QNetworkReply>> m_previewReplies;
 };
 
-} // namespace cadra::assets
+} // namespace dafin::assets

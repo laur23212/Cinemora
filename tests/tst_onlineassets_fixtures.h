@@ -40,7 +40,7 @@ const char kOpenversePage[] = R"({"result_count":30,"page_count":2,"page_size":2
              "license":"by","license_version":"4.0","license_url":"https://creativecommons.org/licenses/by/4.0/",
              "attribution":"\"Rain\" by Kim is licensed under CC BY 4.0.","foreign_landing_url":"https://freesound.org/s/1/","category":"sound_effect"}]})";
 
-const char kCadraIndex[] = R"({"version":1,"items":[
+const char kDafinIndex[] = R"({"version":1,"items":[
             {"id":"heart","kind":"sticker","title":"Heart pop","tags":"love","file":"stickers/heart.json","license":"CC0 1.0"},
             {"id":"lt","kind":"title","title":"Lower third","tags":"name","file":"titles/lt.json","editableText":true},
             {"id":"remote","kind":"sticker","title":"Wave","file":"https://raw.example/wave.json","license":"Apache-2.0"},

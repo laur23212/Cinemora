@@ -10,7 +10,7 @@
 #include <QSet>
 #include <QTimer>
 
-namespace cadra::assets {
+namespace dafin::assets {
 
 class AuthManager;
 class ProviderRegistry;
@@ -135,4 +135,4 @@ private:
     QTimer m_debounce;
 };
 
-} // namespace cadra::assets
+} // namespace dafin::assets

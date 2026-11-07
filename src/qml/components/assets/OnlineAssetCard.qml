@@ -9,7 +9,7 @@ import Drift
 // Previews by kind:
 //   video          thumbnail; hovering plays the provider's small preview clip, muted
 //   music / sfx    waveform image, cover art or waveform peaks; ▶ plays the preview (never on hover)
-//   sticker/title  the Lottie itself, drawn by Cadra's renderer (image://lottieframe/), animating
+//   sticker/title  the Lottie itself, drawn by Dafin's renderer (image://lottieframe/), animating
 //                  on hover and resting on a representative frame
 // Download button states: none → queued → downloading (ring) → done (✓, click adds it again) /
 // failed (retry). Items whose licence forbids download show a lock with the reason.
@@ -143,7 +143,7 @@ Item {
             onClicked: root.playing = !root.playing
         }
 
-        // ── Lottie: frames from Cadra's renderer; two images take turns so it never blinks ──
+        // ── Lottie: frames from Dafin's renderer; two images take turns so it never blinks ──
         property real lottieT: root.item.extra && root.item.extra.previewAt !== undefined ? root.item.extra.previewAt : 0.5
         property bool frontIsA: true
         function frameUrl(t) {

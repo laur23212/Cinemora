@@ -7,7 +7,7 @@
 #include <QUrlQuery>
 #include <QFileInfo>
 
-namespace cadra::assets {
+namespace dafin::assets {
 
 CatalogProvider::CatalogProvider(ProviderContext *context, QJsonObject source)
     : AssetProvider(context)
@@ -221,4 +221,4 @@ RequestHandle CatalogProvider::search(const SearchRequest &request, SearchCallba
     });
 }
 
-} // namespace cadra::assets
+} // namespace dafin::assets

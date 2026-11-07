@@ -2,7 +2,7 @@
 
 #include "app/online/library/AssetProvider.h"
 
-namespace cadra::assets {
+namespace dafin::assets {
 
 // Openverse (WordPress.org) openly licensed audio: music and sound effects aggregated from
 // Jamendo, Freesound, ccMixter and others. Works anonymously; registering an application
@@ -28,4 +28,4 @@ private:
     RequestHandle fetchToken(const Credentials &creds, AuthCallback callback);
 };
 
-} // namespace cadra::assets
+} // namespace dafin::assets

@@ -51,7 +51,7 @@ namespace {
 QTranslator g_appTranslator;
 QTranslator g_qtTranslator;
 
-// Cadra branding: the UI text still says "Drift" (upstream's strings and their translations are
+// Dafin branding: the UI text still says "Drift" (upstream's strings and their translations are
 // kept as they are, so every language keeps working and upstream changes merge cleanly). This
 // translator is installed last, so Qt asks it first: for any string that mentions Drift it fetches
 // the normal translation itself and swaps the product name. Text that must keep naming Drift — the
@@ -62,7 +62,7 @@ public:
     static QString rebrand(QString text)
     {
         static const QRegularExpression pattern(QStringLiteral("\\b(?:CutWire )?Drift\\b"));
-        return text.replace(pattern, QStringLiteral("Cadra"));
+        return text.replace(pattern, QStringLiteral("Dafin"));
     }
 
     bool isEmpty() const override { return false; }

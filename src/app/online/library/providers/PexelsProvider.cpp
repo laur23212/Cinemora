@@ -4,7 +4,7 @@
 #include <QJsonObject>
 #include <QUrlQuery>
 
-namespace cadra::assets {
+namespace dafin::assets {
 
 namespace {
 constexpr auto kApi = "https://api.pexels.com/v1/videos/";
@@ -124,4 +124,4 @@ RequestHandle PexelsProvider::download(const AssetItem &item, DownloadSpecCallba
     return AssetProvider::download(item, std::move(callback));
 }
 
-} // namespace cadra::assets
+} // namespace dafin::assets

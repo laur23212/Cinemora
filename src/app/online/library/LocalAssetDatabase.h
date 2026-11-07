@@ -10,7 +10,7 @@
 
 #include <optional>
 
-namespace cadra::assets {
+namespace dafin::assets {
 
 // Every asset downloaded through a provider, with what is needed to credit it later. Stored as
 // a versioned JSON document (written atomically, debounced) — see the design doc for the schema
@@ -68,4 +68,4 @@ private:
     QTimer m_saveTimer;
 };
 
-} // namespace cadra::assets
+} // namespace dafin::assets

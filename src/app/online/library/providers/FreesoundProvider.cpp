@@ -7,7 +7,7 @@
 #include <QNetworkReply>
 #include <QUrlQuery>
 
-namespace cadra::assets {
+namespace dafin::assets {
 
 namespace {
 constexpr auto kApi = "https://freesound.org/apiv2/";
@@ -135,7 +135,7 @@ QUrl FreesoundProvider::oauthAuthorizationUrl(const Credentials &partial) const
     QUrlQuery q;
     q.addQueryItem(QStringLiteral("client_id"), clientId);
     q.addQueryItem(QStringLiteral("response_type"), QStringLiteral("code"));
-    q.addQueryItem(QStringLiteral("state"), QStringLiteral("cadra"));
+    q.addQueryItem(QStringLiteral("state"), QStringLiteral("dafin"));
     url.setQuery(q);
     return url;
 }
@@ -246,4 +246,4 @@ RequestHandle FreesoundProvider::download(const AssetItem &item, DownloadSpecCal
                         });
 }
 
-} // namespace cadra::assets
+} // namespace dafin::assets

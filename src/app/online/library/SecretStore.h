@@ -6,12 +6,12 @@
 #include <memory>
 #include <optional>
 
-namespace cadra::assets {
+namespace dafin::assets {
 
 // Where provider credentials are kept. The best available backend is chosen at startup:
 //   Windows  — DPAPI (CryptProtectData, bound to the Windows user account), files in AppData
 //   Linux    — the Secret Service keyring (GNOME Keyring, KWallet ≥ 5.97…) via libsecret,
-//              loaded at runtime so Cadra builds and runs without it
+//              loaded at runtime so Dafin builds and runs without it
 //   fallback — a JSON file readable only by the user (0600). Not encrypted; the Settings page
 //              says so. Used on macOS for now and on Linux without a running keyring.
 class SecretStore
@@ -31,4 +31,4 @@ public:
     static std::unique_ptr<SecretStore> createFileStore(const QString &directory);
 };
 
-} // namespace cadra::assets
+} // namespace dafin::assets

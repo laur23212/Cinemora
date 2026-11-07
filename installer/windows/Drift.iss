@@ -12,9 +12,10 @@
 ;    /DArm64    builds the arm64 installer (default x64): only the allowed and 64-bit-mode
 ;               architecture and the output name change.
 ;
-; Cadra uses its own AppIds so it never upgrades or removes an installed Drift.
+; Dafin uses its own AppIds so it never upgrades or removes an installed Drift.
 ; Never change either AppId: it is what lets an installer upgrade an existing install
-; in place instead of leaving two copies behind.
+; in place instead of leaving two copies behind. (The app was called Cadra before; these are
+; the same AppIds, so installing Dafin replaces a Cadra install.)
 #ifdef Arm64
   #define Arch "arm64"
   #define MyArchSpec "arm64"
@@ -24,15 +25,15 @@
 #endif
 
 #ifdef Nightly
-  #define MyAppName "Cadra Nightly"
+  #define MyAppName "Dafin Nightly"
   #define MyAppId "FAEDEE19-55F3-4445-999A-19E5511A7F75"
-  #define MyOutputBase "Cadra-Setup-Nightly-" + Arch
+  #define MyOutputBase "Dafin-Setup-Nightly-" + Arch
 #else
-  #define MyAppName "Cadra"
+  #define MyAppName "Dafin"
   #define MyAppId "873FEB4F-1F9C-446C-B88B-F39A64823BAA"
-  #define MyOutputBase "Cadra-Setup-" + Arch
+  #define MyOutputBase "Dafin-Setup-" + Arch
 #endif
-#define MyAppPublisher "Cadra (based on Drift by CutWire Studios)"
+#define MyAppPublisher "Dafin (based on Drift by CutWire Studios)"
 #define MyAppExeName "drift.exe"
 
 [Setup]
@@ -43,6 +44,8 @@ AppPublisher={#MyAppPublisher}
 AppSupportURL=https://github.com/laur23212/Cinemora/issues
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
+; Not the previous install's Start menu folder: that one was named after Cadra.
+UsePreviousGroup=no
 ArchitecturesAllowed={#MyArchSpec}
 ArchitecturesInstallIn64BitMode={#MyArchSpec}
 Compression=lzma
@@ -70,6 +73,16 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 ; directories, which the app resolves relative to the executable.
 Source: "{#MyAppSource}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
+; Shortcuts left by an install from when the app was called Cadra.
+[InstallDelete]
+#ifdef Nightly
+Type: filesandordirs; Name: "{autoprograms}\Cadra Nightly"
+Type: files; Name: "{autodesktop}\Cadra Nightly.lnk"
+#else
+Type: filesandordirs; Name: "{autoprograms}\Cadra"
+Type: files; Name: "{autodesktop}\Cadra.lnk"
+#endif
+
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
@@ -79,10 +92,12 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 ; delete the association out from under the stable install (uninsdeletekey), and two channels
 ; fighting over which opens a .drift file helps nobody.
 [Registry]
-Root: HKCR; Subkey: ".drift"; ValueType: string; ValueName: ""; ValueData: "Cadra.Project"; Flags: uninsdeletevalue
-Root: HKCR; Subkey: "Cadra.Project"; ValueType: string; ValueName: ""; ValueData: "Cadra Project"; Flags: uninsdeletekey
-Root: HKCR; Subkey: "Cadra.Project\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#MyAppExeName},0"
-Root: HKCR; Subkey: "Cadra.Project\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" ""%1"""
+; The file type registered under the app's earlier name.
+Root: HKCR; Subkey: "Cadra.Project"; Flags: deletekey
+Root: HKCR; Subkey: ".drift"; ValueType: string; ValueName: ""; ValueData: "Dafin.Project"; Flags: uninsdeletevalue
+Root: HKCR; Subkey: "Dafin.Project"; ValueType: string; ValueName: ""; ValueData: "Dafin Project"; Flags: uninsdeletekey
+Root: HKCR; Subkey: "Dafin.Project\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#MyAppExeName},0"
+Root: HKCR; Subkey: "Dafin.Project\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" ""%1"""
 #endif
 
 [Run]

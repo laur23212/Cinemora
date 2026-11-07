@@ -55,8 +55,8 @@ QStringList platformSupportedBackdrops()
 QSettings themeSettings()
 {
     if (QCoreApplication::organizationName().isEmpty()) {
-        return QSettings(QSettings::UserScope, QStringLiteral("Cadra"),
-                         QStringLiteral("Cadra"));
+        return QSettings(QSettings::UserScope, QStringLiteral("Dafin"),
+                         QStringLiteral("Dafin"));
     }
     return QSettings();
 }

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Generates the Cadra Open Library (asset-library/): original Lottie stickers and animated
+"""Generates the Dafin Open Library (asset-library/): original Lottie stickers and animated
 title templates, dedicated to the public domain (CC0 1.0), plus index.json.
 
 Run from the repository root:  python3 tools/asset-library/generate.py
-Titles expose their words as Lottie text slots ("title", "subtitle"), which Cadra's Properties
+Titles expose their words as Lottie text slots ("title", "subtitle"), which Dafin's Properties
 panel edits. Fonts: Arial Bold (Windows) / its fontconfig alias (Linux)."""
 import json, math, os
 
@@ -58,7 +58,7 @@ def layer(ind, name, shapes, op, transform):
             "shapes": shapes, "ip": 0, "op": op, "st": 0, "bm": 0}
 
 def doc(w, h, op, layers, extra=None):
-    d = {"v": "5.7.4", "fr": FPS, "ip": 0, "op": op, "w": w, "h": h, "nm": "Cadra", "ddd": 0,
+    d = {"v": "5.7.4", "fr": FPS, "ip": 0, "op": op, "w": w, "h": h, "nm": "Dafin", "ddd": 0,
          "assets": [], "layers": layers}
     if extra: d.update(extra)
     return d
@@ -257,8 +257,8 @@ add_title("corner-tag", "Corner tag", "tag label live new corner badge",
           ], {"title": ("NEW VIDEO", 48, WHITE, 0)}), 0.5)
 
 # ── write ──
-index = {"version": 1, "name": "Cadra Open Library",
-         "note": "Cadra originals are dedicated to the public domain (CC0 1.0). Third-party items keep their own licence.",
+index = {"version": 1, "name": "Dafin Open Library",
+         "note": "Dafin originals are dedicated to the public domain (CC0 1.0). Third-party items keep their own licence.",
          "items": []}
 for group_items, folder in ((stickers, "stickers"), (titles, "titles")):
     os.makedirs(os.path.join(OUT, folder), exist_ok=True)
@@ -267,7 +267,7 @@ for group_items, folder in ((stickers, "stickers"), (titles, "titles")):
         with open(os.path.join(OUT, rel), "w") as f:
             json.dump(it["data"], f, separators=(",", ":"))
         entry = {"id": it["id"], "kind": it["kind"], "title": it["title"], "tags": it["tags"], "file": rel,
-                 "license": CC0[0], "licenseUrl": CC0[1], "author": "Cadra", "previewAt": it["previewAt"],
+                 "license": CC0[0], "licenseUrl": CC0[1], "author": "Dafin", "previewAt": it["previewAt"],
                  "duration": round(it["data"]["op"] / FPS, 2)}
         if it.get("editableText"):
             entry["editableText"] = True

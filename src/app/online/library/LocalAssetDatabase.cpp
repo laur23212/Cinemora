@@ -8,7 +8,7 @@
 #include <QJsonObject>
 #include <QSaveFile>
 
-namespace cadra::assets {
+namespace dafin::assets {
 
 QJsonObject AssetRecord::toJson() const
 {
@@ -76,7 +76,7 @@ void LocalAssetDatabase::load()
     const QJsonObject root = QJsonDocument::fromJson(f.readAll()).object();
     const int version = root.value(QStringLiteral("schemaVersion")).toInt(0);
     if (version > kSchemaVersion)
-        return; // written by a newer Cadra: read nothing rather than lose fields on save
+        return; // written by a newer Dafin: read nothing rather than lose fields on save
     // Migrations from older schema versions go here (version < kSchemaVersion).
     for (const QJsonValue &v : root.value(QStringLiteral("assets")).toArray()) {
         const AssetRecord r = AssetRecord::fromJson(v.toObject());
@@ -144,4 +144,4 @@ void LocalAssetDatabase::flush()
     f.commit();
 }
 
-} // namespace cadra::assets
+} // namespace dafin::assets

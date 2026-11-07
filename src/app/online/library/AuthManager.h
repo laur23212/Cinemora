@@ -8,7 +8,7 @@
 
 #include <memory>
 
-namespace cadra::assets {
+namespace dafin::assets {
 
 class ProviderRegistry;
 class SecretStore;
@@ -69,4 +69,4 @@ private:
     QSet<QString> m_busy;
 };
 
-} // namespace cadra::assets
+} // namespace dafin::assets

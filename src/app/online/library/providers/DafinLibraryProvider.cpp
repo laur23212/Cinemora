@@ -1,4 +1,4 @@
-#include "app/online/library/providers/CadraLibraryProvider.h"
+#include "app/online/library/providers/DafinLibraryProvider.h"
 
 #include <QFile>
 #include <QJsonArray>
@@ -7,30 +7,30 @@
 #include <QNetworkReply>
 #include <QSettings>
 
-namespace cadra::assets {
+namespace dafin::assets {
 
-CadraLibraryProvider::CadraLibraryProvider(ProviderContext *context, QUrl remoteIndex)
+DafinLibraryProvider::DafinLibraryProvider(ProviderContext *context, QUrl remoteIndex)
     : AssetProvider(context)
     , m_remoteIndex(std::move(remoteIndex))
 {
 }
 
-QUrl CadraLibraryProvider::defaultRemoteIndex()
+QUrl DafinLibraryProvider::defaultRemoteIndex()
 {
-    // Overridable for testing a library branch: Settings key AssetProviders/cadraLibraryIndex.
-    const QString custom = QSettings().value(QStringLiteral("AssetProviders/cadraLibraryIndex")).toString();
+    // Overridable for testing a library branch: Settings key AssetProviders/dafinLibraryIndex.
+    const QString custom = QSettings().value(QStringLiteral("AssetProviders/dafinLibraryIndex")).toString();
     if (!custom.isEmpty())
         return QUrl(custom);
     return QUrl(QStringLiteral("https://raw.githubusercontent.com/laur23212/Cinemora/filmora-edition/asset-library/index.json"));
 }
 
-ProviderInfo CadraLibraryProvider::info() const
+ProviderInfo DafinLibraryProvider::info() const
 {
     ProviderInfo i;
-    i.id = QStringLiteral("cadra");
-    i.name = QStringLiteral("Cadra Open Library");
+    i.id = QStringLiteral("dafin");
+    i.name = QStringLiteral("Dafin Open Library");
     i.kinds = {AssetKind::Sticker, AssetKind::Title};
-    i.description = QObject::tr("Animated stickers and title templates that come with Cadra (CC0 and Apache-2.0).");
+    i.description = QObject::tr("Animated stickers and title templates that come with Dafin (CC0 and Apache-2.0).");
     i.license = QObject::tr("Per item (CC0 1.0 or Apache-2.0)");
     i.homepage = QUrl(QStringLiteral("https://github.com/laur23212/Cinemora"));
     i.requiresAccount = false;
@@ -38,7 +38,7 @@ ProviderInfo CadraLibraryProvider::info() const
     return i;
 }
 
-QList<AssetItem> CadraLibraryProvider::parseIndex(const QJsonDocument &doc, const QUrl &base)
+QList<AssetItem> DafinLibraryProvider::parseIndex(const QJsonDocument &doc, const QUrl &base)
 {
     QList<AssetItem> out;
     for (const QJsonValue &v : doc.object().value(QStringLiteral("items")).toArray()) {
@@ -49,11 +49,11 @@ QList<AssetItem> CadraLibraryProvider::parseIndex(const QJsonDocument &doc, cons
         if (file.isEmpty() || !ok || o.value(QStringLiteral("id")).toString().isEmpty())
             continue;
         AssetItem a;
-        a.providerId = QStringLiteral("cadra");
+        a.providerId = QStringLiteral("dafin");
         a.id = o.value(QStringLiteral("id")).toString();
         a.kind = kind;
         a.title = o.value(QStringLiteral("title")).toString(a.id);
-        a.author = o.value(QStringLiteral("author")).toString(QStringLiteral("Cadra"));
+        a.author = o.value(QStringLiteral("author")).toString(QStringLiteral("Dafin"));
         a.authorUrl = QUrl(o.value(QStringLiteral("authorUrl")).toString());
         a.pageUrl = QUrl(o.value(QStringLiteral("page")).toString());
         a.downloadUrl = base.resolved(QUrl(file));
@@ -74,7 +74,7 @@ QList<AssetItem> CadraLibraryProvider::parseIndex(const QJsonDocument &doc, cons
     return out;
 }
 
-SearchPage CadraLibraryProvider::filter(const QList<AssetItem> &all, const SearchRequest &request)
+SearchPage DafinLibraryProvider::filter(const QList<AssetItem> &all, const SearchRequest &request)
 {
     const QStringList words = request.query.toLower().split(QLatin1Char(' '), Qt::SkipEmptyParts);
     QList<AssetItem> matching;
@@ -98,14 +98,14 @@ SearchPage CadraLibraryProvider::filter(const QList<AssetItem> &all, const Searc
     return page;
 }
 
-void CadraLibraryProvider::loadBundled()
+void DafinLibraryProvider::loadBundled()
 {
     QFile f(QStringLiteral(":/asset-library/index.json"));
     if (f.open(QIODevice::ReadOnly))
         m_items = parseIndex(QJsonDocument::fromJson(f.readAll()), bundledIndex());
 }
 
-void CadraLibraryProvider::ensureIndex(std::function<void()> then)
+void DafinLibraryProvider::ensureIndex(std::function<void()> then)
 {
     if (m_loadedAt.isValid() && m_loadedAt.secsTo(QDateTime::currentDateTimeUtc()) < 3600) {
         then();
@@ -132,7 +132,7 @@ void CadraLibraryProvider::ensureIndex(std::function<void()> then)
     });
 }
 
-RequestHandle CadraLibraryProvider::search(const SearchRequest &request, SearchCallback callback)
+RequestHandle DafinLibraryProvider::search(const SearchRequest &request, SearchCallback callback)
 {
     RequestHandle handle;
     const auto cancelled = handle.flag();
@@ -144,4 +144,4 @@ RequestHandle CadraLibraryProvider::search(const SearchRequest &request, SearchC
     return handle;
 }
 
-} // namespace cadra::assets
+} // namespace dafin::assets

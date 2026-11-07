@@ -1,6 +1,7 @@
 #include "engine/encode/writers/AudioFileWriter.h"
 #include "core/base/CacheRoot.h"
 #include "app/bin/MediaBinController.h"
+#include "app/brand/RenameMigration.h"
 #include "app/editor/PreferencesController.h"
 #include "app/editor/ProjectFileController.h"
 #include "app/mcp/McpController.h"
@@ -543,8 +544,8 @@ int main(int argc, char *argv[])
     for (int i = 1; i < argc; ++i) {
         if (qstrcmp(argv[i], "--mcp-stdio") == 0) {
             QCoreApplication app(argc, argv);
-            QCoreApplication::setApplicationName("Cadra");
-            QCoreApplication::setOrganizationName("Cadra");
+            QCoreApplication::setApplicationName("Dafin");
+            QCoreApplication::setOrganizationName("Dafin");
             // --mcp-instance <pid> pins the bridge to one instance from its config, for a
             // client that must always edit the same editor.
             qint64 pinnedPid = 0;
@@ -615,8 +616,10 @@ int main(int argc, char *argv[])
 
     // Names must be set before reading QSettings for ui/scale, and QT_SCALE_FACTOR
     // must be in the environment before QApplication is constructed.
-    QCoreApplication::setApplicationName("Cadra");
-    QCoreApplication::setOrganizationName("Cadra");
+    QCoreApplication::setApplicationName("Dafin");
+    QCoreApplication::setOrganizationName("Dafin");
+    // Settings and data saved when the app was called Cadra move over before anything reads them.
+    dafin::migrateFromCadra();
     // Reads QSettings, so after the names. Qt Quick stays on OpenGL with a global share context
     // unless the user picked another API in Settings; see GraphicsApiChoice.h.
     [[maybe_unused]] const bool graphicsApiGuarded = drift::graphics::applyAtStartup(argc, argv);
@@ -820,7 +823,7 @@ int main(int argc, char *argv[])
     qmlRegisterSingletonInstance("Drift", 1, 0, "DriftAssets", &market.driftAssets);
     qmlRegisterSingletonInstance("Drift", 1, 0, "Sfx", &market.sfx);
     qmlRegisterSingletonInstance("Drift", 1, 0, "OnlineAssets", &market.onlineAssets);
-    qmlRegisterType<cadra::assets::AssetSearchModel>("Drift", 1, 0, "AssetSearchModel");
+    qmlRegisterType<dafin::assets::AssetSearchModel>("Drift", 1, 0, "AssetSearchModel");
     qmlRegisterSingletonInstance("Drift", 1, 0, "Marketplace", &market.manifest);
     qmlRegisterType<MarketSourceBrowser>("Drift", 1, 0, "MarketSourceBrowser");
     qmlRegisterType<MarketItemLoader>("Drift", 1, 0, "MarketItemLoader");
@@ -891,7 +894,7 @@ int main(int argc, char *argv[])
     engine.addImageProvider(QStringLiteral("shape"), new ShapePreviewImageProvider());
     engine.addImageProvider(QStringLiteral("lottieframe"), new LottieFramePreviewImageProvider());
     engine.addImageProvider(QStringLiteral("assetthumb"),
-                            new cadra::assets::AssetThumbnailImageProvider(market.onlineAssets.thumbnails()));
+                            new dafin::assets::AssetThumbnailImageProvider(market.onlineAssets.thumbnails()));
     engine.addImageProvider(QStringLiteral("textanim"), new TextAnimPreviewImageProvider());
     engine.addImageProvider(QStringLiteral("textlook"), new TextLookPreviewImageProvider());
     engine.addImageProvider(QStringLiteral("color"), new ColorImageProvider());

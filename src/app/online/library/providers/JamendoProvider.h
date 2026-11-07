@@ -2,7 +2,7 @@
 
 #include "app/online/library/AssetProvider.h"
 
-namespace cadra::assets {
+namespace dafin::assets {
 
 // Jamendo music (Creative Commons). Needs a free client_id from devportal.jamendo.com. Terms:
 // offer download only when the track's `audiodownload_allowed` is true; credit artist + licence.
@@ -18,4 +18,4 @@ public:
     static SearchPage parse(const QJsonDocument &doc, int pageSize, ProviderError *error);
 };
 
-} // namespace cadra::assets
+} // namespace dafin::assets

@@ -9,7 +9,7 @@
 #include "app/online/library/ProviderRegistry.h"
 #include "app/online/library/SecretStore.h"
 #include "app/online/library/SessionFiles.h"
-#include "app/online/library/providers/CadraLibraryProvider.h"
+#include "app/online/library/providers/DafinLibraryProvider.h"
 #include "app/online/library/providers/CatalogProvider.h"
 #include "app/online/library/providers/FreesoundProvider.h"
 #include "app/online/library/providers/JamendoProvider.h"
@@ -31,7 +31,7 @@
 
 #include "tst_onlineassets_fixtures.h"
 
-using namespace cadra::assets;
+using namespace dafin::assets;
 using namespace fixtures;
 
 namespace {
@@ -114,7 +114,7 @@ private slots:
     void initTestCase()
     {
         QStandardPaths::setTestModeEnabled(true);
-        QCoreApplication::setOrganizationName(QStringLiteral("CadraTest"));
+        QCoreApplication::setOrganizationName(QStringLiteral("DafinTest"));
         QCoreApplication::setApplicationName(QStringLiteral("tst_onlineassets"));
     }
 
@@ -185,9 +185,9 @@ private slots:
         QVERIFY(p.hasMore);
     }
 
-    void cadraLibraryIndexResolvesAndFilters()
+    void dafinLibraryIndexResolvesAndFilters()
     {
-        const QList<AssetItem> items = CadraLibraryProvider::parseIndex(json(kCadraIndex), QUrl(QStringLiteral("qrc:/asset-library/index.json")));
+        const QList<AssetItem> items = DafinLibraryProvider::parseIndex(json(kDafinIndex), QUrl(QStringLiteral("qrc:/asset-library/index.json")));
         QCOMPARE(items.size(), 3);
         QCOMPARE(items.at(0).downloadUrl.toString(), QStringLiteral("qrc:/asset-library/stickers/heart.json"));
         QCOMPARE(items.at(2).downloadUrl.toString(), QStringLiteral("https://raw.example/wave.json"));
@@ -198,11 +198,11 @@ private slots:
         SearchRequest r;
         r.kind = AssetKind::Sticker;
         r.pageSize = 1;
-        SearchPage page = CadraLibraryProvider::filter(items, r);
+        SearchPage page = DafinLibraryProvider::filter(items, r);
         QCOMPARE(page.items.size(), 1);
         QVERIFY(page.hasMore);
         r.query = QStringLiteral("love");
-        page = CadraLibraryProvider::filter(items, r);
+        page = DafinLibraryProvider::filter(items, r);
         QCOMPARE(page.items.size(), 1);
         QCOMPARE(page.items.first().id, QStringLiteral("heart"));
     }
@@ -210,10 +210,10 @@ private slots:
     void bundledLibraryIsValid()
     {
         // The generated library shipped in the app: every entry parses and points at a real file.
-        QFile f(QStringLiteral(CADRA_SOURCE_DIR "/asset-library/index.json"));
+        QFile f(QStringLiteral(DAFIN_SOURCE_DIR "/asset-library/index.json"));
         QVERIFY(f.open(QIODevice::ReadOnly));
         const QJsonDocument doc = QJsonDocument::fromJson(f.readAll());
-        const QList<AssetItem> items = CadraLibraryProvider::parseIndex(doc, QUrl::fromLocalFile(QStringLiteral(CADRA_SOURCE_DIR "/asset-library/index.json")));
+        const QList<AssetItem> items = DafinLibraryProvider::parseIndex(doc, QUrl::fromLocalFile(QStringLiteral(DAFIN_SOURCE_DIR "/asset-library/index.json")));
         int local = 0;
         for (const AssetItem &a : items) {
             if (!a.downloadUrl.isLocalFile())

@@ -8,7 +8,7 @@
 #include <QNetworkReply>
 #include <QRegularExpression>
 
-namespace cadra::assets {
+namespace dafin::assets {
 
 // ─── AssetTypes helpers ──────────────────────────────────────────────────────────────────────
 
@@ -333,7 +333,7 @@ RequestHandle AssetProvider::getJson(const QNetworkRequest &request,
         const QJsonDocument doc = QJsonDocument::fromJson(reply->readAll(), &parseError);
         if (parseError.error != QJsonParseError::NoError) {
             done({}, ProviderError::make(ProviderError::Code::BadResponse,
-                                         QObject::tr("%1 sent a response Cadra could not read.").arg(info().name)));
+                                         QObject::tr("%1 sent a response Dafin could not read.").arg(info().name)));
             return;
         }
         done(doc, ProviderError::none());
@@ -421,4 +421,4 @@ int retryAfterSeconds(QNetworkReply *reply)
 }
 
 } // namespace util
-} // namespace cadra::assets
+} // namespace dafin::assets

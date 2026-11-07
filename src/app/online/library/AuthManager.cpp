@@ -7,7 +7,7 @@
 #include <QJsonObject>
 #include <QSettings>
 
-namespace cadra::assets {
+namespace dafin::assets {
 
 AuthManager::AuthManager(std::unique_ptr<SecretStore> store, QObject *parent)
     : QObject(parent)
@@ -44,7 +44,7 @@ bool AuthManager::storeCredentials(const QString &providerId, const Credentials 
     m_cache.insert(providerId, credentials);
     if (m_store && !m_store->write(storeKey(providerId),
                                    QJsonDocument(QJsonObject::fromVariantMap(credentials)).toJson(QJsonDocument::Compact))) {
-        setState(providerId, ConnectionState::Error, tr("Could not save the sign-in securely. It works until Cadra closes."));
+        setState(providerId, ConnectionState::Error, tr("Could not save the sign-in securely. It works until Dafin closes."));
         return false;
     }
     return true;
@@ -213,4 +213,4 @@ void AuthManager::logout(const QString &providerId)
     setState(providerId, idleState(providerId));
 }
 
-} // namespace cadra::assets
+} // namespace dafin::assets

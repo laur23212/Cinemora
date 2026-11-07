@@ -18,7 +18,7 @@
 class QNetworkAccessManager;
 class QNetworkReply;
 
-namespace cadra::assets {
+namespace dafin::assets {
 
 // Cancellation token for an in-flight provider call.
 class RequestHandle
@@ -114,4 +114,4 @@ QString safeFileName(QString name);
 int retryAfterSeconds(QNetworkReply *reply); // Retry-After or provider reset headers
 } // namespace util
 
-} // namespace cadra::assets
+} // namespace dafin::assets

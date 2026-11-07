@@ -7,7 +7,7 @@
 #include <QNetworkReply>
 #include <QUrlQuery>
 
-namespace cadra::assets {
+namespace dafin::assets {
 
 namespace {
 constexpr auto kApi = "https://api.openverse.org/v1/";
@@ -139,8 +139,8 @@ RequestHandle OpenverseProvider::authenticate(const QVariantMap &input, AuthCall
     QNetworkRequest r = makeRequest(QUrl(QString::fromLatin1(kApi) + QStringLiteral("auth_tokens/register/")));
     r.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
     const QByteArray body = QJsonDocument(QJsonObject{
-        {QStringLiteral("name"), QStringLiteral("Cadra video editor (%1)").arg(email.section(QLatin1Char('@'), 0, 0))},
-        {QStringLiteral("description"), QStringLiteral("Personal use of the Cadra desktop video editor: in-app search of openly licensed audio.")},
+        {QStringLiteral("name"), QStringLiteral("Dafin video editor (%1)").arg(email.section(QLatin1Char('@'), 0, 0))},
+        {QStringLiteral("description"), QStringLiteral("Personal use of the Dafin desktop video editor: in-app search of openly licensed audio.")},
         {QStringLiteral("email"), email}}).toJson(QJsonDocument::Compact);
     RequestHandle handle;
     QNetworkReply *reply = context()->network()->post(r, body);
@@ -251,4 +251,4 @@ RequestHandle OpenverseProvider::getAssetDetails(const AssetItem &item, DetailsC
     });
 }
 
-} // namespace cadra::assets
+} // namespace dafin::assets

@@ -21,7 +21,7 @@
 #include <QSettings>
 #include <QStandardPaths>
 
-namespace cadra::assets {
+namespace dafin::assets {
 
 namespace {
 const QStringList kNativeCatalogIds = {QStringLiteral("pexels-video"), QStringLiteral("pixabay-video"),
@@ -342,4 +342,4 @@ bool OnlineAssets::importLink(const QString &text)
     return true;
 }
 
-} // namespace cadra::assets
+} // namespace dafin::assets

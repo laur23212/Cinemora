@@ -817,7 +817,7 @@ jobs:
       # and qWarning/qFatal go the same way, so even a fatal startup error is invisible.
       # GALLIUM_DRIVER selects the llvmpipe copied in by the Mesa step. The ONNX and sticker tests
       # skip without DRIFT_ONNXRUNTIME_DIR and DRIFT_STICKERS_DIR.
-      # Cinemora fork: regenerate i18n/*.ts with this job's own Qt lupdate before testing, so new
+      # Dafin fork: regenerate i18n/*.ts with this job's own Qt lupdate before testing, so new
       # UI strings do not fail the Translations check; the result is uploaded to be committed.
       - name: Regenerate translation catalogs
         shell: pwsh
@@ -953,7 +953,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           $built = Get-ChildItem installer\windows\output\*.exe
-          Copy-Item $built.FullName "dist\Cadra-Setup-${{ env.ASSET_LABEL }}-${{ matrix.arch }}.exe" -Force
+          Copy-Item $built.FullName "dist\Dafin-Setup-${{ env.ASSET_LABEL }}-${{ matrix.arch }}.exe" -Force
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
@@ -973,12 +973,12 @@ jobs:
       - name: Build portable zip
         shell: pwsh
         env:
-          FOLDER: ${{ inputs.channel == 'nightly' && 'Cadra Nightly' || 'Cadra' }}
+          FOLDER: ${{ inputs.channel == 'nightly' && 'Dafin Nightly' || 'Dafin' }}
         run: |
           New-Item -ItemType Directory -Force -Path "portable\$env:FOLDER", dist\portable | Out-Null
           Copy-Item dist\bin\* "portable\$env:FOLDER" -Recurse -Force
           & "$env:ProgramFiles\7-Zip\7z.exe" a -tzip -mx=9 `
-            "dist\portable\Cadra-Portable-${{ env.ASSET_LABEL }}-${{ matrix.arch }}.zip" ".\portable\$env:FOLDER"
+            "dist\portable\Dafin-Portable-${{ env.ASSET_LABEL }}-${{ matrix.arch }}.zip" ".\portable\$env:FOLDER"
 
       - name: Upload portable artifact
         uses: actions/upload-artifact@v4

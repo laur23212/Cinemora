@@ -4,7 +4,7 @@
 
 #include <QJsonObject>
 
-namespace cadra::assets {
+namespace dafin::assets {
 
 // One source from the user-editable catalog JSON (the format the Stock Media tab introduced:
 // "static" lists of files, or "api" sources described by URL templates and field paths). Each
@@ -30,4 +30,4 @@ private:
     QString m_id;
 };
 
-} // namespace cadra::assets
+} // namespace dafin::assets

@@ -1,7 +1,7 @@
 #include "app/online/library/ProviderRegistry.h"
 
 #include "app/online/library/AuthManager.h"
-#include "app/online/library/providers/CadraLibraryProvider.h"
+#include "app/online/library/providers/DafinLibraryProvider.h"
 #include "app/online/library/providers/CatalogProvider.h"
 #include "app/online/library/providers/FreesoundProvider.h"
 #include "app/online/library/providers/JamendoProvider.h"
@@ -15,7 +15,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 
-namespace cadra::assets {
+namespace dafin::assets {
 
 ProviderRegistry::ProviderRegistry(QNetworkAccessManager *network, AuthManager *auth, QObject *parent)
     : QObject(parent)
@@ -29,7 +29,7 @@ ProviderRegistry::~ProviderRegistry() = default;
 void ProviderRegistry::registerBuiltins()
 {
     // To add a provider: implement AssetProvider and add one line here. Order = display order.
-    add(std::make_unique<CadraLibraryProvider>(this));
+    add(std::make_unique<DafinLibraryProvider>(this));
     add(std::make_unique<PexelsProvider>(this));
     add(std::make_unique<PixabayProvider>(this));
     add(std::make_unique<OpenverseProvider>(this));
@@ -113,8 +113,8 @@ void ProviderRegistry::reportAuthFailure(const QString &providerId, const Provid
 QByteArray ProviderRegistry::userAgent() const
 {
     const QString version = QCoreApplication::applicationVersion();
-    return QStringLiteral("Cadra/%1 (+https://github.com/laur23212/Cinemora)")
+    return QStringLiteral("Dafin/%1 (+https://github.com/laur23212/Cinemora)")
         .arg(version.isEmpty() ? QStringLiteral("dev") : version).toUtf8();
 }
 
-} // namespace cadra::assets
+} // namespace dafin::assets

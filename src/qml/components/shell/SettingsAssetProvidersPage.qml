@@ -18,8 +18,8 @@ SettingsPage {
     SettingsRow {
         title: qsTr("Free asset providers")
         searchId: "asset-providers-intro"
-        description: qsTr("Connect free accounts to browse more stock video, music, sound effects, stickers and titles inside Cadra. "
-                          + "You sign in once; Cadra remembers it until you log out.")
+        description: qsTr("Connect free accounts to browse more stock video, music, sound effects, stickers and titles inside Dafin. "
+                          + "You sign in once; Dafin remembers it until you log out.")
                      + " " + (OnlineAssets.credentialStorageEncrypted
                               ? qsTr("Sign-ins are stored in %1.").arg(OnlineAssets.credentialStorage)
                               : qsTr("Sign-ins are stored in %1 — not encrypted, but readable only by your user account.")
@@ -51,7 +51,7 @@ SettingsPage {
     SettingsRow {
         title: qsTr("Keep downloaded assets")
         searchId: "asset-providers-keep"
-        description: qsTr("Off: downloads are deleted when Cadra closes (anything a saved project uses is stored inside the project file). "
+        description: qsTr("Off: downloads are deleted when Dafin closes (anything a saved project uses is stored inside the project file). "
                           + "On: downloads are kept in your asset library and reused.")
         keywords: "keep downloads delete temporary cache library stock"
         query: page.query

@@ -4,7 +4,7 @@
 #include <QJsonObject>
 #include <QUrlQuery>
 
-namespace cadra::assets {
+namespace dafin::assets {
 
 ProviderInfo PixabayProvider::info() const
 {
@@ -104,4 +104,4 @@ RequestHandle PixabayProvider::search(const SearchRequest &request, SearchCallba
     });
 }
 
-} // namespace cadra::assets
+} // namespace dafin::assets

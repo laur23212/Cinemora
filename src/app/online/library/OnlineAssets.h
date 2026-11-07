@@ -10,7 +10,7 @@
 
 class QNetworkAccessManager;
 
-namespace cadra::assets {
+namespace dafin::assets {
 
 class AssetSearchService;
 class AuthManager;
@@ -105,4 +105,4 @@ private:
     std::unique_ptr<AssetSearchService> m_search;
 };
 
-} // namespace cadra::assets
+} // namespace dafin::assets

@@ -13,7 +13,7 @@
 
 class QNetworkAccessManager;
 
-namespace cadra::assets {
+namespace dafin::assets {
 
 class ProviderRegistry;
 
@@ -66,4 +66,4 @@ private:
     QPointer<ThumbnailCache> m_cache;
 };
 
-} // namespace cadra::assets
+} // namespace dafin::assets

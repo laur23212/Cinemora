@@ -1,7 +1,7 @@
 {
   "version": 1,
   "_help": [
-    "The Stock Media tab is built from this file. Edit the copy Cadra puts in your app data folder",
+    "The Stock Media tab is built from this file. Edit the copy Dafin puts in your app data folder",
     "(Stock Media tab -> Edit catalog) and press Reload; the built-in copy is never changed.",
     "",
     "Every source has: id, name, kind (video | audio | lottie | image), and either",
@@ -19,7 +19,7 @@
     "  'list{width>=480}' picks the smallest width not below 480.",
     "  Fields can be joined: 'user.name' or a literal in quotes, e.g. \"'Pexels'\".",
     "",
-    "Downloads go to a temporary folder that is deleted when Cadra closes. Media you used in a",
+    "Downloads go to a temporary folder that is deleted when Dafin closes. Media you used in a",
     "project you saved is stored inside the .drift file, so it is never lost."
   ],
   "sources": [

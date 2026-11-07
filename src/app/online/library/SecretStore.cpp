@@ -13,7 +13,7 @@
 #include <dpapi.h>
 #endif
 
-namespace cadra::assets {
+namespace dafin::assets {
 
 namespace {
 
@@ -89,7 +89,7 @@ public:
         DATA_BLOB in{DWORD(secret.size()), reinterpret_cast<BYTE *>(const_cast<char *>(secret.constData()))};
         DATA_BLOB entropy = entropyBlob();
         DATA_BLOB out{};
-        if (!CryptProtectData(&in, L"Cadra asset provider", &entropy, nullptr, nullptr,
+        if (!CryptProtectData(&in, L"Dafin asset provider", &entropy, nullptr, nullptr,
                               CRYPTPROTECT_UI_FORBIDDEN, &out))
             return false;
         const QByteArray blob(reinterpret_cast<const char *>(out.pbData), int(out.cbData));
@@ -124,6 +124,8 @@ private:
     QString path(const QString &key) const { return m_dir + QLatin1Char('/') + hashedName(key) + QStringLiteral(".dpapi"); }
     static DATA_BLOB entropyBlob()
     {
+        // Storage format id, not branding: it was set under the app's earlier name (Cadra) and
+        // must not change, or sign-ins saved by earlier builds would no longer decrypt.
         static QByteArray e("cadra/asset-providers/v1");
         return DATA_BLOB{DWORD(e.size()), reinterpret_cast<BYTE *>(e.data())};
     }
@@ -186,7 +188,7 @@ public:
     {
         GErrorLite *error = nullptr;
         const QByteArray k = key.toUtf8();
-        const QByteArray label = QByteArrayLiteral("Cadra: ") + k;
+        const QByteArray label = QByteArrayLiteral("Dafin: ") + k;
         const QByteArray value = secret.toBase64();
         const int ok = m_store(&schema(), nullptr, label.constData(), value.constData(), nullptr, &error,
                                "key", k.constData(), nullptr);
@@ -229,6 +231,7 @@ private:
     LibsecretSecretStore() = default;
     static const SecretSchema &schema()
     {
+        // Storage format id from the app's earlier name (Cadra); kept so saved sign-ins are found.
         static const SecretSchema s{"io.github.cadra.AssetProvider", 0, {{"key", 0}, {nullptr, 0}}, 0,
                                     nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr};
         return s;
@@ -259,7 +262,7 @@ std::unique_ptr<SecretStore> SecretStore::createBest(const QString &directory)
 #ifdef Q_OS_WIN
     return std::make_unique<DpapiSecretStore>(directory);
 #elif defined(Q_OS_LINUX) || defined(Q_OS_FREEBSD)
-    if (qEnvironmentVariableIsEmpty("CADRA_PLAIN_SECRETS")) {
+    if (qEnvironmentVariableIsEmpty("DAFIN_PLAIN_SECRETS")) {
         if (auto store = LibsecretSecretStore::open())
             return store;
     }
@@ -269,4 +272,4 @@ std::unique_ptr<SecretStore> SecretStore::createBest(const QString &directory)
 #endif
 }
 
-} // namespace cadra::assets
+} // namespace dafin::assets
