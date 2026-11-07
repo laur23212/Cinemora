@@ -106,12 +106,14 @@ void WorkspaceStoreTest::everyBuiltinPresetValidates()
         ++builtins;
         QCOMPARE(store.validate(ws), QString());
     }
-    QCOMPARE(builtins, 11);
+    QCOMPARE(builtins, 12);
 }
 
 void WorkspaceStoreTest::roundTripAndOverride()
 {
     WorkspaceStore store;
+    // "filmora" is the default in this fork; the test edits "edit", so make it the active one.
+    store.setActiveId("edit");
     QSignalSpy edited(&store, &WorkspaceStore::activeWorkspaceEdited);
     QVariantMap ws = store.workspace("edit");
     ws["name"] = "Mine";
@@ -123,7 +125,7 @@ void WorkspaceStoreTest::roundTripAndOverride()
     QCOMPARE(again.value("name").toString(), QStringLiteral("Mine"));
     QVERIFY(again.value("modified").toBool());
     QVERIFY(again.value("builtin").toBool());
-    QCOMPARE(reloaded.workspaces().size(), 11);
+    QCOMPARE(reloaded.workspaces().size(), 12);
 
     reloaded.resetPreset("edit");
     QCOMPARE(reloaded.workspace("edit").value("name").toString(), QStringLiteral("Edit"));
@@ -136,7 +138,7 @@ void WorkspaceStoreTest::rejectsDuplicatePanels()
                            {"children", QVariantList{slot("preview"), slot("preview")}}};
     QVERIFY(!store.saveWorkspace(workspaceWith(root)).isEmpty());
     QVERIFY(!store.saveWorkspace(workspaceWith(slot("bogus"))).isEmpty());
-    QCOMPARE(store.workspaces().size(), 11);
+    QCOMPARE(store.workspaces().size(), 12);
 }
 
 void WorkspaceStoreTest::acceptsTabPanelTypes()
@@ -204,7 +206,7 @@ void WorkspaceStoreTest::duplicateAndRemove()
     store.setActiveId(id);
     QCOMPARE(store.activeId(), id);
     QVERIFY(store.remove(id));
-    QCOMPARE(store.activeId(), QStringLiteral("edit"));
+    QCOMPARE(store.activeId(), QStringLiteral("filmora"));
 }
 
 void WorkspaceStoreTest::migratesOldFractions()
@@ -267,7 +269,7 @@ void WorkspaceStoreTest::migratesCutTrimToSourceLab()
     QCOMPARE(store.activeId(), QStringLiteral("source-lab"));
     QCOMPARE(QSettings().value("ui/workspaces/active").toString(), QStringLiteral("source-lab"));
     QVERIFY(QSettings().value("ui/workspaces/migratedSourceLab").toBool());
-    QCOMPARE(store.workspaces().size(), 11);
+    QCOMPARE(store.workspaces().size(), 12);
 
     const QVariantMap preset = store.workspace("source-lab");
     QCOMPARE(preset.value("name").toString(), QStringLiteral("Source Lab"));

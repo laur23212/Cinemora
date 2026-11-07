@@ -817,6 +817,19 @@ jobs:
       # and qWarning/qFatal go the same way, so even a fatal startup error is invisible.
       # GALLIUM_DRIVER selects the llvmpipe copied in by the Mesa step. The ONNX and sticker tests
       # skip without DRIFT_ONNXRUNTIME_DIR and DRIFT_STICKERS_DIR.
+      # Cinemora fork: regenerate i18n/*.ts with this job's own Qt lupdate before testing, so new
+      # UI strings do not fail the Translations check; the result is uploaded to be committed.
+      - name: Regenerate translation catalogs
+        shell: pwsh
+        run: cmake --build build --target update_translations
+
+      - name: Upload regenerated translation catalogs
+        uses: actions/upload-artifact@v4
+        with:
+          name: i18n-catalogs
+          path: i18n/*.ts
+          if-no-files-found: ignore
+
       - name: Test
         id: test
         shell: pwsh

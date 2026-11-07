@@ -1082,7 +1082,7 @@ void ThemeManager::restorePersisted()
 {
     QSettings settings;
     settings.beginGroup(QStringLiteral("Theme"));
-    const QString saved = settings.value(QStringLiteral("selection"), QStringLiteral("filmora")).toString().trimmed();
+    const QString saved = settings.value(QStringLiteral("selection"), QStringLiteral("system")).toString().trimmed();
     if (saved.isEmpty() || saved == QLatin1String("system")) {
         m_selection = QStringLiteral("system");
         return;

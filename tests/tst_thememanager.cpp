@@ -214,7 +214,8 @@ void ThemeManagerTest::graphiteAndFrostAreBuiltins()
             QVERIFY(map.value(QStringLiteral("id")).toString() != QLatin1String("graphite"));
     }
     QCOMPARE(builtInIds, (QStringList{QStringLiteral("dark"), QStringLiteral("light"),
-                                      QStringLiteral("graphite"), QStringLiteral("frost")}));
+                                      QStringLiteral("graphite"), QStringLiteral("frost"),
+                                      QStringLiteral("filmora")}));
 
     const struct {
         const char *id;

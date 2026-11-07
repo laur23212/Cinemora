@@ -358,6 +358,7 @@ qt_add_resources(tst_thememanager "drift_themes"
         "${CMAKE_SOURCE_DIR}/resources/themes/light.json"
         "${CMAKE_SOURCE_DIR}/resources/themes/graphite.json"
         "${CMAKE_SOURCE_DIR}/resources/themes/frost.json"
+        "${CMAKE_SOURCE_DIR}/resources/themes/filmora.json"
         "${CMAKE_SOURCE_DIR}/resources/themes/theme.schema.json"
 )
 add_test(NAME ThemeManager COMMAND tst_thememanager)
@@ -405,6 +406,7 @@ qt_add_resources(tst_windowbackdrop "drift_themes"
         "${CMAKE_SOURCE_DIR}/resources/themes/light.json"
         "${CMAKE_SOURCE_DIR}/resources/themes/graphite.json"
         "${CMAKE_SOURCE_DIR}/resources/themes/frost.json"
+        "${CMAKE_SOURCE_DIR}/resources/themes/filmora.json"
         "${CMAKE_SOURCE_DIR}/resources/themes/theme.schema.json"
 )
 add_test(NAME WindowBackdrop COMMAND tst_windowbackdrop)

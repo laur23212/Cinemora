@@ -89,6 +89,7 @@
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQmlNetworkAccessManagerFactory>
+#include <QSettings>
 #include <QStandardPaths>
 #include <QStringList>
 #include <QQmlEngine>
@@ -126,6 +127,7 @@
 #include <QJsonObject>
 #include <QJniEnvironment>
 #include <QJniObject>
+#include <QSettings>
 #include <QStandardPaths>
 #endif
 
@@ -840,6 +842,13 @@ int main(int argc, char *argv[])
     // the override in place. select() is what ends it.
     if (const QString themeOverride = qEnvironmentVariable("DRIFT_THEME"); !themeOverride.isEmpty())
         ThemeManager::shared()->applySessionOverride(themeOverride);
+    // First launch: start in the Filmora-style theme. Only when no theme was ever chosen, so a
+    // later pick in Settings > Appearance (including "System") is never overridden.
+    {
+        QSettings themeSettings;
+        if (!themeSettings.contains(QStringLiteral("Theme/selection")))
+            ThemeManager::shared()->select(QStringLiteral("filmora"));
+    }
 
     app.installEventFilter(new FileOpenFilter(&editorState, &app));
     {
