@@ -3,7 +3,7 @@
 #include "app/mcp/tools/McpMarket.h"
 #include "app/online/assets/DriftAssetStore.h"
 #include "app/online/assets/SfxLibrary.h"
-#include "app/online/free/FreeLibrary.h"
+#include "app/online/library/OnlineAssets.h"
 #include "app/online/marketplace/CommunityInstaller.h"
 #include "app/online/marketplace/MarketInstallRouter.h"
 #include "app/online/marketplace/MarketplaceManifest.h"
@@ -25,8 +25,9 @@ public:
     StockInstaller stock;
     DriftAssetStore driftAssets;
     SfxLibrary sfx;
-    // Stock Media tab: free stock video / SFX / Lottie from the user-editable catalog.
-    FreeLibrary freeLibrary;
+    // Online asset panels (Stickers, Audio, Stock Video, Titles): providers, sign-ins, search,
+    // downloads, thumbnails and the local asset database.
+    cadra::assets::OnlineAssets onlineAssets;
     CommunityInstaller community;
     MarketplaceManifest manifest;
     MarketInstallRouter router;

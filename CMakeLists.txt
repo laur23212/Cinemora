@@ -1054,6 +1054,10 @@ if(ANDROID)
     find_package(Qt6 REQUIRED COMPONENTS CorePrivate)
     target_link_libraries(driftapp PUBLIC Qt6::CorePrivate)
 endif()
+# Asset provider sign-ins are encrypted with DPAPI on Windows (SecretStore.cpp).
+if(WIN32)
+    target_link_libraries(driftapp PUBLIC crypt32)
+endif()
 
 qt_add_executable(drift
     src/app/main.cpp
@@ -1169,8 +1173,41 @@ target_sources(driftapp PRIVATE
     src/app/online/assets/DriftAssetStore.cpp
     src/app/online/assets/SfxLibrary.h
     src/app/online/assets/SfxLibrary.cpp
-    src/app/online/free/FreeLibrary.h
-    src/app/online/free/FreeLibrary.cpp
+    src/app/online/library/AssetTypes.h
+    src/app/online/library/AssetProvider.h
+    src/app/online/library/AssetProvider.cpp
+    src/app/online/library/ProviderRegistry.h
+    src/app/online/library/ProviderRegistry.cpp
+    src/app/online/library/SecretStore.h
+    src/app/online/library/SecretStore.cpp
+    src/app/online/library/AuthManager.h
+    src/app/online/library/AuthManager.cpp
+    src/app/online/library/AssetSearchService.h
+    src/app/online/library/AssetSearchService.cpp
+    src/app/online/library/SessionFiles.h
+    src/app/online/library/SessionFiles.cpp
+    src/app/online/library/DownloadManager.h
+    src/app/online/library/DownloadManager.cpp
+    src/app/online/library/ThumbnailCache.h
+    src/app/online/library/ThumbnailCache.cpp
+    src/app/online/library/LocalAssetDatabase.h
+    src/app/online/library/LocalAssetDatabase.cpp
+    src/app/online/library/OnlineAssets.h
+    src/app/online/library/OnlineAssets.cpp
+    src/app/online/library/providers/PexelsProvider.h
+    src/app/online/library/providers/PexelsProvider.cpp
+    src/app/online/library/providers/PixabayProvider.h
+    src/app/online/library/providers/PixabayProvider.cpp
+    src/app/online/library/providers/FreesoundProvider.h
+    src/app/online/library/providers/FreesoundProvider.cpp
+    src/app/online/library/providers/JamendoProvider.h
+    src/app/online/library/providers/JamendoProvider.cpp
+    src/app/online/library/providers/OpenverseProvider.h
+    src/app/online/library/providers/OpenverseProvider.cpp
+    src/app/online/library/providers/CadraLibraryProvider.h
+    src/app/online/library/providers/CadraLibraryProvider.cpp
+    src/app/online/library/providers/CatalogProvider.h
+    src/app/online/library/providers/CatalogProvider.cpp
     src/app/editor/AppController.h
     src/app/editor/AppController.cpp
     src/app/editor/appcontroller/AppControllerInternal.h
@@ -1513,6 +1550,29 @@ qt_add_resources(drift "drift_workspaces"
         resources/workspaces/3d.json
 )
 
+# Cadra Open Library (stickers + title templates), bundled so the panels work offline; the
+# provider prefers the published copy of asset-library/index.json when it can reach it.
+qt_add_resources(drift "drift_asset_library"
+    PREFIX "/asset-library"
+    BASE asset-library
+    FILES
+        asset-library/index.json
+        asset-library/stickers/arrow-nudge.json
+        asset-library/stickers/check-draw.json
+        asset-library/stickers/confetti-pop.json
+        asset-library/stickers/heart-pop.json
+        asset-library/stickers/lightning.json
+        asset-library/stickers/ring-highlight.json
+        asset-library/stickers/sparkles.json
+        asset-library/stickers/speech-bubble.json
+        asset-library/stickers/star-burst.json
+        asset-library/titles/chapter-line.json
+        asset-library/titles/corner-tag.json
+        asset-library/titles/lower-third-slide.json
+        asset-library/titles/pop-title.json
+        asset-library/titles/title-fade-up.json
+)
+
 # Stock Media tab: the built-in source catalog (copied to app data on first run for editing).
 qt_add_resources(drift "drift_free_library"
     PREFIX "/free-library"
@@ -1805,8 +1865,10 @@ qt_add_qml_module(drift
         src/qml/components/assets/AssetDragSource.qml
         src/qml/components/assets/MasksTab.qml
         src/qml/components/assets/SoundsTab.qml
-        src/qml/components/assets/StockMediaTab.qml
-        src/qml/components/assets/StockMediaCard.qml
+        src/qml/components/assets/OnlineAssetBrowser.qml
+        src/qml/components/assets/OnlineAssetCard.qml
+        src/qml/components/assets/OnlineSwitchTab.qml
+        src/qml/components/assets/AssetProvidersNotice.qml
         src/qml/components/assets/TransitionsTab.qml
         src/qml/components/assets/MediaAssetsTab.qml
         src/qml/components/marketplace/MarketplaceView.qml
@@ -2420,6 +2482,8 @@ qt_add_qml_module(drift
         src/qml/components/shell/SettingsGroupHeader.qml
         src/qml/components/shell/SettingsKeymapPage.qml
         src/qml/components/shell/SettingsNetworkPage.qml
+        src/qml/components/shell/SettingsAssetProvidersPage.qml
+        src/qml/components/shell/AssetProviderSettingsCard.qml
         src/qml/components/shell/SettingsPage.qml
         src/qml/components/shell/SettingsPerformancePage.qml
         src/qml/components/shell/SettingsPreviewPage.qml

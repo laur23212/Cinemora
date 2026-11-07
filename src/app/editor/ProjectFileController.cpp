@@ -1,5 +1,5 @@
 #include "app/editor/ProjectFileController.h"
-#include "app/online/free/FreeLibrary.h"
+#include "app/online/library/SessionFiles.h"
 #include "app/bin/MediaBinController.h"
 #include "app/editor/PreferencesController.h"
 #include "app/editor/sessions/MaskingController.h"
@@ -525,9 +525,10 @@ ProjectFileController::SaveCapture ProjectFileController::captureSave(bool embed
             if (m_embeddedSources.contains(entry.originalPath)
                 || m_embeddedSources.contains(entry.resourceOf))
                 entry.embedded = true;
-            // Stock Media downloads live in a temp folder that is deleted when Drift closes, so
+            // Online asset downloads live in a temp folder that is deleted when Cadra closes, so
             // the ones this project uses travel inside the .drift file instead.
-            if (FreeLibrary::isSessionFile(entry.originalPath) || FreeLibrary::isSessionFile(entry.resourceOf))
+            if (cadra::assets::session::isSessionFile(entry.originalPath)
+                || cadra::assets::session::isSessionFile(entry.resourceOf))
                 entry.embedded = true;
         }
     }

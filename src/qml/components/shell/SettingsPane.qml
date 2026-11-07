@@ -34,6 +34,7 @@ Item {
         { id: "performance", title: qsTr("Performance"), keywords: "advanced tuning cache memory ram vram read-ahead buffer drop frames hardware encoder export pool" },
         { id: "audio", title: qsTr("Audio"), keywords: "sound speakers microphone output input" },
         { id: "ai", title: qsTr("AI & Cloud"), keywords: "agent mcp claude cursor api key elevenlabs voice scene detection" },
+        { id: "assetproviders", title: qsTr("Asset Providers"), keywords: "asset providers accounts login api key stock music stickers pexels pixabay freesound jamendo openverse" },
         { id: "network", title: qsTr("Network"), keywords: "proxy http socks internet firewall" },
         { id: "about", title: qsTr("About"), keywords: "version updates debug info diagnostics" }
     ]
@@ -42,7 +43,7 @@ Item {
 
     readonly property bool searchHasMatches: {
         for (const slot of [generalSlot, appearanceSlot, workspacesSlot, timelineSlot, toolbarSlot, keymapSlot,
-                            previewSlot, performanceSlot, audioSlot, aiSlot, networkSlot, aboutSlot]) {
+                            previewSlot, performanceSlot, audioSlot, aiSlot, assetProvidersSlot, networkSlot, aboutSlot]) {
             if (slot.hasMatches)
                 return true
         }
@@ -252,6 +253,12 @@ Item {
                 id: aiSlot
                 pageId: "ai"
                 sourceComponent: SettingsAiPage { query: root.query }
+            }
+
+            PageSlot {
+                id: assetProvidersSlot
+                pageId: "assetproviders"
+                sourceComponent: SettingsAssetProvidersPage { query: root.query }
             }
 
             PageSlot {

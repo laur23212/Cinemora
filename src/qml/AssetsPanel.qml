@@ -776,7 +776,7 @@ PanelFrame {
     // evaluated. Labels are translated via tabLabels below.
     property var tabLabels: ({
         "media": qsTr("Media"),
-        "stock": qsTr("Stock Media"),
+        "stock": root.topTabs ? qsTr("Stock Video") : qsTr("Stock Media"),
         "text": root.topTabs ? qsTr("Titles") : qsTr("Text"),
         "subtitles": qsTr("Subtitles"),
         "speech": qsTr("Speech"),
@@ -1025,15 +1025,26 @@ PanelFrame {
                 height: parent.height - assetsHeader.height
                 clip: true
                 opacity: root.tabOpacity
+                // Titles: online animated title templates (Lottie, editable text) or the
+                // built-in text styles.
                 sourceComponent: Component {
-                    TextAssetsTab {
-                        Component.onCompleted: {
-                            const saved = root.tabState["text"] || {}
-                            if (saved.section)
-                                section = saved.section
-                        }
-                        onSectionChanged: root.rememberTab("text", "section", section)
+                    OnlineSwitchTab {
+                        tabId: "text"
+                        onlineKinds: ["title"]
+                        builtinLabel: qsTr("Text styles")
+                        allowLinks: false
                         onAdded: root.addCompleted()
+                        builtin: Component {
+                            TextAssetsTab {
+                                Component.onCompleted: {
+                                    const saved = root.tabState["text"] || {}
+                                    if (saved.section)
+                                        section = saved.section
+                                }
+                                onSectionChanged: root.rememberTab("text", "section", section)
+                                onAdded: root.addCompleted()
+                            }
+                        }
                     }
                 }
             }
@@ -1072,10 +1083,8 @@ PanelFrame {
                 clip: true
                 opacity: root.tabOpacity
                 sourceComponent: Component {
-                    StockMediaTab {
-                        Component.onCompleted: root.restoreBrowserTab(this, "stock")
-                        onSearchTextChanged: root.rememberTab("stock", "search", searchText)
-                        onActiveCategoryChanged: root.rememberTab("stock", "category", activeCategory)
+                    OnlineAssetBrowser {
+                        kinds: ["video"]
                         onAdded: root.addCompleted()
                     }
                 }
@@ -1088,11 +1097,20 @@ PanelFrame {
                 height: parent.height - assetsHeader.height
                 clip: true
                 opacity: root.tabOpacity
+                // Audio: online music + sound effects, or the built-in audio-effect presets.
                 sourceComponent: Component {
-                    SoundsTab {
-                        Component.onCompleted: root.restoreBrowserTab(this, "sounds")
-                        onSearchTextChanged: root.rememberTab("sounds", "search", searchText)
-                        onActiveCategoryChanged: root.rememberTab("sounds", "category", activeCategory)
+                    OnlineSwitchTab {
+                        tabId: "sounds"
+                        onlineKinds: ["music", "sfx"]
+                        builtinLabel: qsTr("Audio effects")
+                        onAdded: root.addCompleted()
+                        builtin: Component {
+                            SoundsTab {
+                                Component.onCompleted: root.restoreBrowserTab(this, "sounds")
+                                onSearchTextChanged: root.rememberTab("sounds", "search", searchText)
+                                onActiveCategoryChanged: root.rememberTab("sounds", "category", activeCategory)
+                            }
+                        }
                     }
                 }
             }
@@ -1104,14 +1122,22 @@ PanelFrame {
                 height: parent.height - assetsHeader.height
                 clip: true
                 opacity: root.tabOpacity
+                // Stickers: online animated stickers (Lottie) or the built-in set.
                 sourceComponent: Component {
-                    StickersTab {
-                        emojiPickerOpen: emojiPicker.opened
-                        onEmojiPickerRequested: emojiPicker.opened ? emojiPicker.close() : emojiPicker.open()
+                    OnlineSwitchTab {
+                        tabId: "stickers"
+                        onlineKinds: ["sticker"]
                         onAdded: root.addCompleted()
-                        Component.onCompleted: root.restoreBrowserTab(this, "stickers")
-                        onSearchTextChanged: root.rememberTab("stickers", "search", searchText)
-                        onActiveCategoryChanged: root.rememberTab("stickers", "category", activeCategory)
+                        builtin: Component {
+                            StickersTab {
+                                emojiPickerOpen: emojiPicker.opened
+                                onEmojiPickerRequested: emojiPicker.opened ? emojiPicker.close() : emojiPicker.open()
+                                onAdded: root.addCompleted()
+                                Component.onCompleted: root.restoreBrowserTab(this, "stickers")
+                                onSearchTextChanged: root.rememberTab("stickers", "search", searchText)
+                                onActiveCategoryChanged: root.rememberTab("stickers", "category", activeCategory)
+                            }
+                        }
                     }
                 }
             }
