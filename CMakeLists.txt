@@ -1501,7 +1501,8 @@ if(APPLE)
 endif()
 
 # App icon for QApplication::setWindowIcon (all platforms). Rendered from Drift_icon.png,
-# as is resources/windows/drift.ico — keep the two in sync when the branding changes.
+# as are resources/windows/drift.ico, the MSIX tiles and the hicolor PNGs: after changing the
+# master, run tools/icons/generate_icons.py to regenerate them all.
 qt_add_resources(drift "drift_app_icon"
     PREFIX "/app"
     BASE resources
