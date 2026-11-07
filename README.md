@@ -1,19 +1,19 @@
 <p align="center">
-  <img src="Drift_icon.png" alt="Drift icon" width="128" height="128">
+  <img src="Dafin_icon.png" alt="Dafin icon" width="128" height="128">
 </p>
 
-<h1 align="center">Drift</h1>
+<h1 align="center">Dafin</h1>
 
 <p align="center">
   <strong>The free video editor that makes your videos look finished — not “good enough.”</strong>
 </p>
 
 <p align="center">
-  <a href="https://github.com/CutWire-Studios/Drift/releases/latest"><img src="https://img.shields.io/github/v/release/CutWire-Studios/Drift?label=release&style=flat&labelColor=28272f&color=feb504" alt="Latest release" height="24"></a>
-  <a href="https://github.com/CutWire-Studios/Drift/releases"><img src="https://img.shields.io/github/downloads/CutWire-Studios/Drift/total?label=GitHub%20downloads&style=flat&labelColor=28272f&color=feb504" alt="GitHub downloads" height="24"></a>
-  <a href="https://flathub.org/apps/org.cutwire.Drift"><img src="https://img.shields.io/flathub/downloads/org.cutwire.Drift?label=Flathub%20installs&style=flat&labelColor=28272f&color=feb504" alt="Flathub installs" height="24"></a>
-  <a href="https://discord.gg/J5ANFz6Z3y"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fdiscord.com%2Fapi%2Finvites%2FJ5ANFz6Z3y%3Fwith_counts%3Dtrue&query=%24.approximate_member_count&suffix=%20members&logo=discord&logoColor=F8F8F8&label=Discord&color=feb504&labelColor=28272f&style=flat" alt="Join Drift Discord" height="24"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/CutWire-Studios/Drift?style=flat&labelColor=28272f&color=feb504" alt="License: GPL-3.0" height="24"></a>
+  <a href="https://github.com/CutWire-Studios/Dafin/releases/latest"><img src="https://img.shields.io/github/v/release/CutWire-Studios/Dafin?label=release&style=flat&labelColor=28272f&color=feb504" alt="Latest release" height="24"></a>
+  <a href="https://github.com/CutWire-Studios/Dafin/releases"><img src="https://img.shields.io/github/downloads/CutWire-Studios/Dafin/total?label=GitHub%20downloads&style=flat&labelColor=28272f&color=feb504" alt="GitHub downloads" height="24"></a>
+  <a href="https://flathub.org/apps/org.cutwire.Dafin"><img src="https://img.shields.io/flathub/downloads/org.cutwire.Dafin?label=Flathub%20installs&style=flat&labelColor=28272f&color=feb504" alt="Flathub installs" height="24"></a>
+  <a href="https://discord.gg/J5ANFz6Z3y"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fdiscord.com%2Fapi%2Finvites%2FJ5ANFz6Z3y%3Fwith_counts%3Dtrue&query=%24.approximate_member_count&suffix=%20members&logo=discord&logoColor=F8F8F8&label=Discord&color=feb504&labelColor=28272f&style=flat" alt="Join Dafin Discord" height="24"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/CutWire-Studios/Dafin?style=flat&labelColor=28272f&color=feb504" alt="License: GPL-3.0" height="24"></a>
   <img src="https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20macOS%20%7C%20Android-feb504?style=flat&labelColor=28272f" alt="Platform: Linux | Windows | macOS | Android" height="24">
 </p>
 
@@ -22,7 +22,7 @@
 </p>
 
 <p align="center">
-  <a href="https://cutwire.org/drift"><strong>cutwire.org/drift</strong></a>
+  <a href="https://cutwire.org/Dafin"><strong>cutwire.org/Dafin</strong></a>
 </p>
 
 <p align="center">
@@ -43,7 +43,7 @@
   <a href="README-i18n/README.zh-Hans.md">简体中文</a>
 </p>
 
-Drift is a video editor for Linux, Windows, macOS and Android from CutWire Studios. Drop in clips, add effects, captions, stickers,
+Dafin is a video editor for Linux, Windows and macOS based on Drift from CutWire Studios. Drop in clips, add effects, captions, stickers,
 and music, then export a polished video — with **no subscription, no watermark, and no account**.
 
 It is built for the edits people actually make: Reels and Shorts, game clips, school projects,
@@ -55,13 +55,13 @@ What you see in the preview is what you export. One compositor, one look, no sur
 ## Download
 
 <p align="center">
-  <a href="https://flathub.org/apps/org.cutwire.Drift">
+  <a href="https://flathub.org/apps/org.cutwire.Dafin">
     <img src="https://flathub.org/api/badge?locale=en" alt="Get it on Flathub" height="80">
   </a>
   <a href="https://apps.microsoft.com/detail/9PHHBZ07FRSZ">
     <img src="https://get.microsoft.com/images/en-us%20dark.svg" alt="Get it from Microsoft" width="293">
   </a>
-  <a href="https://play.google.com/store/apps/details?id=org.cutwire.drift">
+  <a href="https://play.google.com/store/apps/details?id=org.cutwire.Dafin">
     <img src="docs/btn-gplay-en.png" alt="Get it on Google Play" height="80">
   </a>
 </p>
@@ -69,38 +69,38 @@ What you see in the preview is what you export. One compositor, one look, no sur
 **Linux** — install from Flathub:
 
 ```bash
-flatpak install flathub org.cutwire.Drift
-flatpak run org.cutwire.Drift
+flatpak install flathub org.cutwire.Dafin
+flatpak run org.cutwire.Dafin
 ```
 **macOS** — install via Homebrew:
 
 ```bash
-brew install --cask cutwire-studios/tap/drift
+brew install --cask cutwire-studios/tap/Dafin
 ```
 
-> **First launch on macOS:** Drift is signed ad-hoc (not notarized by Apple). The quarantine attribute is automatically removed when installing via Homebrew. If you install manually via `.dmg` or if Gatekeeper still blocks opening it, run:
+> **First launch on macOS:** Dafin is signed ad-hoc (not notarized by Apple). The quarantine attribute is automatically removed when installing via Homebrew. If you install manually via `.dmg` or if Gatekeeper still blocks opening it, run:
 > ```bash
-> xattr -dr com.apple.quarantine /Applications/Drift.app
+> xattr -dr com.apple.quarantine /Applications/Dafin.app
 > ```
 
 Or grab a build for your platform from the
-[latest release](https://github.com/CutWire-Studios/Drift/releases/latest):
+[latest release](https://github.com/CutWire-Studios/Dafin/releases/latest):
 
 | Platform | Package |
 |----------|---------|
-| Linux | [Flathub](https://flathub.org/apps/org.cutwire.Drift) · [AppImage (x86_64, aarch64)](https://github.com/CutWire-Studios/Drift/releases/latest) |
-| Windows | [Microsoft Store](https://apps.microsoft.com/detail/9PHHBZ07FRSZ) · [Installer (.exe, x64 / arm64)](https://github.com/CutWire-Studios/Drift/releases/latest) · [Portable zip (x64 / arm64)](https://github.com/CutWire-Studios/Drift/releases/latest) |
-| macOS | [Homebrew Tap](https://github.com/CutWire-Studios/homebrew-tap) · [Disk image (.dmg, Apple Silicon / Intel)](https://github.com/CutWire-Studios/Drift/releases/latest) |
-| Android | [Google Play](https://play.google.com/store/apps/details?id=org.cutwire.drift) · [APK (arm64-v8a)](https://github.com/CutWire-Studios/Drift/releases/latest) · [APK (armeabi-v7a)](https://github.com/CutWire-Studios/Drift/releases/latest) · [APK (x86_64)](https://github.com/CutWire-Studios/Drift/releases/latest) |
+| Linux | [Flathub](https://flathub.org/apps/org.cutwire.Dafin) · [AppImage (x86_64, aarch64)](https://github.com/CutWire-Studios/Dafin/releases/latest) |
+| Windows | [Microsoft Store](https://apps.microsoft.com/detail/9PHHBZ07FRSZ) · [Installer (.exe, x64 / arm64)](https://github.com/CutWire-Studios/Dafin/releases/latest) · [Portable zip (x64 / arm64)](https://github.com/CutWire-Studios/Dafin/releases/latest) |
+| macOS | [Homebrew Tap](https://github.com/CutWire-Studios/homebrew-tap) · [Disk image (.dmg, Apple Silicon / Intel)](https://github.com/CutWire-Studios/Dafin/releases/latest) |
+| Android | [Google Play](https://play.google.com/store/apps/details?id=org.cutwire.Dafin) · [APK (arm64-v8a)](https://github.com/CutWire-Studios/Dafin/releases/latest) · [APK (armeabi-v7a)](https://github.com/CutWire-Studios/Dafin/releases/latest) · [APK (x86_64)](https://github.com/CutWire-Studios/Dafin/releases/latest) |
 
-On a phone, install from [Google Play](https://play.google.com/store/apps/details?id=org.cutwire.drift), or grab `Drift-*-arm64-v8a.apk` from the latest release and install it (or `adb install Drift-*-arm64-v8a.apk`). Use `x86_64` for emulators.
+On a phone, install from [Google Play](https://play.google.com/store/apps/details?id=org.cutwire.Dafin), or grab `Dafin-*-arm64-v8a.apk` from the latest release and install it (or `adb install Dafin-*-arm64-v8a.apk`). Use `x86_64` for emulators.
 
-See [all releases](https://github.com/CutWire-Studios/Drift/releases) for previous versions and full changelogs.
+See [all releases](https://github.com/CutWire-Studios/Dafin/releases) for previous versions and full changelogs.
 
 ## Screenshot
 
 <p align="center">
-  <img src="docs/screenshots/main-window.png" alt="The Drift editor: media bin on the left, video preview in the middle, clip inspector on the right, multi-track timeline below" width="900">
+  <img src="docs/screenshots/main-window.png" alt="The Dafin editor: media bin on the left, video preview in the middle, clip inspector on the right, multi-track timeline below" width="900">
 </p>
 
 ## Features
@@ -136,7 +136,7 @@ to one clip.
 belong to the clip. Automatic captions, voices, video upscale, and live face retouch — all on your
 device. Models download once, for free, the first time you use them.
 
-**Voices that speak your script.** Type it, or hand over the subtitles, and Drift reads it back in
+**Voices that speak your script.** Type it, or hand over the subtitles, and Dafin reads it back in
 21 languages on your own machine. Clone a voice from a few seconds of audio. Cloud voices are there
 if you bring your own key.
 
@@ -182,18 +182,18 @@ effects. Fonts, stickers, and extra models download when you use them. UI in Ara
 and Colombia), French (Canada), Italian, Japanese, Portuguese (Brazil and Portugal), Russian,
 Sinhala, Tagalog, Vietnamese, and Simplified Chinese.
 
-## Why people pick Drift
+## Why people pick Dafin
 
 Most “free” editors want an account, a watermark, or a subscription the moment the video starts
-looking good. Drift is the opposite: **yours, on your device, GPLv3, no login wall.**
+looking good. Dafin is the opposite: **yours, on your device, GPLv3, no login wall.**
 
 It is fast enough for a 30-second social cut and deep enough for a real project — an agent on the
 timeline, 3D and gaussian splats, color grading, keyframe curves, tracking, captions, voices,
 effects, audio, cutouts, and multicam.
 
-## Help us translate Drift
+## Help us translate Dafin
 
-[![Translation status](https://hosted.weblate.org/widget/cutwire-drift/drift-desktop/multi-auto.svg)](https://hosted.weblate.org/engage/cutwire-drift/)
+[![Translation status](https://hosted.weblate.org/widget/cutwire-Dafin/Dafin-desktop/multi-auto.svg)](https://hosted.weblate.org/engage/cutwire-Dafin/)
 
 ## For developers
 
@@ -207,20 +207,20 @@ Build, packaging, architecture, and agent protocol live in `docs/`:
 ## Help and feedback
 
 Found a bug or have an idea? Open an
-[issue on GitHub](https://github.com/CutWire-Studios/Drift/issues).
+[issue on GitHub](https://github.com/CutWire-Studios/Dafin/issues).
 
 ## Contributing
 
 [CONTRIBUTING.md](./CONTRIBUTING.md) is the pull-request guide: open an issue before a large change, keep each request to one change, run the tests, and license the work under GPLv3.
 
-Effects, transitions, templates, and audio effects are addons. Send those to [Drift-Addons](https://github.com/CutWire-Studios/Drift-Addons). Changes to the engine that runs them stay in this repository.
+Effects, transitions, templates, and audio effects are addons. Send those to [Dafin-Addons](https://github.com/CutWire-Studios/Dafin-Addons). Changes to the engine that runs them stay in this repository.
 
-Installing a [release](https://github.com/CutWire-Studios/Drift/releases) and editing a real project is enough to help; file what broke, or what should work better. On [Discord](https://discord.gg/J5ANFz6Z3y), people who have contributed can ask for the `@Contributor` role.
+Installing a [release](https://github.com/CutWire-Studios/Dafin/releases) and editing a real project is enough to help; file what broke, or what should work better. On [Discord](https://discord.gg/J5ANFz6Z3y), people who have contributed can ask for the `@Contributor` role.
 
 ## Contributors
 
-<a href="https://github.com/CutWire-Studios/Drift/graphs/contributors">
-  <img alt="Contributors" src="https://contrib.rocks/image?repo=CutWire-Studios/Drift">
+<a href="https://github.com/CutWire-Studios/Dafin/graphs/contributors">
+  <img alt="Contributors" src="https://contrib.rocks/image?repo=CutWire-Studios/Dafin">
 </a>
 
 ## License
@@ -229,10 +229,10 @@ GPLv3 — see [LICENSE](LICENSE).
 
 ## Star History
 
-<a href="https://www.star-history.com/?repos=CutWire-Studios%2FDrift&type=date&legend=top-left">
+<a href="https://www.star-history.com/?repos=CutWire-Studios%2FDafin&type=date&legend=top-left">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=CutWire-Studios/Drift&type=date&theme=dark&legend=top-left&sealed_token=zHW_d2jon9Wn-HYP2SWQWLC7qDRaY7qwsvHS0Cp0Ywk1Rf1UvyxhWsakIrx2c11OijPJQ9o52W99jdigV7MOz5RuvLsyWQmBiMvMdk99mcfbgb591WtzNXQO8_K2YhgdbiPD9by00lwl69ZgCZnThFKBwhRbK7IQzIeFkIFnb2o0r5GhJh0HAX6Q8yTM" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=CutWire-Studios/Drift&type=date&legend=top-left&sealed_token=zHW_d2jon9Wn-HYP2SWQWLC7qDRaY7qwsvHS0Cp0Ywk1Rf1UvyxhWsakIrx2c11OijPJQ9o52W99jdigV7MOz5RuvLsyWQmBiMvMdk99mcfbgb591WtzNXQO8_K2YhgdbiPD9by00lwl69ZgCZnThFKBwhRbK7IQzIeFkIFnb2o0r5GhJh0HAX6Q8yTM" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=CutWire-Studios/Drift&type=date&legend=top-left&sealed_token=zHW_d2jon9Wn-HYP2SWQWLC7qDRaY7qwsvHS0Cp0Ywk1Rf1UvyxhWsakIrx2c11OijPJQ9o52W99jdigV7MOz5RuvLsyWQmBiMvMdk99mcfbgb591WtzNXQO8_K2YhgdbiPD9by00lwl69ZgCZnThFKBwhRbK7IQzIeFkIFnb2o0r5GhJh0HAX6Q8yTM" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=CutWire-Studios/Dafin&type=date&theme=dark&legend=top-left&sealed_token=zHW_d2jon9Wn-HYP2SWQWLC7qDRaY7qwsvHS0Cp0Ywk1Rf1UvyxhWsakIrx2c11OijPJQ9o52W99jdigV7MOz5RuvLsyWQmBiMvMdk99mcfbgb591WtzNXQO8_K2YhgdbiPD9by00lwl69ZgCZnThFKBwhRbK7IQzIeFkIFnb2o0r5GhJh0HAX6Q8yTM" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=CutWire-Studios/Dafin&type=date&legend=top-left&sealed_token=zHW_d2jon9Wn-HYP2SWQWLC7qDRaY7qwsvHS0Cp0Ywk1Rf1UvyxhWsakIrx2c11OijPJQ9o52W99jdigV7MOz5RuvLsyWQmBiMvMdk99mcfbgb591WtzNXQO8_K2YhgdbiPD9by00lwl69ZgCZnThFKBwhRbK7IQzIeFkIFnb2o0r5GhJh0HAX6Q8yTM" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=CutWire-Studios/Dafin&type=date&legend=top-left&sealed_token=zHW_d2jon9Wn-HYP2SWQWLC7qDRaY7qwsvHS0Cp0Ywk1Rf1UvyxhWsakIrx2c11OijPJQ9o52W99jdigV7MOz5RuvLsyWQmBiMvMdk99mcfbgb591WtzNXQO8_K2YhgdbiPD9by00lwl69ZgCZnThFKBwhRbK7IQzIeFkIFnb2o0r5GhJh0HAX6Q8yTM" />
  </picture>
 </a>
