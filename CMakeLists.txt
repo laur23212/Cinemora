@@ -108,7 +108,9 @@ set(DRIFT_MARKET_CLIENT_KEY "5409a0bebab4446f88e51d06024a5cf9a694ee141a6a1c6be7a
 # Set it to an empty string for builds a package manager owns — the Flatpak manifests and the Arch
 # PKGBUILD all do. There, pacman or flatpak fetches the update on its own schedule and an in-app
 # nag is noise the user cannot act on (Flathub's quality guidelines say as much).
-set(DRIFT_UPDATE_FEED_URL "https://api.github.com/repos/CutWire-Studios/Drift/releases/latest"
+# Cadra: no release feed of its own yet, and upstream Drift's feed would offer to replace Cadra
+# with plain Drift, so the update check is off.
+set(DRIFT_UPDATE_FEED_URL ""
     CACHE STRING "Release feed polled for updates; empty disables the update check")
 
 # --- Release channel --------------------------------------------------------
@@ -2051,6 +2053,7 @@ qt_add_qml_module(drift
         src/qml/components/timeline/TimelineLandingOutline.qml
         src/qml/components/timeline/TimelineGapHover.qml
         src/qml/components/timeline/TimelineFadeHandle.qml
+        src/qml/components/timeline/TimelineVolumeEnvelope.qml
         src/qml/components/timeline/TimelineEmptyState.qml
         src/qml/components/timeline/TimelineCutOverlay.qml
         src/qml/components/timeline/TimelineCutDoomGradient.qml

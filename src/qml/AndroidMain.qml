@@ -13,7 +13,7 @@ ApplicationWindow {
         const multiplier = (opacity === undefined || opacity === null) ? 1 : opacity
         return WindowBackdrop.windowBackground(Theme.c.androidMain.background, multiplier)
     }
-    title: "CutWire Drift"
+    title: "Cadra"
 
     // On Android the platform sizes the window. Chosen on a desktop, this shell opens phone-shaped
     // instead of filling a desktop-sized default; it stays resizable, and nothing is persisted.

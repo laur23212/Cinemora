@@ -50,7 +50,7 @@ ThemedDialog {
             horizontalAlignment: Text.AlignHCenter
             wrapMode: Text.WordWrap
             size: "sm"
-            text: qsTr("Open-source video editor by CutWire Studios.")
+            text: qsTr("Open-source video editor, based on %1 by CutWire Studios.").arg("Drift")
         }
 
         ThemedLabel {

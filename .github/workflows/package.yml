@@ -953,7 +953,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           $built = Get-ChildItem installer\windows\output\*.exe
-          Copy-Item $built.FullName "dist\Drift-Setup-${{ env.ASSET_LABEL }}-${{ matrix.arch }}.exe" -Force
+          Copy-Item $built.FullName "dist\Cadra-Setup-${{ env.ASSET_LABEL }}-${{ matrix.arch }}.exe" -Force
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
@@ -973,12 +973,12 @@ jobs:
       - name: Build portable zip
         shell: pwsh
         env:
-          FOLDER: ${{ inputs.channel == 'nightly' && 'Drift Nightly' || 'Drift' }}
+          FOLDER: ${{ inputs.channel == 'nightly' && 'Cadra Nightly' || 'Cadra' }}
         run: |
           New-Item -ItemType Directory -Force -Path "portable\$env:FOLDER", dist\portable | Out-Null
           Copy-Item dist\bin\* "portable\$env:FOLDER" -Recurse -Force
           & "$env:ProgramFiles\7-Zip\7z.exe" a -tzip -mx=9 `
-            "dist\portable\Drift-Portable-${{ env.ASSET_LABEL }}-${{ matrix.arch }}.zip" ".\portable\$env:FOLDER"
+            "dist\portable\Cadra-Portable-${{ env.ASSET_LABEL }}-${{ matrix.arch }}.zip" ".\portable\$env:FOLDER"
 
       - name: Upload portable artifact
         uses: actions/upload-artifact@v4

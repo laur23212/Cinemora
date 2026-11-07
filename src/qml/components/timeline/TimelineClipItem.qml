@@ -329,6 +329,12 @@ Item {
         onLoaded: clipItem.popupContextMenu(item)
     }
 
+    // Cool Edit-style volume line with draggable dots, on clips that carry sound. Declared
+    // first so the fade dots and trim handles below stay on top of it at the clip's edges.
+    TimelineVolumeEnvelope {
+        owner: clipItem
+    }
+
     // Fade dots sit above trim handles so they stay
     // grabable at the corners (zero fade). Trim the
     // edge below the dots; grab the dots to fade.

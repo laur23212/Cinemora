@@ -32,6 +32,8 @@
 #include <QSettings>
 #include <QStandardPaths>
 #include <QTranslator>
+#include <cstring>
+#include <QRegularExpression>
 #include <QUrl>
 #include <QVariantMap>
 #include <QtConcurrent>
@@ -48,6 +50,37 @@ namespace {
 
 QTranslator g_appTranslator;
 QTranslator g_qtTranslator;
+
+// Cadra branding: the UI text still says "Drift" (upstream's strings and their translations are
+// kept as they are, so every language keeps working and upstream changes merge cleanly). This
+// translator is installed last, so Qt asks it first: for any string that mentions Drift it fetches
+// the normal translation itself and swaps the product name. Text that must keep naming Drift — the
+// About dialog's credit — passes the name in through %1 after translation, so it is never touched.
+class BrandingTranslator : public QTranslator
+{
+public:
+    static QString rebrand(QString text)
+    {
+        static const QRegularExpression pattern(QStringLiteral("\\b(?:CutWire )?Drift\\b"));
+        return text.replace(pattern, QStringLiteral("Cadra"));
+    }
+
+    bool isEmpty() const override { return false; }
+
+    QString translate(const char *context, const char *sourceText, const char *disambiguation,
+                      int n) const override
+    {
+        if (!sourceText || !std::strstr(sourceText, "Drift"))
+            return {}; // not ours: Qt moves on to the real translators
+        QString text;
+        if (!g_appTranslator.isEmpty())
+            text = g_appTranslator.translate(context, sourceText, disambiguation, n);
+        if (text.isNull())
+            text = QString::fromUtf8(sourceText); // %n is still filled in by QCoreApplication
+        return rebrand(text);
+    }
+};
+BrandingTranslator g_brandingTranslator;
 QString g_appliedShell;
 
 // 0 means automatic; anything else is at least the 128 MiB floor.
@@ -883,12 +916,21 @@ void PreferencesController::runCacheJob(bool clear)
     }));
 }
 
+namespace {
+// Installed after the others so it is consulted first (see BrandingTranslator).
+void installBrandingTranslator(QCoreApplication *app)
+{
+    app->installTranslator(&g_brandingTranslator);
+}
+} // namespace
+
 void PreferencesController::installUiTranslators()
 {
     QCoreApplication *app = QCoreApplication::instance();
     if (!app)
         return;
 
+    app->removeTranslator(&g_brandingTranslator);
     app->removeTranslator(&g_appTranslator);
     app->removeTranslator(&g_qtTranslator);
 
@@ -900,11 +942,14 @@ void PreferencesController::installUiTranslators()
     if (g_qtTranslator.load(locale, QStringLiteral("qtbase"), QStringLiteral("_"), translationsDir))
         app->installTranslator(&g_qtTranslator);
 
-    if (locale.language() == QLocale::English)
+    if (locale.language() == QLocale::English) {
+        installBrandingTranslator(app);
         return;
+    }
 
     if (g_appTranslator.load(locale, QStringLiteral("drift"), QStringLiteral("_"), QStringLiteral(":/i18n")))
         app->installTranslator(&g_appTranslator);
+    installBrandingTranslator(app);
 }
 
 QVariantList PreferencesController::uiLanguages() const

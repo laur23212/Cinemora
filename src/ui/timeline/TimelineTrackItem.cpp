@@ -736,7 +736,9 @@ void TimelineTrackItem::updateActiveSet()
     if (m_clips && m_editor) {
         const QList<TimelineClipsModel::Row> &rows = m_clips->rows();
         for (int i = 0; i < rows.size(); ++i) {
-            if (isSelected(i))
+            // A clip whose volume line has been shaped keeps its overlay, so the line and its
+            // dots stay visible like in an audio editor, not only while hovered or selected.
+            if (isSelected(i) || rows.at(i).volumeKeys.size() >= 2)
                 ids.insert(rows.at(i).id);
         }
     }

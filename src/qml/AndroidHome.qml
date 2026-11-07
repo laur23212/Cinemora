@@ -50,7 +50,7 @@ Item {
                 anchors.left: parent.left
                 anchors.leftMargin: Theme.androidPagePadding
                 anchors.verticalCenter: parent.verticalCenter
-                text: "Drift"
+                text: "Cadra"
                 color: Theme.c.androidHomeWordmark.foreground
                 font.family: Theme.fontFamily
                 font.pixelSize: 22

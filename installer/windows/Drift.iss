@@ -12,6 +12,7 @@
 ;    /DArm64    builds the arm64 installer (default x64): only the allowed and 64-bit-mode
 ;               architecture and the output name change.
 ;
+; Cadra uses its own AppIds so it never upgrades or removes an installed Drift.
 ; Never change either AppId: it is what lets an installer upgrade an existing install
 ; in place instead of leaving two copies behind.
 #ifdef Arm64
@@ -23,15 +24,15 @@
 #endif
 
 #ifdef Nightly
-  #define MyAppName "Drift Nightly"
-  #define MyAppId "1699D9B5-080B-4892-ACEE-EC56B595E89B"
-  #define MyOutputBase "Drift-Setup-Nightly-" + Arch
+  #define MyAppName "Cadra Nightly"
+  #define MyAppId "FAEDEE19-55F3-4445-999A-19E5511A7F75"
+  #define MyOutputBase "Cadra-Setup-Nightly-" + Arch
 #else
-  #define MyAppName "Drift"
-  #define MyAppId "1FC80696-7700-464A-8E35-CCBB3239EDFB"
-  #define MyOutputBase "Drift-Setup-" + Arch
+  #define MyAppName "Cadra"
+  #define MyAppId "873FEB4F-1F9C-446C-B88B-F39A64823BAA"
+  #define MyOutputBase "Cadra-Setup-" + Arch
 #endif
-#define MyAppPublisher "CutWire Studios"
+#define MyAppPublisher "Cadra (based on Drift by CutWire Studios)"
 #define MyAppExeName "drift.exe"
 
 [Setup]
@@ -39,7 +40,7 @@ AppId={{{#MyAppId}}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
-AppSupportURL=https://github.com/CutWire-Studios/Drift/issues
+AppSupportURL=https://github.com/laur23212/Cinemora/issues
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 ArchitecturesAllowed={#MyArchSpec}
@@ -78,10 +79,10 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 ; delete the association out from under the stable install (uninsdeletekey), and two channels
 ; fighting over which opens a .drift file helps nobody.
 [Registry]
-Root: HKCR; Subkey: ".drift"; ValueType: string; ValueName: ""; ValueData: "CutWire.Drift.Project"; Flags: uninsdeletevalue
-Root: HKCR; Subkey: "CutWire.Drift.Project"; ValueType: string; ValueName: ""; ValueData: "Drift Project"; Flags: uninsdeletekey
-Root: HKCR; Subkey: "CutWire.Drift.Project\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#MyAppExeName},0"
-Root: HKCR; Subkey: "CutWire.Drift.Project\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" ""%1"""
+Root: HKCR; Subkey: ".drift"; ValueType: string; ValueName: ""; ValueData: "Cadra.Project"; Flags: uninsdeletevalue
+Root: HKCR; Subkey: "Cadra.Project"; ValueType: string; ValueName: ""; ValueData: "Cadra Project"; Flags: uninsdeletekey
+Root: HKCR; Subkey: "Cadra.Project\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#MyAppExeName},0"
+Root: HKCR; Subkey: "Cadra.Project\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" ""%1"""
 #endif
 
 [Run]
