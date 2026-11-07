@@ -5,19 +5,10 @@
 <h1 align="center">Dafin</h1>
 
 <p align="center">
-  <strong>The free video editor that makes your videos look finished — not “good enough.”</strong>
+  <strong>The free, open-source video editor that lets you edit without a subscription.”</strong>
 </p>
 
-<p align="center">
-  <a href="https://github.com/CutWire-Studios/Dafin/releases/latest"><img src="https://img.shields.io/github/v/release/CutWire-Studios/Dafin?label=release&style=flat&labelColor=28272f&color=feb504" alt="Latest release" height="24"></a>
-  <a href="https://github.com/CutWire-Studios/Dafin/releases"><img src="https://img.shields.io/github/downloads/CutWire-Studios/Dafin/total?label=GitHub%20downloads&style=flat&labelColor=28272f&color=feb504" alt="GitHub downloads" height="24"></a>
-  <a href="https://flathub.org/apps/org.cutwire.Dafin"><img src="https://img.shields.io/flathub/downloads/org.cutwire.Dafin?label=Flathub%20installs&style=flat&labelColor=28272f&color=feb504" alt="Flathub installs" height="24"></a>
-  <a href="https://discord.gg/J5ANFz6Z3y"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fdiscord.com%2Fapi%2Finvites%2FJ5ANFz6Z3y%3Fwith_counts%3Dtrue&query=%24.approximate_member_count&suffix=%20members&logo=discord&logoColor=F8F8F8&label=Discord&color=feb504&labelColor=28272f&style=flat" alt="Join Dafin Discord" height="24"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/CutWire-Studios/Dafin?style=flat&labelColor=28272f&color=feb504" alt="License: GPL-3.0" height="24"></a>
-  <img src="https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20macOS%20%7C%20Android-feb504?style=flat&labelColor=28272f" alt="Platform: Linux | Windows | macOS | Android" height="24">
-</p>
 
-<p align="center">
   <a href="https://www.opensourcealternatives.to"><img src="https://www.opensourcealternatives.to/badge-osa.svg" alt="Listed on Open Source Alternatives"></a>
 </p>
 
@@ -26,21 +17,7 @@
 </p>
 
 <p align="center">
-  Translations:
-  <a href="README-i18n/README.ar.md">العربية</a> ·
-  <a href="README-i18n/README.bn.md">বাংলা</a> ·
-  <a href="README-i18n/README.es.md">Español</a> ·
-  <a href="README-i18n/README.fr.md">Français</a> ·
-  <a href="README-i18n/README.it.md">Italiano</a> ·
-  <a href="README-i18n/README.ja.md">日本語</a> ·
-  <a href="README-i18n/README.ko.md">한국어</a> ·
-  <a href="README-i18n/README.pl.md">Polski</a> ·
-  <a href="README-i18n/README.pt.md">Português</a> ·
-  <a href="README-i18n/README.ru.md">Русский</a> ·
-  <a href="README-i18n/README.si.md">සිංහල</a> ·
-  <a href="README-i18n/README.tl.md">Tagalog</a> ·
-  <a href="README-i18n/README.vi.md">Tiếng Việt</a> ·
-  <a href="README-i18n/README.zh-Hans.md">简体中文</a>
+
 </p>
 
 Dafin is a video editor for Linux, Windows and macOS based on Drift from CutWire Studios. Drop in clips, add effects, captions, stickers,
@@ -91,9 +68,8 @@ Or grab a build for your platform from the
 | Linux | [Flathub](https://flathub.org/apps/org.cutwire.Dafin) · [AppImage (x86_64, aarch64)](https://github.com/CutWire-Studios/Dafin/releases/latest) |
 | Windows | [Microsoft Store](https://apps.microsoft.com/detail/9PHHBZ07FRSZ) · [Installer (.exe, x64 / arm64)](https://github.com/CutWire-Studios/Dafin/releases/latest) · [Portable zip (x64 / arm64)](https://github.com/CutWire-Studios/Dafin/releases/latest) |
 | macOS | [Homebrew Tap](https://github.com/CutWire-Studios/homebrew-tap) · [Disk image (.dmg, Apple Silicon / Intel)](https://github.com/CutWire-Studios/Dafin/releases/latest) |
-| Android | [Google Play](https://play.google.com/store/apps/details?id=org.cutwire.Dafin) · [APK (arm64-v8a)](https://github.com/CutWire-Studios/Dafin/releases/latest) · [APK (armeabi-v7a)](https://github.com/CutWire-Studios/Dafin/releases/latest) · [APK (x86_64)](https://github.com/CutWire-Studios/Dafin/releases/latest) |
+Studios/Dafin/releases/latest) ·
 
-On a phone, install from [Google Play](https://play.google.com/store/apps/details?id=org.cutwire.Dafin), or grab `Dafin-*-arm64-v8a.apk` from the latest release and install it (or `adb install Dafin-*-arm64-v8a.apk`). Use `x86_64` for emulators.
 
 See [all releases](https://github.com/CutWire-Studios/Dafin/releases) for previous versions and full changelogs.
 
@@ -191,9 +167,6 @@ It is fast enough for a 30-second social cut and deep enough for a real project 
 timeline, 3D and gaussian splats, color grading, keyframe curves, tracking, captions, voices,
 effects, audio, cutouts, and multicam.
 
-## Help us translate Dafin
-
-[![Translation status](https://hosted.weblate.org/widget/cutwire-Dafin/Dafin-desktop/multi-auto.svg)](https://hosted.weblate.org/engage/cutwire-Dafin/)
 
 ## For developers
 
@@ -204,28 +177,7 @@ Build, packaging, architecture, and agent protocol live in `docs/`:
 - [GPU transitions](docs/gpu-transitions.md)
 - [Agent access / MCP](docs/MCP.md)
 
-## Help and feedback
 
-Found a bug or have an idea? Open an
-[issue on GitHub](https://github.com/CutWire-Studios/Dafin/issues).
-
-## Contributing
-
-[CONTRIBUTING.md](./CONTRIBUTING.md) is the pull-request guide: open an issue before a large change, keep each request to one change, run the tests, and license the work under GPLv3.
-
-Effects, transitions, templates, and audio effects are addons. Send those to [Dafin-Addons](https://github.com/CutWire-Studios/Dafin-Addons). Changes to the engine that runs them stay in this repository.
-
-Installing a [release](https://github.com/CutWire-Studios/Dafin/releases) and editing a real project is enough to help; file what broke, or what should work better. On [Discord](https://discord.gg/J5ANFz6Z3y), people who have contributed can ask for the `@Contributor` role.
-
-## Contributors
-
-<a href="https://github.com/CutWire-Studios/Dafin/graphs/contributors">
-  <img alt="Contributors" src="https://contrib.rocks/image?repo=CutWire-Studios/Dafin">
-</a>
-
-## License
-
-GPLv3 — see [LICENSE](LICENSE).
 
 ## Star History
 
