@@ -460,6 +460,24 @@ if(WIN32)
     target_link_libraries(tst_onlineassets PRIVATE crypt32)
 endif()
 add_test(NAME OnlineAssets COMMAND tst_onlineassets)
+
+# Long-press drag reordering of the header, preview transport and timeline toolbar buttons.
+find_package(Qt6 COMPONENTS QuickTest QUIET)
+if(TARGET Qt6::QuickTest)
+    set(_barreorder_imports "${CMAKE_CURRENT_BINARY_DIR}/barreorder_imports")
+    foreach(_file BarReorder.qml BarReorderHandle.qml BarReorderLayer.qml BarSlot.qml)
+        configure_file(../src/qml/components/controls/${_file} "${_barreorder_imports}/Drift/${_file}" COPYONLY)
+    endforeach()
+    configure_file(qml/barreorder/stub/Theme.qml "${_barreorder_imports}/Drift/Theme.qml" COPYONLY)
+    configure_file(qml/barreorder/stub/qmldir "${_barreorder_imports}/Drift/qmldir" COPYONLY)
+    qt_add_executable(tst_barreorder tst_barreorder.cpp)
+    target_compile_definitions(tst_barreorder PRIVATE
+        BARREORDER_IMPORTS="${_barreorder_imports}"
+        QUICK_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/qml/barreorder")
+    target_link_libraries(tst_barreorder PRIVATE Qt6::QuickTest Qt6::Test Qt6::Quick Qt6::Qml)
+    add_test(NAME BarReorder COMMAND tst_barreorder)
+    set_tests_properties(BarReorder PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+endif()
 set_tests_properties(OnlineAssets PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;DAFIN_PLAIN_SECRETS=1")
 
 qt_add_executable(tst_searchindex tst_searchindex.cpp ../src/app/editor/SearchIndex.cpp)

@@ -148,6 +148,172 @@ Item {
 
     TimelineToolbarHairline { }
 
+    // Long-press and drag rearranges the toolbar. The fixed controls (import, play, timecode on
+    // the left; the toggles and zoom on the right) move among themselves; the edit actions keep
+    // to their own run because they are stored with the More menu, and dropping one on the More
+    // button moves it into that menu.
+    BarReorder {
+        id: timelineReorder
+        defaults: ({
+            "start": ["import", "separatorA", "play", "timecode", "separatorB"],
+            "end": ["overlap", "autoSelect", "separatorC", "snap", "ripple", "zoom", "separatorD",
+                    "mixer", "overview"]
+        })
+        stored: EditorState.preferences.barLayouts["timeline"]
+        layer: reorderLayer
+        onSaveRequested: (layout) => EditorState.preferences.setBarLayout("timeline", layout)
+    }
+
+    // The edit actions repeat "separator", so their drag ids carry the position: "separator#4".
+    function actionDragId(id, index) {
+        return id === "separator" ? "separator#" + index : id
+    }
+    function actionFromDragId(id) {
+        return id.indexOf("separator#") === 0 ? "separator" : id
+    }
+
+    BarReorder {
+        id: actionsReorder
+        readonly property var tagged: toolbar.layout.toolbar.map((id, i) => toolbar.actionDragId(id, i))
+        defaults: ({ "actions": tagged })
+        stored: ({ "actions": tagged })
+        layer: actionsReorderLayer
+        extraTargets: [{
+            item: overflowButton,
+            groups: ["actions"],
+            drop: function (id, fromGroup) {
+                const index = actionsReorder.tagged.indexOf(id)
+                if (index < 0)
+                    return
+                const toolbarItems = toolbar.layout.toolbar.slice()
+                toolbarItems.splice(index, 1)
+                const menuItems = [toolbar.actionFromDragId(id)].concat(toolbar.layout.menu)
+                EditorState.preferences.setTimelineToolbarLayout(toolbarItems, menuItems)
+            }
+        }]
+        onSaveRequested: (layout) => EditorState.preferences.setTimelineToolbarLayout(
+                             layout["actions"].map((id) => toolbar.actionFromDragId(id)),
+                             toolbar.layout.menu)
+    }
+
+    readonly property var barItems: ({
+        "import": importComponent,
+        "separatorA": separatorComponent,
+        "play": playComponent,
+        "timecode": timecodeComponent,
+        "separatorB": separatorComponent,
+        "overlap": overlapComponent,
+        "autoSelect": autoSelectComponent,
+        "separatorC": separatorComponent,
+        "snap": snapComponent,
+        "ripple": rippleComponent,
+        "zoom": zoomComponent,
+        "separatorD": separatorComponent,
+        "mixer": mixerComponent,
+        "overview": overviewComponent
+    })
+
+    Component { id: separatorComponent; TimelineToolbarSeparator { } }
+
+    Component {
+        id: importComponent
+        ThemedButton {
+            variant: "primary"
+            glyph: Theme.icons.plus
+            text: qsTr("Import media")
+            tooltip: qsTr("Add video or audio files directly to the timeline at the playhead")
+            height: Math.min(Theme.controlHeightSm, toolbar.height - Theme.spacingXs * 2)
+            topPadding: Theme.spacingXs
+            bottomPadding: Theme.spacingXs
+            enabled: !MediaImport.importing
+            onClicked: toolbar.panel.importMediaDirectlyToTimeline()
+        }
+    }
+
+    Component {
+        id: playComponent
+        TimelineToolbarToolButton {
+            glyph: EditorState.playing ? Theme.icons.pause : Theme.icons.play
+            tooltip: EditorState.playing ? qsTr("Pause") : qsTr("Play")
+            onClicked: EditorState.togglePlayback()
+        }
+    }
+
+    Component {
+        id: timecodeComponent
+        TimelineToolbarTimecode {
+            panel: toolbar.panel
+        }
+    }
+
+    Component {
+        id: overlapComponent
+        TimelineToolbarToolButton {
+            glyph: Theme.icons.option
+            tooltip: qsTr("Allow clip overlap")
+            active: EditorState.allowClipOverlap
+            onClicked: EditorState.allowClipOverlap = !EditorState.allowClipOverlap
+        }
+    }
+
+    Component {
+        id: autoSelectComponent
+        TimelineToolbarToolButton {
+            glyph: Theme.icons.locateFixed
+            tooltip: qsTr("Auto-select: select the clip under the playhead")
+            active: EditorState.preferences.autoSelectUnderPlayhead
+            onClicked: EditorState.preferences.autoSelectUnderPlayhead = !EditorState.preferences.autoSelectUnderPlayhead
+        }
+    }
+
+    // Keep the magnetic tools next to zoom by default, where CapCut users expect them.
+    Component {
+        id: snapComponent
+        TimelineToolbarToolButton {
+            glyph: Theme.icons.magnet
+            tooltip: qsTr("Magnetic snapping: align video and audio edges across tracks")
+            active: EditorState.snapEnabled
+            onClicked: EditorState.snapEnabled = !EditorState.snapEnabled
+        }
+    }
+
+    Component {
+        id: rippleComponent
+        TimelineToolbarToolButton {
+            glyph: Theme.icons.foldHorizontal
+            tooltip: qsTr("Ripple editing: keep following clips together when trimming")
+            active: EditorState.rippleEnabled
+            onClicked: EditorState.rippleEnabled = !EditorState.rippleEnabled
+        }
+    }
+
+    Component {
+        id: zoomComponent
+        TimelineToolbarZoomControl {
+            host: toolbar
+        }
+    }
+
+    Component {
+        id: mixerComponent
+        TimelineToolbarToolButton {
+            glyph: Theme.icons.slidersVertical
+            tooltip: qsTr("Toggle audio mixer strip")
+            active: EditorState.preferences.audioMixerVisible
+            onClicked: EditorState.preferences.audioMixerVisible = !EditorState.preferences.audioMixerVisible
+        }
+    }
+
+    Component {
+        id: overviewComponent
+        TimelineToolbarToolButton {
+            glyph: Theme.icons.panelTop
+            tooltip: qsTr("Timeline overview — a minimap of the whole project; click or drag it to jump the view")
+            active: EditorState.preferences.timelineOverviewVisible
+            onClicked: EditorState.preferences.timelineOverviewVisible = !EditorState.preferences.timelineOverviewVisible
+        }
+    }
+
     Row {
         id: leftControls
         anchors.left: parent.left
@@ -160,42 +326,35 @@ Item {
         width: Math.max(0, toolbar.width - rightControls.width - Theme.spacingLg * 3)
         clip: true
 
-        ThemedButton {
-            variant: "primary"
-            glyph: Theme.icons.plus
-            text: qsTr("Import media")
-            tooltip: qsTr("Add video or audio files directly to the timeline at the playhead")
-            height: Math.min(Theme.controlHeightSm, toolbar.height - Theme.spacingXs * 2)
-            topPadding: Theme.spacingXs
-            bottomPadding: Theme.spacingXs
-            enabled: !MediaImport.importing
-            onClicked: toolbar.panel.importMediaDirectlyToTimeline()
+        Row {
+            id: startRow
+            height: toolbar.height
+            spacing: Theme.spacingXs
+            Component.onCompleted: timelineReorder.registerGroup("start", startRow)
+            Repeater {
+                model: timelineReorder.layout["start"]
+                delegate: BarSlot { reorder: timelineReorder; group: "start"; items: toolbar.barItems }
+            }
         }
 
-        TimelineToolbarSeparator { }
-
-        TimelineToolbarToolButton {
-            glyph: EditorState.playing ? Theme.icons.pause : Theme.icons.play
-            tooltip: EditorState.playing ? qsTr("Pause") : qsTr("Play")
-            onClicked: EditorState.togglePlayback()
-        }
-
-        TimelineToolbarTimecode {
-            panel: toolbar.panel
-        }
-
-        TimelineToolbarSeparator { }
-
-        Repeater {
-            model: toolbar.layout.toolbar
-            delegate: TimelineToolbarActionSlot {
-                host: toolbar
+        Row {
+            id: actionsRow
+            height: toolbar.height
+            spacing: Theme.spacingXs
+            Component.onCompleted: actionsReorder.registerGroup("actions", actionsRow)
+            Repeater {
+                model: toolbar.layout.toolbar
+                delegate: TimelineToolbarActionSlot {
+                    host: toolbar
+                    reorder: actionsReorder
+                }
             }
         }
 
         TimelineToolbarOverflowButton {
             id: overflowButton
             host: toolbar
+            anchors.verticalCenter: parent.verticalCenter
             onCustomizeRequested: customizeDialog.open()
         }
     }
@@ -214,55 +373,23 @@ Item {
         anchors.right: parent.right
         anchors.rightMargin: Theme.spacingLg
         anchors.verticalCenter: parent.verticalCenter
+        height: toolbar.height
         spacing: Theme.spacingSm
+        Component.onCompleted: timelineReorder.registerGroup("end", rightControls)
 
-        TimelineToolbarToolButton {
-            glyph: Theme.icons.option
-            tooltip: qsTr("Allow clip overlap")
-            active: EditorState.allowClipOverlap
-            onClicked: EditorState.allowClipOverlap = !EditorState.allowClipOverlap
+        Repeater {
+            model: timelineReorder.layout["end"]
+            delegate: BarSlot { reorder: timelineReorder; group: "end"; items: toolbar.barItems }
         }
-        TimelineToolbarToolButton {
-            glyph: Theme.icons.locateFixed
-            tooltip: qsTr("Auto-select: select the clip under the playhead")
-            active: EditorState.preferences.autoSelectUnderPlayhead
-            onClicked: EditorState.preferences.autoSelectUnderPlayhead = !EditorState.preferences.autoSelectUnderPlayhead
-        }
+    }
 
-        TimelineToolbarSeparator { }
+    BarReorderLayer {
+        id: reorderLayer
+        reorder: timelineReorder
+    }
 
-        // Keep the magnetic tools next to zoom, where CapCut users expect them.
-        TimelineToolbarToolButton {
-            glyph: Theme.icons.magnet
-            tooltip: qsTr("Magnetic snapping: align video and audio edges across tracks")
-            active: EditorState.snapEnabled
-            onClicked: EditorState.snapEnabled = !EditorState.snapEnabled
-        }
-        TimelineToolbarToolButton {
-            glyph: Theme.icons.foldHorizontal
-            tooltip: qsTr("Ripple editing: keep following clips together when trimming")
-            active: EditorState.rippleEnabled
-            onClicked: EditorState.rippleEnabled = !EditorState.rippleEnabled
-        }
-
-        TimelineToolbarZoomControl {
-            host: toolbar
-        }
-
-        TimelineToolbarSeparator { }
-
-        TimelineToolbarToolButton {
-            glyph: Theme.icons.slidersVertical
-            tooltip: qsTr("Toggle audio mixer strip")
-            active: EditorState.preferences.audioMixerVisible
-            onClicked: EditorState.preferences.audioMixerVisible = !EditorState.preferences.audioMixerVisible
-        }
-
-        TimelineToolbarToolButton {
-            glyph: Theme.icons.panelTop
-            tooltip: qsTr("Timeline overview — a minimap of the whole project; click or drag it to jump the view")
-            active: EditorState.preferences.timelineOverviewVisible
-            onClicked: EditorState.preferences.timelineOverviewVisible = !EditorState.preferences.timelineOverviewVisible
-        }
+    BarReorderLayer {
+        id: actionsReorderLayer
+        reorder: actionsReorder
     }
 }

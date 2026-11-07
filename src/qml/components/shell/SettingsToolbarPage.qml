@@ -5,7 +5,24 @@ SettingsPage {
     id: page
 
     pageId: "toolbar"
-    title: qsTr("Timeline toolbar")
+    title: qsTr("Toolbars")
+
+    SettingsRow {
+        title: qsTr("Button positions")
+        searchId: "toolbar-positions"
+        description: qsTr("Press and hold any button on the top bar, under the preview or on the timeline toolbar, then drag it to a new place. On the timeline, drop an action on the More button to move it into that menu. Esc cancels a drag.")
+        keywords: "move drag rearrange order position reset buttons"
+        query: page.query
+
+        ThemedButton {
+            variant: "secondary"
+            text: qsTr("Reset all")
+            onClicked: {
+                EditorState.preferences.resetBarLayouts()
+                toolbarCustomizer.reload()
+            }
+        }
+    }
 
     SettingsRow {
         stacked: true
@@ -16,6 +33,7 @@ SettingsPage {
         query: page.query
 
         TimelineToolbarCustomizer {
+            id: toolbarCustomizer
             autoSave: true
             width: parent.width
         }

@@ -1,0 +1,6 @@
+module Drift
+singleton Theme 1.0 Theme.qml
+BarReorder 1.0 BarReorder.qml
+BarReorderHandle 1.0 BarReorderHandle.qml
+BarReorderLayer 1.0 BarReorderLayer.qml
+BarSlot 1.0 BarSlot.qml

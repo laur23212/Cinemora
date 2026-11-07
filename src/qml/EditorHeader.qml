@@ -364,6 +364,117 @@ Item {
         onRejected: root._pendingAfterUnsaved = null
     }
 
+    // Every button here can be moved by pressing and holding it, then dragging (BarReorder).
+    // The search field stays in the middle; buttons move within and between the two sides.
+    BarReorder {
+        id: headerReorder
+        defaults: ({
+            "left": ["projects", "save", "video"],
+            "right": ["downloads", "settings", "separator1", "extras", "notifications", "separator2",
+                      "agent", "separator3", "exportBadge", "export"]
+        })
+        stored: EditorState.preferences.barLayouts["header"]
+        layer: headerReorderLayer
+        onSaveRequested: (layout) => EditorState.preferences.setBarLayout("header", layout)
+    }
+
+    readonly property var headerItems: ({
+        "projects": projectsComponent,
+        "save": saveComponent,
+        "video": videoComponent,
+        "downloads": downloadsComponent,
+        "settings": settingsComponent,
+        "separator1": separatorComponent,
+        "extras": extrasComponent,
+        "notifications": notificationsComponent,
+        "separator2": separatorComponent,
+        "agent": agentComponent,
+        "separator3": separatorComponent,
+        "exportBadge": exportBadgeComponent,
+        "export": exportComponent
+    })
+
+    Component {
+        id: projectsComponent
+        EditorHeaderProjectsButton {
+            projectName: root.projectName
+            onOpenFileRequested: root.openProject()
+            onNewProjectRequested: root.requestNewProject()
+            onOpenRecentRequested: (path) => root.openRecent(path)
+            onCloseProjectRequested: root.closeProject()
+            onSaveAsRequested: root.saveProjectAs()
+            onPackageRequested: root.packageProject()
+            onSaveJsonRequested: root.saveProjectJson()
+            onOpenJsonRequested: root.openProjectJson()
+            onPropertiesRequested: projectPropertiesDialogLoader.ensure().openDialog()
+        }
+    }
+
+    Component {
+        id: saveComponent
+        IconButton {
+            glyph: Theme.icons.save
+            variant: "ghost"
+            text: qsTr("Save")
+            tooltip: {
+                const keys = EditorState.shortcutFor("save")
+                return keys.length > 0 ? qsTr("Save project (%1)").arg(Theme.shortcutDisplay(keys))
+                                       : qsTr("Save project")
+            }
+            onClicked: root.saveProject()
+        }
+    }
+
+    Component {
+        id: videoComponent
+        IconButton {
+            glyph: Theme.icons.ratio
+            variant: "ghost"
+            text: qsTr("Video")
+            active: videoSizeDialogLoader.shown || EditorState.preview.canvasCropMode
+            tooltip: qsTr("Video size and layout")
+            onClicked: videoSizeDialogLoader.ensure().openDialog()
+        }
+    }
+
+    Component { id: downloadsComponent; EditorHeaderDownloadsButton { } }
+    Component { id: settingsComponent; EditorHeaderSettingsButton { } }
+    Component { id: separatorComponent; EditorHeaderSeparator { } }
+    Component { id: extrasComponent; EditorHeaderExtrasButton { } }
+    Component { id: notificationsComponent; EditorHeaderNotificationsButton { } }
+
+    Component {
+        id: agentComponent
+        IconButton {
+            glyph: Theme.icons.bot
+            variant: "ghost"
+            text: qsTr("Agent")
+            active: EditorState.mcp.running
+            tooltip: EditorState.mcp.running
+                     ? qsTr("Agent access is on")
+                     : qsTr("Agent access")
+            onClicked: agentAccessDialog.openDialog()
+        }
+    }
+
+    Component {
+        id: exportBadgeComponent
+        EditorHeaderExportBadge {
+            dismissed: root.exportProgressDismissed
+            onReopenRequested: {
+                root.exportProgressDismissed = false
+                exportProgressDialogLoader.ensure().openDialog()
+            }
+        }
+    }
+
+    Component {
+        id: exportComponent
+        EditorHeaderExportButton {
+            onExportRequested: root.exportVideo()
+        }
+    }
+
     EditorHeaderHairline { }
 
     // The three groups used to be independently anchored, so at narrow widths
@@ -377,43 +488,14 @@ Item {
 
         // --- Left: project switcher + save ------------------------------------
         Row {
+            id: headerLeftRow
             Layout.alignment: Qt.AlignVCenter
+            Layout.preferredHeight: root.height
             spacing: Theme.spacingLg
-
-            EditorHeaderProjectsButton {
-                projectName: root.projectName
-                onOpenFileRequested: root.openProject()
-                onNewProjectRequested: root.requestNewProject()
-                onOpenRecentRequested: (path) => root.openRecent(path)
-                onCloseProjectRequested: root.closeProject()
-                onSaveAsRequested: root.saveProjectAs()
-                onPackageRequested: root.packageProject()
-                onSaveJsonRequested: root.saveProjectJson()
-                onOpenJsonRequested: root.openProjectJson()
-                onPropertiesRequested: projectPropertiesDialogLoader.ensure().openDialog()
-            }
-
-            IconButton {
-                glyph: Theme.icons.save
-                variant: "ghost"
-                text: qsTr("Save")
-                tooltip: {
-                    const keys = EditorState.shortcutFor("save")
-                    return keys.length > 0 ? qsTr("Save project (%1)").arg(Theme.shortcutDisplay(keys))
-                                           : qsTr("Save project")
-                }
-                anchors.verticalCenter: parent.verticalCenter
-                onClicked: root.saveProject()
-            }
-
-            IconButton {
-                glyph: Theme.icons.ratio
-                variant: "ghost"
-                text: qsTr("Video")
-                active: videoSizeDialogLoader.shown || EditorState.preview.canvasCropMode
-                tooltip: qsTr("Video size and layout")
-                anchors.verticalCenter: parent.verticalCenter
-                onClicked: videoSizeDialogLoader.ensure().openDialog()
+            Component.onCompleted: headerReorder.registerGroup("left", headerLeftRow)
+            Repeater {
+                model: headerReorder.layout["left"]
+                delegate: BarSlot { reorder: headerReorder; group: "left"; items: root.headerItems }
             }
         }
 
@@ -443,46 +525,20 @@ Item {
 
         // --- Right: appearance | extras | agent | infrequent | export ------
         Row {
+            id: headerRightRow
             Layout.alignment: Qt.AlignVCenter
+            Layout.preferredHeight: root.height
             spacing: Theme.spacingSm
-
-            EditorHeaderDownloadsButton { }
-
-            EditorHeaderSettingsButton { }
-
-            EditorHeaderSeparator {}
-
-            EditorHeaderExtrasButton { }
-
-            EditorHeaderNotificationsButton { }
-
-            EditorHeaderSeparator {}
-
-            IconButton {
-                glyph: Theme.icons.bot
-                variant: "ghost"
-                text: qsTr("Agent")
-                active: EditorState.mcp.running
-                tooltip: EditorState.mcp.running
-                         ? qsTr("Agent access is on")
-                         : qsTr("Agent access")
-                anchors.verticalCenter: parent.verticalCenter
-                onClicked: agentAccessDialog.openDialog()
-            }
-
-            EditorHeaderSeparator {}
-
-            EditorHeaderExportBadge {
-                dismissed: root.exportProgressDismissed
-                onReopenRequested: {
-                    root.exportProgressDismissed = false
-                    exportProgressDialogLoader.ensure().openDialog()
-                }
-            }
-
-            EditorHeaderExportButton {
-                onExportRequested: root.exportVideo()
+            Component.onCompleted: headerReorder.registerGroup("right", headerRightRow)
+            Repeater {
+                model: headerReorder.layout["right"]
+                delegate: BarSlot { reorder: headerReorder; group: "right"; items: root.headerItems }
             }
         }
+    }
+
+    BarReorderLayer {
+        id: headerReorderLayer
+        reorder: headerReorder
     }
 }

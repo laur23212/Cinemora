@@ -6,9 +6,15 @@ Item {
     id: slot
 
     property var host
+    // Long-press drag reordering of the toolbar's edit actions (set by TimelineToolbar).
+    property BarReorder reorder
     required property string modelData
     required property int index
     readonly property bool isSeparator: modelData === "separator"
+
+    readonly property string barItemId: host ? host.actionDragId(modelData, index) : modelData
+    readonly property int barItemIndex: index
+    readonly property string barGroup: "actions"
 
     visible: isSeparator
              ? host.separatorNeeded(host.layout.toolbar, index, host.actionShownOnToolbar)
@@ -31,5 +37,13 @@ Item {
         active: slot.host.actionActive(slot.modelData)
         enabled: slot.host.actionEnabled(slot.modelData)
         onClicked: slot.host.triggerAction(slot.modelData)
+    }
+
+    BarReorderHandle {
+        reorder: slot.reorder
+        group: "actions"
+        itemId: slot.barItemId
+        content: actionButton
+        draggable: slot.reorder !== null && !slot.isSeparator
     }
 }

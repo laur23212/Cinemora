@@ -10,7 +10,9 @@ Rectangle {
     radius: Theme.c.editorHeaderExportBadge.radius
     color: badgeMouse.containsMouse ? Theme.c.editorHeaderExportBadge.backgroundHover : "transparent"
     anchors.verticalCenter: parent.verticalCenter
-    visible: opacity > 0
+    // Read by the header's BarSlot so the slot hides with the badge (see BarSlot).
+    readonly property bool barVisible: opacity > 0
+    visible: barVisible
     opacity: EditorState.exportInProgress && dismissed ? 1 : 0
 
     Behavior on opacity {

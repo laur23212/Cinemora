@@ -28,7 +28,7 @@ Item {
         { id: "appearance", title: qsTr("Appearance"), keywords: "theme dark light color workspace layout translucency" },
         { id: "workspaces", title: qsTr("Workspaces"), keywords: "workspace layout panel window monitor screen dock preset" },
         { id: "timeline", title: qsTr("Timeline"), keywords: "scroll wheel horizontal vertical crossfade transition overview minimap" },
-        { id: "toolbar", title: qsTr("Timeline toolbar"), keywords: "toolbar buttons customize" },
+        { id: "toolbar", title: qsTr("Toolbars"), keywords: "toolbar buttons customize move drag rearrange order reset" },
         { id: "keymap", title: qsTr("Keyboard shortcuts"), keywords: "keymap keys hotkeys bindings" },
         { id: "preview", title: qsTr("Preview"), keywords: "quality resolution decode proxies guides background graphics gpu" },
         { id: "performance", title: qsTr("Performance"), keywords: "advanced tuning cache memory ram vram read-ahead buffer drop frames hardware encoder export pool" },

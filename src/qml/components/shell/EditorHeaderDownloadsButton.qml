@@ -8,10 +8,12 @@ Item {
     // The app update also lands in the Downloads tab, so the button shows while
     // one is running even without the marketplace.
     readonly property int activeCount: Downloads.activeCount
-    visible: StockInstaller.configured || activeCount > 0
+    // Read by the header's BarSlot so the slot hides with the button (see BarSlot).
+    readonly property bool barVisible: StockInstaller.configured || activeCount > 0
+    visible: barVisible
     implicitWidth: downloadsBtn.implicitWidth
     implicitHeight: downloadsBtn.implicitHeight
-    width: visible ? implicitWidth : 0
+    width: barVisible ? implicitWidth : 0
     height: implicitHeight
     anchors.verticalCenter: parent.verticalCenter
 

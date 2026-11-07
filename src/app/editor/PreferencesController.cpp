@@ -287,6 +287,13 @@ PreferencesController::PreferencesController(QObject *parent)
         settings.value(QStringLiteral("ui/androidTrackLabelsWidth"), 80.0).toDouble(), 200.0);
     m_timelineToolbarItems = settings.value(QStringLiteral("ui/timelineToolbarItems")).toStringList();
     m_timelineMenuItems = settings.value(QStringLiteral("ui/timelineMenuItems")).toStringList();
+    settings.beginGroup(QStringLiteral("ui/barLayouts"));
+    for (const QString &barId : settings.childKeys()) {
+        const QVariantMap groups = settings.value(barId).toMap();
+        if (!groups.isEmpty())
+            m_barLayouts.insert(barId, groups);
+    }
+    settings.endGroup();
     m_proxyNamePatterns = settings.contains(QStringLiteral("proxy/namePatterns"))
         ? settings.value(QStringLiteral("proxy/namePatterns")).toStringList()
         : drift::defaultProxyNamePatterns();
@@ -485,6 +492,48 @@ void PreferencesController::setTimelineToolbarLayout(const QStringList &toolbarI
         settings.setValue(QStringLiteral("ui/timelineMenuItems"), menuItems);
     }
     emit timelineToolbarLayoutChanged();
+}
+
+void PreferencesController::setBarLayout(const QString &barId, const QVariantMap &groups)
+{
+    // Bar ids are fixed names from QML; anything else would only pollute the settings file.
+    static const QRegularExpression validId(QStringLiteral("^[A-Za-z][A-Za-z0-9_-]{0,31}$"));
+    if (!validId.match(barId).hasMatch())
+        return;
+    QVariantMap clean;
+    for (auto it = groups.cbegin(); it != groups.cend(); ++it) {
+        QStringList ids;
+        for (const QVariant &v : it.value().toList()) {
+            const QString id = v.toString();
+            if (!id.isEmpty() && id.size() <= 64)
+                ids.append(id);
+        }
+        clean.insert(it.key(), ids);
+    }
+    if (m_barLayouts.value(barId).toMap() == clean)
+        return;
+    QSettings settings;
+    const QString key = QStringLiteral("ui/barLayouts/") + barId;
+    if (clean.isEmpty()) {
+        if (!m_barLayouts.contains(barId))
+            return;
+        m_barLayouts.remove(barId);
+        settings.remove(key);
+    } else {
+        m_barLayouts.insert(barId, clean);
+        settings.setValue(key, clean);
+    }
+    emit barLayoutsChanged();
+}
+
+void PreferencesController::resetBarLayouts()
+{
+    QSettings().remove(QStringLiteral("ui/barLayouts"));
+    if (!m_barLayouts.isEmpty()) {
+        m_barLayouts.clear();
+        emit barLayoutsChanged();
+    }
+    setTimelineToolbarLayout({}, {});
 }
 
 void PreferencesController::setReopenLastProject(bool enabled)

@@ -4,6 +4,7 @@
 #include <QStringList>
 #include <QUrl>
 #include <QVariantList>
+#include <QVariantMap>
 
 // App-wide QSettings preferences and persisted UI layout. Reached from QML as
 // EditorState.preferences. Nothing here reads the open project.
@@ -46,6 +47,10 @@ class PreferencesController : public QObject
                    NOTIFY timelineToolbarLayoutChanged)
     Q_PROPERTY(QStringList timelineMenuItems READ timelineMenuItems
                    NOTIFY timelineToolbarLayoutChanged)
+    // Button order the user arranged by long-press dragging, per bar ("header", "transport",
+    // "timeline"): bar id -> { group name -> [item ids] }. A bar missing from the map uses its
+    // QML defaults; ids are validated on the QML side, which owns each bar's item list.
+    Q_PROPERTY(QVariantMap barLayouts READ barLayouts NOTIFY barLayoutsChanged)
     // Name patterns (ProxyNaming strings such as "*_proxy") that find proxies made outside Drift
     // beside a source. Seeded with the defaults until the user changes them.
     Q_PROPERTY(QStringList proxyNamePatterns READ proxyNamePatterns WRITE setProxyNamePatterns
@@ -176,6 +181,11 @@ public:
     Q_INVOKABLE void resetProxyNamePatterns();
     Q_INVOKABLE void setTimelineToolbarLayout(const QStringList &toolbarItems,
                                               const QStringList &menuItems);
+    QVariantMap barLayouts() const { return m_barLayouts; }
+    // An empty `groups` map puts that bar back to its default order.
+    Q_INVOKABLE void setBarLayout(const QString &barId, const QVariantMap &groups);
+    // Every bar, and the timeline toolbar's button / More-menu split, back to the defaults.
+    Q_INVOKABLE void resetBarLayouts();
 
     bool reopenLastProject() const { return m_reopenLastProject; }
     void setReopenLastProject(bool enabled);
@@ -303,6 +313,7 @@ signals:
     void androidTrackLabelsWidthChanged();
     void proxyNamePatternsChanged();
     void timelineToolbarLayoutChanged();
+    void barLayoutsChanged();
     void reopenLastProjectChanged();
     void vaapiZeroCopyChanged();
     void mediaCodecZeroCopyChanged();
@@ -339,6 +350,7 @@ private:
     QStringList m_timelineToolbarItems;
     QStringList m_proxyNamePatterns;
     QStringList m_timelineMenuItems;
+    QVariantMap m_barLayouts;
     bool m_reopenLastProject = false;
     bool m_vaapiZeroCopy = false;
     bool m_mediaCodecZeroCopy = false;
