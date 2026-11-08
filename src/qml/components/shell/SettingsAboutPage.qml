@@ -15,44 +15,7 @@ SettingsPage {
         query: page.query
     }
 
-    SettingsGroupHeader {
-        text: qsTr("Updates")
-        available: Updates.supported
-        query: page.query
-    }
-
-    SettingsRow {
-        title: qsTr("Check for updates on startup")
-        searchId: "about-check-updates-on-startup"
-        description: qsTr("Once a day, check whether a newer Drift has been released.")
-        keywords: "update version release newer"
-        available: Updates.supported
-        query: page.query
-
-        ThemedSwitch {
-            checked: Updates.enabled
-            onToggled: Updates.enabled = checked
-        }
-    }
-
-    SettingsRow {
-        title: qsTr("Check for updates")
-        searchId: "about-check-for-updates"
-        description: Updates.status
-        keywords: "update version release newer download"
-        available: Updates.supported
-        query: page.query
-
-        ThemedButton {
-            variant: "secondary"
-            glyph: Theme.icons.refresh
-            text: Updates.checking ? qsTr("Checking…")
-                  : Updates.downloading ? qsTr("Downloading…")
-                  : qsTr("Check now")
-            enabled: !Updates.checking && !Updates.downloading && !Updates.preparing
-            onClicked: Updates.checkNow()
-        }
-    }
+    // Dafin: checking for updates has its own page, Settings > Updates.
 
     SettingsGroupHeader {
         text: qsTr("Help")

@@ -31,6 +31,8 @@ QString parseVersionText(const QByteArray &raw);
 // file URLs for the version the DNS record named, without asking /releases/latest.
 QString releaseTagApiUrl(const QString &feedUrl, const QString &version);
 QString releasePageUrl(const QString &feedUrl, const QString &version);
+// The repository's list of releases, for builds that do not update themselves.
+QString releasesPageUrl(const QString &feedUrl);
 QString releaseDownloadUrl(const QString &feedUrl, const QString &version, const QString &fileName);
 
 // The hash for fileName in a `sha256sum` listing (the release's SHA256SUMS), lower-case hex, or

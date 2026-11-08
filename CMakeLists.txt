@@ -2509,6 +2509,7 @@ qt_add_qml_module(drift
         src/qml/components/shell/StartScreenProjectRow.qml
         src/qml/components/shell/StartScreenActions.qml
         src/qml/components/shell/SettingsAboutPage.qml
+        src/qml/components/shell/SettingsUpdatesPage.qml
         src/qml/components/shell/SettingsAiPage.qml
         src/qml/components/shell/SettingsAppearanceActions.qml
         src/qml/components/shell/SettingsAppearancePage.qml

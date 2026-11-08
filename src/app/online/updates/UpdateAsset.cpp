@@ -142,6 +142,14 @@ QString releasePageUrl(const QString &feedUrl, const QString &version)
             .arg(parts.at(1), parts.at(2), version);
 }
 
+QString releasesPageUrl(const QString &feedUrl)
+{
+    const QStringList parts = feedParts(feedUrl);
+    if (parts.isEmpty())
+        return {};
+    return QStringLiteral("https://github.com/%1/%2/releases").arg(parts.at(1), parts.at(2));
+}
+
 QString releaseDownloadUrl(const QString &feedUrl, const QString &version, const QString &fileName)
 {
     const QStringList parts = feedParts(feedUrl);

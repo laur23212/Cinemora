@@ -17,7 +17,7 @@ Item {
     property string currentPage: "general"
     // The phone shell has no workspaces, timeline toolbar or keyboard to configure.
     property bool mobile: false
-    readonly property var mobileHiddenPages: ["workspaces", "toolbar", "keymap"]
+    readonly property var mobileHiddenPages: ["workspaces", "toolbar", "keymap", "updates"]
     readonly property string query: searchField.text.trim().toLowerCase()
     readonly property bool narrow: width < 640
     readonly property real sidebarWidth: 220
@@ -36,6 +36,8 @@ Item {
         { id: "ai", title: qsTr("AI & Cloud"), keywords: "agent mcp claude cursor api key elevenlabs voice scene detection" },
         { id: "assetproviders", title: qsTr("Asset Providers"), keywords: "asset providers accounts login api key stock music stickers pexels pixabay freesound jamendo openverse" },
         { id: "network", title: qsTr("Network"), keywords: "proxy http socks internet firewall" },
+        // Dafin: its own page, so checking for a new version is one click from the sidebar.
+        { id: "updates", title: qsTr("Updates"), keywords: "update check version release new download install github" },
         { id: "about", title: qsTr("About"), keywords: "version updates debug info diagnostics" }
     ]
     readonly property var visiblePages: pages.filter(
@@ -43,7 +45,8 @@ Item {
 
     readonly property bool searchHasMatches: {
         for (const slot of [generalSlot, appearanceSlot, workspacesSlot, timelineSlot, toolbarSlot, keymapSlot,
-                            previewSlot, performanceSlot, audioSlot, aiSlot, assetProvidersSlot, networkSlot, aboutSlot]) {
+                            previewSlot, performanceSlot, audioSlot, aiSlot, assetProvidersSlot, networkSlot,
+                            updatesSlot, aboutSlot]) {
             if (slot.hasMatches)
                 return true
         }
@@ -265,6 +268,13 @@ Item {
                 id: networkSlot
                 pageId: "network"
                 sourceComponent: SettingsNetworkPage { query: root.query }
+            }
+
+            PageSlot {
+                id: updatesSlot
+                pageId: "updates"
+                allowed: !root.mobile
+                sourceComponent: SettingsUpdatesPage { query: root.query }
             }
 
             PageSlot {

@@ -1587,6 +1587,7 @@ ApplicationWindow {
                 onOpenProjectRequested: window.requestOpenProjectDialog()
                 onOpenRecentRequested: (path) => window.requestOpenRecentProject(path)
                 onHelpRequested: window.openHelpDialog()
+                onUpdatesRequested: window.checkForUpdates()
                 onMoreSettingsRequested: window.openSettings()
                 onDebugInfoRequested: window.openDebugInfo()
                 onAgentAccessRequested: editorHeader.openAgentAccess()

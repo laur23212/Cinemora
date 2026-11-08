@@ -15,6 +15,8 @@ ThemedContextMenu {
     signal multicamRequested()
     signal moreSettingsRequested()
     signal helpRequested()
+    // Dafin: only offered where this copy can update itself (an installed one).
+    signal updatesRequested()
 
     // Infrequent tools. They were icon-only header buttons of their own,
     // unlabelled and easy to hit by accident next to Export.
@@ -29,6 +31,14 @@ ThemedContextMenu {
         text: qsTr("Help…")
         icon.name: Theme.icons.help
         onTriggered: root.helpRequested()
+    }
+
+    ThemedMenuItem {
+        visible: Updates.supported
+        height: visible ? implicitHeight : 0
+        text: qsTr("Check for updates…")
+        icon.name: Theme.icons.refresh
+        onTriggered: root.updatesRequested()
     }
 
     ThemedMenuSeparator { }

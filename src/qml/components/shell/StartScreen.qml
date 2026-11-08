@@ -15,6 +15,7 @@ Item {
     // The header's app-level entries, which do not need a project: without them here,
     // turning on agent access or changing a setting meant creating an empty project first.
     signal helpRequested()
+    signal updatesRequested()
     signal moreSettingsRequested()
     signal debugInfoRequested()
     signal agentAccessRequested()
@@ -57,6 +58,7 @@ Item {
                 projectTools: false
                 onMoreSettingsRequested: root.moreSettingsRequested()
                 onHelpRequested: root.helpRequested()
+                onUpdatesRequested: root.updatesRequested()
             }
         }
 

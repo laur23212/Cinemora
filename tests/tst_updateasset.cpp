@@ -91,6 +91,8 @@ void UpdateAssetTest::dafinWindowsInstaller()
              QStringLiteral("https://github.com/laur23212/Dafin/releases/download/v1.0.1/SHA256SUMS"));
     QCOMPARE(drift::releasePageUrl(feed, QStringLiteral("1.0.1")),
              QStringLiteral("https://github.com/laur23212/Dafin/releases/tag/v1.0.1"));
+    QCOMPARE(drift::releasesPageUrl(feed), QStringLiteral("https://github.com/laur23212/Dafin/releases"));
+    QVERIFY(drift::releasesPageUrl(QString()).isEmpty());
 }
 
 void UpdateAssetTest::macDiskImage()

@@ -28,5 +28,6 @@ Item {
         onMulticamRequested: ShellBridge.main.openMulticam()
         onMoreSettingsRequested: ShellBridge.main.openSettings()
         onHelpRequested: ShellBridge.main.openHelpDialog()
+        onUpdatesRequested: ShellBridge.main.checkForUpdates()
     }
 }

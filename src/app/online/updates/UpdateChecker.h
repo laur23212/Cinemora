@@ -34,6 +34,13 @@ class UpdateChecker : public QObject
     // False when the build was configured with an empty feed URL. The badge and the settings row
     // are both hidden then, rather than showing a control that can never do anything.
     Q_PROPERTY(bool supported READ supported CONSTANT)
+    // Dafin: a Windows copy that was not installed — the portable zip or a build tree. It never
+    // checks (the update is the installer, which would install a second copy), and Settings says
+    // where new versions are instead. False everywhere else.
+    Q_PROPERTY(bool portable READ portable CONSTANT)
+    // The releases page of the feed's repository ("https://github.com/laur23212/Dafin/releases"),
+    // or empty without a feed.
+    Q_PROPERTY(QString releasesUrl READ releasesUrl CONSTANT)
     // True for the Windows installer, macOS disk-image and AppImage builds, which can apply an
     // update themselves. The dialog uses this to open on its own the first time a version is found.
     Q_PROPERTY(bool installSupported READ installSupported CONSTANT)
@@ -69,6 +76,8 @@ public:
     ~UpdateChecker() override;
 
     bool supported() const;
+    bool portable() const;
+    QString releasesUrl() const;
     bool installSupported() const;
     bool enabled() const;
     void setEnabled(bool enabled);

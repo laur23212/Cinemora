@@ -907,23 +907,6 @@
       "needs": []
     },
     {
-      "id": "about-check-updates-on-startup",
-      "target": "settings:about#about-check-updates-on-startup",
-      "context": "SettingsAboutPage",
-      "source": "Check for updates on startup",
-      "keywords": "update version release newer",
-      "needs": [],
-      "descriptionSource": "Once a day, check whether a newer Drift has been released."
-    },
-    {
-      "id": "about-check-for-updates",
-      "target": "settings:about#about-check-for-updates",
-      "context": "SettingsAboutPage",
-      "source": "Check for updates",
-      "keywords": "update version release newer download",
-      "needs": []
-    },
-    {
       "id": "about-quick-setup",
       "target": "settings:about#about-quick-setup",
       "context": "SettingsAboutPage",
@@ -1044,6 +1027,39 @@
       "keywords": "landscape portrait rotate layout",
       "needs": [],
       "descriptionSource": "Landscape or portrait workspace. Auto follows the shape of the canvas."
+    },
+    {
+      "id": "asset-providers-intro",
+      "target": "settings:assetproviders#asset-providers-intro",
+      "context": "SettingsAssetProvidersPage",
+      "source": "Free asset providers",
+      "keywords": "asset providers accounts login api key pexels pixabay freesound jamendo openverse stock music stickers",
+      "needs": []
+    },
+    {
+      "id": "asset-providers-keep",
+      "target": "settings:assetproviders#asset-providers-keep",
+      "context": "SettingsAssetProvidersPage",
+      "source": "Keep downloaded assets",
+      "keywords": "keep downloads delete temporary cache library stock",
+      "needs": []
+    },
+    {
+      "id": "asset-providers-catalog",
+      "target": "settings:assetproviders#asset-providers-catalog",
+      "context": "SettingsAssetProvidersPage",
+      "source": "Custom sources",
+      "keywords": "catalog json custom source lottie links",
+      "needs": [],
+      "descriptionSource": "Add your own sources (any JSON search API, or lists of file links) in the catalog file, then reload."
+    },
+    {
+      "id": "asset-providers-library-transfer",
+      "target": "settings:assetproviders#asset-providers-library-transfer",
+      "context": "SettingsAssetProvidersPage",
+      "source": "Move to another computer",
+      "keywords": "export import backup migrate move library lotties sounds titles mogrt dafinlib",
+      "needs": []
     },
     {
       "id": "audio-output",
@@ -1484,6 +1500,15 @@
       "descriptionSource": "Show the audio mixer strip beside the timeline."
     },
     {
+      "id": "toolbar-positions",
+      "target": "settings:toolbar#toolbar-positions",
+      "context": "SettingsToolbarPage",
+      "source": "Button positions",
+      "keywords": "move drag rearrange order position reset buttons",
+      "needs": [],
+      "descriptionSource": "Press and hold any button on the top bar, under the preview or on the timeline toolbar, then drag it to a new place. On the timeline, drop an action on the More button to move it into that menu. Esc cancels a drag."
+    },
+    {
       "id": "toolbar-layout",
       "target": "settings:toolbar#toolbar-layout",
       "context": "SettingsToolbarPage",
@@ -1491,6 +1516,57 @@
       "keywords": "buttons actions overflow menu customize",
       "needs": [],
       "descriptionSource": "Choose which actions appear on the toolbar above the timeline and which go in its overflow menu."
+    },
+    {
+      "id": "updates-version",
+      "target": "settings:updates#updates-version",
+      "context": "SettingsUpdatesPage",
+      "source": "Installed version",
+      "keywords": "version installed current",
+      "needs": []
+    },
+    {
+      "id": "updates-check",
+      "target": "settings:updates#updates-check",
+      "context": "SettingsUpdatesPage",
+      "source": "Check for updates",
+      "keywords": "update check now version release newer download install github",
+      "needs": []
+    },
+    {
+      "id": "updates-install",
+      "target": "settings:updates#updates-install",
+      "context": "SettingsUpdatesPage",
+      "source": "New version",
+      "keywords": "update install download restart new version",
+      "needs": []
+    },
+    {
+      "id": "updates-automatic",
+      "target": "settings:updates#updates-automatic",
+      "context": "SettingsUpdatesPage",
+      "source": "Check automatically",
+      "keywords": "update automatic startup daily notify",
+      "needs": [],
+      "descriptionSource": "Once a day, when Drift starts, look for a newer version and let you know."
+    },
+    {
+      "id": "updates-portable",
+      "target": "settings:updates#updates-portable",
+      "context": "SettingsUpdatesPage",
+      "source": "Portable copy",
+      "keywords": "update portable zip download releases",
+      "needs": [],
+      "descriptionSource": "This copy of Drift was not installed, so it doesn't update itself. Install Drift with its Setup installer to get updates automatically, or download new versions from the releases page."
+    },
+    {
+      "id": "updates-unavailable",
+      "target": "settings:updates#updates-unavailable",
+      "context": "SettingsUpdatesPage",
+      "source": "No update check",
+      "keywords": "",
+      "needs": [],
+      "descriptionSource": "This build of Drift doesn't check for updates."
     },
     {
       "id": "workspaces-layout-designer",
@@ -1530,8 +1606,8 @@
     {
       "id": "toolbar",
       "context": "SettingsPane",
-      "source": "Timeline toolbar",
-      "keywords": "toolbar buttons customize"
+      "source": "Toolbars",
+      "keywords": "toolbar buttons customize move drag rearrange order reset"
     },
     {
       "id": "keymap",
@@ -1564,10 +1640,22 @@
       "keywords": "agent mcp claude cursor api key elevenlabs voice scene detection"
     },
     {
+      "id": "assetproviders",
+      "context": "SettingsPane",
+      "source": "Asset Providers",
+      "keywords": "asset providers accounts login api key stock music stickers pexels pixabay freesound jamendo openverse"
+    },
+    {
       "id": "network",
       "context": "SettingsPane",
       "source": "Network",
       "keywords": "proxy http socks internet firewall"
+    },
+    {
+      "id": "updates",
+      "context": "SettingsPane",
+      "source": "Updates",
+      "keywords": "update check version release new download install github"
     },
     {
       "id": "about",

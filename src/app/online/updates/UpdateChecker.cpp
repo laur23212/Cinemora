@@ -148,11 +148,21 @@ UpdateChecker::~UpdateChecker()
 
 bool UpdateChecker::supported() const
 {
+    return !portable() && !kFeedUrl.isEmpty();
+}
+
+bool UpdateChecker::portable() const
+{
 #if defined(Q_OS_WIN)
-    if (!installedCopy())
-        return false;
+    return !installedCopy();
+#else
+    return false;
 #endif
-    return !kFeedUrl.isEmpty();
+}
+
+QString UpdateChecker::releasesUrl() const
+{
+    return drift::releasesPageUrl(kFeedUrl);
 }
 
 bool UpdateChecker::installSupported() const
