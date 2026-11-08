@@ -48,7 +48,7 @@
   </Resources>
 
   <Applications>
-    <Application Id="Drift" Executable="drift.exe" EntryPoint="Windows.FullTrustApplication">
+    <Application Id="Drift" Executable="dafin.exe" EntryPoint="Windows.FullTrustApplication">
       <uap:VisualElements
         DisplayName="CutWire Drift"
         Description="Drift video editor"

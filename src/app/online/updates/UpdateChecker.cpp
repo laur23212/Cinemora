@@ -9,7 +9,6 @@
 #include <QDateTime>
 #include <QDesktopServices>
 #include <QDir>
-#include <QDnsLookup>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
@@ -60,9 +59,25 @@ const QString kFeedUrl = QStringLiteral(DRIFT_UPDATE_FEED_URL);
 const QString kCurrentVersion = QStringLiteral(DRIFT_VERSION);
 const QString kDistribution = QStringLiteral(DRIFT_DISTRIBUTION);
 
-// The newest stable version. A TXT record, so the check is one DNS query and does not depend on
-// GitHub's API answering before we know whether anything changed.
-const QString kVersionHost = QStringLiteral("drift-version.cutwire.org");
+// Dafin: the newest version is the tag of the feed's own latest release. Upstream reads it from
+// a TXT record on drift-version.cutwire.org, which names Drift's releases, not Dafin's.
+QString userAgent()
+{
+    return QLatin1String("Dafin/") + kCurrentVersion;
+}
+
+#if defined(Q_OS_WIN)
+// The installer leaves its uninstaller beside dafin.exe; the portable zip and a build tree have
+// none. Only an installed copy looks for updates: the update is that installer, and running it
+// would install a second copy in Program Files rather than replace a portable one.
+bool installedCopy()
+{
+    static const bool installed = !QDir(QCoreApplication::applicationDirPath())
+                                           .entryList({QStringLiteral("unins*.exe")}, QDir::Files)
+                                           .isEmpty();
+    return installed;
+}
+#endif
 
 QString settingsKey(const char *name)
 {
@@ -133,6 +148,10 @@ UpdateChecker::~UpdateChecker()
 
 bool UpdateChecker::supported() const
 {
+#if defined(Q_OS_WIN)
+    if (!installedCopy())
+        return false;
+#endif
     return !kFeedUrl.isEmpty();
 }
 
@@ -443,34 +462,50 @@ void UpdateChecker::check(bool manual)
         setStatus(QString());
     setError(QString());
 
-    auto *dns = new QDnsLookup(QDnsLookup::TXT, kVersionHost, this);
-    connect(dns, &QDnsLookup::finished, this, [this, dns, manual] {
-        dns->deleteLater();
+    // Dafin: one request to the feed, GitHub's releases/latest for this repository. It answers
+    // with the newest published release that is neither a draft nor a pre-release, its notes and
+    // its files (each with a SHA-256 digest).
+    QNetworkRequest request{QUrl(kFeedUrl)};
+    // GitHub's API rejects requests that send no User-Agent, and pins response shape to an API
+    // version so a future default cannot change the fields parsed below.
+    request.setHeader(QNetworkRequest::UserAgentHeader, userAgent());
+    request.setRawHeader("Accept", "application/vnd.github+json");
+    request.setRawHeader("X-GitHub-Api-Version", "2022-11-28");
+    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
+                         QNetworkRequest::NoLessSafeRedirectPolicy);
+    request.setTransferTimeout(kTransferTimeoutMs);
 
-        if (dns->error() != QDnsLookup::NoError) {
+    QNetworkReply *reply = m_network->get(request);
+    connect(reply, &QNetworkReply::finished, this, [this, reply, manual] {
+        reply->deleteLater();
+        const int httpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+
+        // No release published yet: nothing newer than this build.
+        if (httpStatus == 404) {
+            QSettings().setValue(settingsKey("lastCheck"), QDateTime::currentDateTimeUtc());
+            clearRelease();
+            if (manual)
+                setStatus(tr("Drift %1 is the latest version.").arg(kCurrentVersion));
+            setChecking(false);
+            return;
+        }
+        if (reply->error() != QNetworkReply::NoError) {
             // A background check that failed says nothing: being offline is not an error the user
-            // asked about. Only record the attempt when the record was actually read, so a laptop
+            // asked about. Only record the attempt when the feed actually answered, so a laptop
             // that launches offline all week still checks the day it has a connection.
             // Status is published before checking goes false, so a manual check's toast sees it.
             if (manual)
-                setStatus(tr("Couldn’t check for updates: %1").arg(dns->errorString()));
+                setStatus(tr("Couldn’t check for updates: %1").arg(reply->errorString()));
             else
                 announceIfNeeded();
             setChecking(false);
             return;
         }
 
-        QString version;
-        const auto records = dns->textRecords();
-        for (const QDnsTextRecord &record : records) {
-            QByteArray joined;
-            const auto values = record.values();
-            for (const QByteArray &part : values)
-                joined += part;
-            version = drift::parseVersionText(joined);
-            if (!version.isEmpty())
-                break;
-        }
+        const QByteArray body = reply->readAll();
+        const QJsonObject release = QJsonDocument::fromJson(body).object();
+        const QString version
+                = drift::parseVersionText(release.value(QStringLiteral("tag_name")).toString().toUtf8());
         if (version.isEmpty()) {
             if (manual)
                 setStatus(tr("Couldn’t check for updates: unexpected response."));
@@ -487,41 +522,10 @@ void UpdateChecker::check(bool manual)
             return;
         }
 
-        fetchRelease(version, manual);
-    });
-    dns->lookup();
-}
-
-void UpdateChecker::fetchRelease(const QString &version, bool manual)
-{
-    const QString api = drift::releaseTagApiUrl(kFeedUrl, version);
-    if (api.isEmpty()) {
-        publishFromVersion(version, manual);
-        return;
-    }
-
-    QNetworkRequest request{QUrl(api)};
-    // GitHub's API rejects requests that send no User-Agent, and pins response shape to an API
-    // version so a future default cannot change the fields parsed below.
-    request.setHeader(QNetworkRequest::UserAgentHeader,
-                      QLatin1String("Drift/") + kCurrentVersion);
-    request.setRawHeader("Accept", "application/vnd.github+json");
-    request.setRawHeader("X-GitHub-Api-Version", "2022-11-28");
-    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
-                         QNetworkRequest::NoLessSafeRedirectPolicy);
-    request.setTransferTimeout(kTransferTimeoutMs);
-
-    QNetworkReply *reply = m_network->get(request);
-    connect(reply, &QNetworkReply::finished, this, [this, reply, manual, version] {
-        reply->deleteLater();
-
-        // The version already came from DNS. A missing release body still leaves a download
-        // built from that version; notes and the checksum are the only things this request adds.
-        if (reply->error() != QNetworkReply::NoError
-            || !applyRelease(reply->readAll(), manual, version))
-            publishFromVersion(version, manual);
-        else
+        if (applyRelease(body, manual, version))
             finishCheck(version, manual);
+        else
+            publishFromVersion(version, manual);
     });
 }
 
@@ -553,7 +557,7 @@ void UpdateChecker::finishCheck(const QString &version, bool manual)
 
     QNetworkRequest request{QUrl(drift::releaseDownloadUrl(kFeedUrl, version,
                                                            QStringLiteral("SHA256SUMS")))};
-    request.setHeader(QNetworkRequest::UserAgentHeader, QLatin1String("Drift/") + kCurrentVersion);
+    request.setHeader(QNetworkRequest::UserAgentHeader, userAgent());
     request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
                          QNetworkRequest::NoLessSafeRedirectPolicy);
     request.setTransferTimeout(kTransferTimeoutMs);
@@ -577,8 +581,8 @@ bool UpdateChecker::applyRelease(const QByteArray &json, bool manual, const QStr
 {
     const QJsonObject release = QJsonDocument::fromJson(json).object();
 
-    // The tag URL already names one release; these checks refuse a draft or pre-release that
-    // was published at the version the DNS record is advertising.
+    // releases/latest never answers with a draft or a pre-release; refusing them here as well
+    // keeps a feed pointed at one tag from offering one.
     const QString tag = release.value(QStringLiteral("tag_name")).toString();
     const QString version = tag.startsWith(QLatin1Char('v')) ? tag.mid(1) : tag;
     const bool usable = version == expectedVersion && !release.value(QStringLiteral("draft")).toBool()
@@ -758,7 +762,7 @@ void UpdateChecker::beginDownload()
     emit downloadStarted();
 
     QNetworkRequest request{QUrl(m_assetUrl)};
-    request.setHeader(QNetworkRequest::UserAgentHeader, QLatin1String("Drift/") + kCurrentVersion);
+    request.setHeader(QNetworkRequest::UserAgentHeader, userAgent());
     request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
                          QNetworkRequest::NoLessSafeRedirectPolicy);
     request.setTransferTimeout(kDownloadIdleTimeoutMs);

@@ -1,0 +1,112 @@
+name: Dafin release
+
+# Publishes a Dafin release on this repository: builds the Windows installer and portable zip at the
+# version given (the same package job the Build workflow runs, with the app reporting that version)
+# and creates release v<version> with both files and SHA256SUMS.
+#
+# Installed copies of Dafin read this repository's newest release once a day (or from Settings >
+# About > Check now), offer it, then download its installer, check the SHA-256 and run it. The
+# portable zip does not update itself. Each release needs a version newer than the last one.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish, e.g. 1.0.0 (newer than the last release)"
+        required: true
+        type: string
+      notes:
+        description: "What's new (optional; shown in the app's update dialog)"
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dafin-release
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Check the version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Validate
+        id: version
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          version="${VERSION#v}"
+          if ! [[ "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::The version must look like 1.2.3, not '${VERSION}'"
+            exit 1
+          fi
+          if gh release view "v${version}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            echo "::error::Release v${version} already exists"
+            exit 1
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+  package:
+    name: Package
+    needs: verify
+    permissions:
+      contents: read
+      actions: write
+    uses: ./.github/workflows/package.yml
+    with:
+      version: ${{ needs.verify.outputs.version }}
+      app_version: ${{ needs.verify.outputs.version }}
+      platforms: windows
+    secrets: inherit
+
+  release:
+    name: Publish GitHub release
+    runs-on: ubuntu-latest
+    needs: [verify, package]
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: windows-*
+
+      # The in-app updater uses the asset digest GitHub reports, and this file when there is none;
+      # it never installs a file it has no hash for.
+      - name: Write SHA256SUMS
+        shell: bash
+        run: |
+          sha256sum dist/windows-installer-*/*.exe dist/windows-portable-*/*.zip \
+            | sed -E 's#  .*/#  #' > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Publish release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.verify.outputs.version }}
+          NOTES: ${{ inputs.notes }}
+        run: |
+          {
+            if [ -n "${NOTES}" ]; then
+              printf '%s\n\n' "${NOTES}"
+            fi
+            echo "## Installing"
+            echo
+            echo "- **Windows installer**: run \`Dafin-Setup-${VERSION}-x64.exe\`. An installed Dafin finds newer releases on its own and offers to install them."
+            echo "- **Windows portable**: extract \`Dafin-Portable-${VERSION}-x64.zip\` anywhere and run \`dafin.exe\` from the \`Dafin\` folder inside it. The portable copy does not update itself."
+          } > notes.md
+          gh release create "v${VERSION}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --target "${GITHUB_SHA}" \
+            --title "Dafin ${VERSION}" \
+            --notes-file notes.md \
+            dist/windows-installer-*/*.exe \
+            dist/windows-portable-*/*.zip \
+            SHA256SUMS

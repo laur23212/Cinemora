@@ -34,14 +34,14 @@
   #define MyOutputBase "Dafin-Setup-" + Arch
 #endif
 #define MyAppPublisher "Dafin (based on Drift by CutWire Studios)"
-#define MyAppExeName "drift.exe"
+#define MyAppExeName "dafin.exe"
 
 [Setup]
 AppId={{{#MyAppId}}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
-AppSupportURL=https://github.com/laur23212/Cinemora/issues
+AppSupportURL=https://github.com/laur23212/Dafin/issues
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 ; Not the previous install's Start menu folder: that one was named after Cadra.
@@ -73,8 +73,10 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 ; directories, which the app resolves relative to the executable.
 Source: "{#MyAppSource}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
-; Shortcuts left by an install from when the app was called Cadra.
+; Shortcuts left by an install from when the app was called Cadra, and the executable from
+; before it was renamed dafin.exe ([Files] copies over the folder, it never removes anything).
 [InstallDelete]
+Type: files; Name: "{app}\drift.exe"
 #ifdef Nightly
 Type: filesandordirs; Name: "{autoprograms}\Cadra Nightly"
 Type: files; Name: "{autodesktop}\Cadra Nightly.lnk"

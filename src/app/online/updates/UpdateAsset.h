@@ -19,8 +19,8 @@ struct ReleaseAsset
 
 // platform is "windows", "macos" or "linux". arch is QSysInfo::currentCpuArchitecture()
 // ("x86_64", "arm64"). Only the formats those packages can replace themselves with:
-// Drift-Setup-*-{x64,arm64}.exe, Drift-*-{arm64,x86_64}.dmg and Drift-*-{x86_64,aarch64}.AppImage.
-// The portable zip is a different product.
+// Dafin-Setup-*-{x64,arm64}.exe (or upstream's Drift-Setup-*), Drift-*-{arm64,x86_64}.dmg and
+// Drift-*-{x86_64,aarch64}.AppImage. The portable zip is a different product.
 ReleaseAsset selectReleaseAsset(const QJsonArray &assets, const QString &platform, const QString &arch);
 
 // A TXT value from drift-version.cutwire.org. Accepts "0.7.5" and "v0.7.5"; anything else

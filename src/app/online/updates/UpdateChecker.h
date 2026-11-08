@@ -13,8 +13,10 @@ class QNetworkAccessManager;
 class QNetworkReply;
 class QCryptographicHash;
 
-// Once a day, reads the newest version from the TXT record on drift-version.cutwire.org and
-// raises a badge in the header when it is newer than this build.
+// Once a day, reads the newest release from the feed (Dafin: GitHub's releases/latest for
+// laur23212/Dafin) and raises a badge in the header when it is newer than this build. On Windows
+// only an installed copy checks — the portable zip and a build tree have no uninstaller beside
+// the exe and stay quiet.
 //
 // The Windows installer, macOS disk image and AppImage builds download their own replacement
 // (Drift-Setup-*.exe, Drift-*.dmg, Drift-*.AppImage, one per architecture), but only once the user
@@ -132,7 +134,6 @@ signals:
 private:
     void scheduleStartup();
     void check(bool manual);
-    void fetchRelease(const QString &version, bool manual);
     void publishFromVersion(const QString &version, bool manual);
     bool applyRelease(const QByteArray &json, bool manual, const QString &expectedVersion);
     void runStageStep(const QString &program, const QStringList &arguments,

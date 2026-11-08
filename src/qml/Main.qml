@@ -530,6 +530,16 @@ ApplicationWindow {
         function onInstallReady() {
             window.openUpdateDialog()
         }
+        // Dafin: a newer release found in the background is announced once per version; the
+        // bell keeps its update row until the update is installed or skipped. A manual check
+        // opens the dialog instead (onActivityChanged below).
+        function onUpdateReady() {
+            Updates.markAnnounced()
+            if (window.manualUpdateCheck)
+                return
+            Toasts.post("info", qsTr("Drift %1 is available.").arg(Updates.latestVersion), 15000,
+                        qsTr("Update…"), function () { window.openUpdateDialog() })
+        }
         function onDownloadStarted() {
             window.openMarketplace("downloads")
         }

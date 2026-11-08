@@ -108,9 +108,16 @@ set(DRIFT_MARKET_CLIENT_KEY "5409a0bebab4446f88e51d06024a5cf9a694ee141a6a1c6be7a
 # Set it to an empty string for builds a package manager owns — the Flatpak manifests and the Arch
 # PKGBUILD all do. There, pacman or flatpak fetches the update on its own schedule and an in-app
 # nag is noise the user cannot act on (Flathub's quality guidelines say as much).
-# Dafin: no release feed of its own yet, and upstream Drift's feed would offer to replace Dafin
-# with plain Drift, so the update check is off.
-set(DRIFT_UPDATE_FEED_URL ""
+# Dafin: its own releases on GitHub (published by the "Dafin release" workflow). The version comes
+# from the same request — the release's tag — not from upstream's DNS record, which names Drift's
+# releases. Windows only by default, since those releases carry the Windows installer alone, and
+# there only an installed copy checks (see UpdateChecker::supported()). Pass the URL on other
+# platforms once their packages are published too.
+set(_dafin_update_feed "")
+if(WIN32)
+    set(_dafin_update_feed "https://api.github.com/repos/laur23212/Dafin/releases/latest")
+endif()
+set(DRIFT_UPDATE_FEED_URL "${_dafin_update_feed}"
     CACHE STRING "Release feed polled for updates; empty disables the update check")
 
 # --- Release channel --------------------------------------------------------
@@ -140,6 +147,19 @@ if(DRIFT_CHANNEL STREQUAL "nightly")
         set(DRIFT_BUILD_ID "dev")
     endif()
     set(DRIFT_VERSION_STRING "${PROJECT_VERSION}-nightly.${DRIFT_BUILD_ID}")
+endif()
+# Dafin: the version a release is published at (the "Dafin release" workflow passes it), shown
+# in About and compared with the newest release by the update check. Empty keeps PROJECT_VERSION.
+set(DAFIN_VERSION "" CACHE STRING "Version this Dafin build reports, X.Y.Z; empty for PROJECT_VERSION")
+if(NOT DAFIN_VERSION STREQUAL "")
+    if(NOT DAFIN_VERSION MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+$")
+        message(FATAL_ERROR "DAFIN_VERSION must look like 1.2.3, not '${DAFIN_VERSION}'")
+    endif()
+    if(DRIFT_CHANNEL STREQUAL "nightly")
+        set(DRIFT_VERSION_STRING "${DAFIN_VERSION}-nightly.${DRIFT_BUILD_ID}")
+    else()
+        set(DRIFT_VERSION_STRING "${DAFIN_VERSION}")
+    endif()
 endif()
 message(STATUS "Drift channel: ${DRIFT_CHANNEL} (${DRIFT_VERSION_STRING}, ${DRIFT_APP_ID})")
 
@@ -1400,7 +1420,9 @@ if(WIN32)
     # qt_add_executable() forwards to add_executable() without WIN32, so the linker defaults to the
     # console subsystem and Windows opens a console window before the GUI comes up. Qt6::EntryPoint
     # (linked in by Qt6::Core) supplies the WinMain that forwards to main().
-    set_target_properties(drift PROPERTIES WIN32_EXECUTABLE TRUE)
+    # Dafin: the executable is dafin.exe. The CMake target keeps upstream's name, so every
+    # $<TARGET_FILE:drift> and POST_BUILD step follows the rename on its own.
+    set_target_properties(drift PROPERTIES WIN32_EXECUTABLE TRUE OUTPUT_NAME dafin)
     target_sources(drift PRIVATE resources/windows/drift.rc src/app/platform/PrimaryDisplay_win.cpp)
     target_link_libraries(drift PRIVATE shcore)
     set_source_files_properties(resources/windows/drift.rc PROPERTIES

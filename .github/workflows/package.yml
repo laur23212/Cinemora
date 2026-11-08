@@ -30,6 +30,11 @@ on:
         required: false
         default: ""
         type: string
+      app_version:
+        description: "Dafin: version the app itself reports (X.Y.Z); empty keeps CMakeLists.txt's"
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
@@ -48,6 +53,7 @@ env:
     -DDRIFT_CHANNEL=${{ inputs.channel }}
     -DDRIFT_BUILD_ID=${{ inputs.build_id }}
     ${{ inputs.channel == 'nightly' && '-DDRIFT_UPDATE_FEED_URL=' || '' }}
+    ${{ inputs.app_version != '' && format('-DDAFIN_VERSION={0}', inputs.app_version) || '' }}
   QT_VERSION: "6.10.3"
   # Drift needs Quick, QuickControls2, QuickEffects, Widgets, OpenGL, Network, Concurrent and Test
   # (qtbase + qtdeclarative, both in the base install); qtmultimedia is the only extra it links.
@@ -779,7 +785,7 @@ jobs:
       # Test-only. The runner's Mesa is OpenGL 3.0, so ~110 GPU tests skip; llvmpipe provides 4.5.
       # The DLLs sit beside each test exe because opengl32.dll is in System32 and PATH cannot
       # override it, while the application directory is searched first. Not shipped: Stage runtime
-      # files copies only drift.exe and its deploy set, never anything under build\tests.
+      # files copies only dafin.exe and its deploy set, never anything under build\tests.
       # mesa-dist-win ships no arm64 build (the 7z has x64 and x86 only), and an arm64 process
       # cannot load x64 DLLs, so the arm64 lane runs the suite on whatever GL the runner has.
       - name: Install Mesa llvmpipe for the GPU tests
@@ -876,7 +882,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist\bin | Out-Null
-          Copy-Item build\drift.exe dist\bin -Force
+          Copy-Item build\dafin.exe dist\bin -Force
           # --qmldir: Drift's own QML lives in the binary's resources, but the Qt Quick modules it
           # imports have to be deployed, and qmlimportscanner reads the sources to find them.
           # --no-opengl-sw: opengl32sw.dll is Qt's bundled Mesa llvmpipe, and it only
@@ -886,7 +892,7 @@ jobs:
           # app/main.cpp sets QT_NO_OPENGL_BUGLIST so Qt stops picking it over a perfectly
           # good card in the first place; keep the two together.
           & "${{ env.QT_ROOT_DIR }}\bin\windeployqt.exe" --release --no-translations `
-            --no-opengl-sw --qmldir src\qml dist\bin\drift.exe
+            --no-opengl-sw --qmldir src\qml dist\bin\dafin.exe
           Copy-Item vcpkg\installed\${{ matrix.arch }}-windows\bin\*.dll dist\bin -Force
           Copy-Item .deps\ffmpeg\bin\*.dll dist\bin -Force
           # Bundled effect/transition/template packages: a POST_BUILD step already put them beside
@@ -921,7 +927,7 @@ jobs:
             throw "$check was not built; cannot verify the multimedia backend plugin"
           }
           Copy-Item $check dist\bin -Force
-          # Run from the staged tree so the checker's app dir is the same as drift.exe.
+          # Run from the staged tree so the checker's app dir is the same as dafin.exe.
           Push-Location dist\bin
           try {
             & .\audiobackendcheck.exe $plugin

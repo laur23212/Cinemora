@@ -12,6 +12,7 @@ class UpdateAssetTest : public QObject
 private slots:
     void versionText();
     void windowsInstallerIgnoresPortableZip();
+    void dafinWindowsInstaller();
     void macDiskImage();
     void linuxAppImageIgnoresZsync();
     void checksumFromSums();
@@ -63,6 +64,33 @@ void UpdateAssetTest::windowsInstallerIgnoresPortableZip()
              QStringLiteral("Drift-Setup-1.2.0-arm64.exe"));
     QCOMPARE(drift::selectReleaseAsset(withArm, QStringLiteral("windows"), QStringLiteral("x86_64")).name,
              QStringLiteral("Drift-Setup-1.2.0-x64.exe"));
+}
+
+// Dafin's release workflow uploads Dafin-Setup-<version>-x64.exe beside the portable zip.
+void UpdateAssetTest::dafinWindowsInstaller()
+{
+    const QJsonArray assets{
+            QJsonObject{{QStringLiteral("name"), QStringLiteral("Dafin-Portable-1.0.1-x64.zip")},
+                        {QStringLiteral("browser_download_url"),
+                         QStringLiteral("https://github.com/laur23212/Dafin/releases/download/v1.0.1/Dafin-Portable-1.0.1-x64.zip")}},
+            QJsonObject{{QStringLiteral("name"), QStringLiteral("SHA256SUMS")},
+                        {QStringLiteral("browser_download_url"),
+                         QStringLiteral("https://github.com/laur23212/Dafin/releases/download/v1.0.1/SHA256SUMS")}},
+            QJsonObject{{QStringLiteral("name"), QStringLiteral("Dafin-Setup-1.0.1-x64.exe")},
+                        {QStringLiteral("browser_download_url"),
+                         QStringLiteral("https://github.com/laur23212/Dafin/releases/download/v1.0.1/Dafin-Setup-1.0.1-x64.exe")},
+                        {QStringLiteral("size"), 7}}};
+    const drift::ReleaseAsset asset = drift::selectReleaseAsset(assets, QStringLiteral("windows"),
+                                                                QStringLiteral("x86_64"));
+    QCOMPARE(asset.name, QStringLiteral("Dafin-Setup-1.0.1-x64.exe"));
+    QCOMPARE(asset.size, qint64(7));
+    // No digest in the listing: the checker asks SHA256SUMS for it.
+    QVERIFY(asset.sha256.isEmpty());
+    const QString feed = QStringLiteral("https://api.github.com/repos/laur23212/Dafin/releases/latest");
+    QCOMPARE(drift::releaseDownloadUrl(feed, QStringLiteral("1.0.1"), QStringLiteral("SHA256SUMS")),
+             QStringLiteral("https://github.com/laur23212/Dafin/releases/download/v1.0.1/SHA256SUMS"));
+    QCOMPARE(drift::releasePageUrl(feed, QStringLiteral("1.0.1")),
+             QStringLiteral("https://github.com/laur23212/Dafin/releases/tag/v1.0.1"));
 }
 
 void UpdateAssetTest::macDiskImage()
@@ -137,7 +165,7 @@ void UpdateAssetTest::installerFileName()
 {
     QCOMPARE(drift::installerFileName(QStringLiteral("windows"), QStringLiteral("x86_64"),
                                       QStringLiteral("0.7.5")),
-             QStringLiteral("Drift-Setup-0.7.5-x64.exe"));
+             QStringLiteral("Dafin-Setup-0.7.5-x64.exe"));
     QCOMPARE(drift::installerFileName(QStringLiteral("macos"), QStringLiteral("arm64"),
                                       QStringLiteral("0.7.5")),
              QStringLiteral("Drift-0.7.5-arm64.dmg"));
@@ -149,7 +177,7 @@ void UpdateAssetTest::installerFileName()
              QStringLiteral("Drift-0.7.5-aarch64.AppImage"));
     QCOMPARE(drift::installerFileName(QStringLiteral("windows"), QStringLiteral("arm64"),
                                       QStringLiteral("0.7.5")),
-             QStringLiteral("Drift-Setup-0.7.5-arm64.exe"));
+             QStringLiteral("Dafin-Setup-0.7.5-arm64.exe"));
     QCOMPARE(drift::installerFileName(QStringLiteral("macos"), QStringLiteral("x86_64"),
                                       QStringLiteral("0.7.5")),
              QStringLiteral("Drift-0.7.5-x86_64.dmg"));

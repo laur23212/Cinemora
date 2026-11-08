@@ -1,7 +1,7 @@
 add_executable(probe probe.cpp)
 target_link_libraries(probe PRIVATE Qt6::Core driftengine)
 
-# Not shipped: the Windows packaging job stages it beside drift.exe, runs it against the deployed
+# Not shipped: the Windows packaging job stages it beside dafin.exe, runs it against the deployed
 # multimedia plugin, and deletes it again. See tools/audiobackendcheck.cpp.
 add_executable(audiobackendcheck audiobackendcheck.cpp)
 target_link_libraries(audiobackendcheck PRIVATE Qt6::Core Qt6::Multimedia)
