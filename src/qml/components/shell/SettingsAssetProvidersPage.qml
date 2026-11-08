@@ -85,4 +85,52 @@ SettingsPage {
             }
         }
     }
+
+    // Dafin: the user's own Lotties, sounds and .mogrt titles, carried to another computer.
+    SettingsGroupHeader {
+        text: qsTr("Your library")
+        query: page.query
+    }
+
+    SettingsRow {
+        id: transferRow
+        property string status: ""
+        readonly property int savedCount: (OnlineAssets.userLibraryRevision, OnlineAssets.savedUserItemCount())
+        title: qsTr("Move to another computer")
+        searchId: "asset-providers-library-transfer"
+        description: (transferRow.status.length > 0 ? transferRow.status + " " : "")
+                     + qsTr("Export puts every Lottie, sound and title you saved into one .dafinlib file. "
+                            + "In Dafin on the other computer, Import adds them, already saved.")
+                     + " " + qsTr("%n item(s) saved now.", "", transferRow.savedCount)
+        keywords: "export import backup migrate move library lotties sounds titles mogrt dafinlib"
+        query: page.query
+
+        Row {
+            spacing: Theme.spacingSm
+            ThemedButton {
+                variant: "secondary"
+                glyph: Theme.icons.folderOutput
+                text: qsTr("Export…")
+                enabled: transferRow.savedCount > 0
+                onClicked: {
+                    const day = new Date().toISOString().slice(0, 10)
+                    const url = FileDialogs.saveFile(qsTr("Export my library"), [OnlineAssets.userLibraryArchiveFilter()],
+                                                     qsTr("Dafin library %1").arg(day), ".dafinlib")
+                    if (url && url.toString().length > 0)
+                        transferRow.status = OnlineAssets.exportUserLibrary(url).message || ""
+                }
+            }
+            ThemedButton {
+                variant: "secondary"
+                glyph: Theme.icons.folderInput
+                text: qsTr("Import…")
+                onClicked: {
+                    const url = FileDialogs.openFile(qsTr("Import a Dafin library"),
+                                                     [OnlineAssets.userLibraryArchiveFilter(), qsTr("All Files (*)")])
+                    if (url && url.toString().length > 0)
+                        transferRow.status = OnlineAssets.importUserLibrary(url).message || ""
+                }
+            }
+        }
+    }
 }

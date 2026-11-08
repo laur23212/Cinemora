@@ -68,6 +68,24 @@ Item {
             root.showUserFiles()
     }
 
+    // One .dafinlib file holds every saved Lottie, sound and title, for Dafin on another computer.
+    function exportUserLibrary() {
+        const day = new Date().toISOString().slice(0, 10)
+        const url = FileDialogs.saveFile(qsTr("Export my library"), [OnlineAssets.userLibraryArchiveFilter()],
+                                         qsTr("Dafin library %1").arg(day), ".dafinlib")
+        if (url && url.toString().length > 0)
+            OnlineAssets.exportUserLibrary(url)
+    }
+    function importUserLibrary() {
+        const url = FileDialogs.openFile(qsTr("Import a Dafin library"),
+                                         [OnlineAssets.userLibraryArchiveFilter(), qsTr("All Files (*)")])
+        if (!url || url.toString().length === 0)
+            return
+        const result = OnlineAssets.importUserLibrary(url)
+        if (result.count > 0)
+            root.showUserFiles()
+    }
+
     // Sidebar entries: the user's own collection first, then for each kind "All <kind>" and one
     // row per provider.
     readonly property var sidebarModel: {
@@ -314,18 +332,42 @@ Item {
                     tooltip: qsTr("Keep every file added this session until you delete it")
                     onClicked: OnlineAssets.saveAllUserItems(root.userCollection)
                 }
+                // Moving everything saved (Lotties, sounds and titles together) to another computer.
+                ThemedButton {
+                    id: transferButton
+                    variant: "secondary"
+                    glyph: Theme.icons.package
+                    tooltip: qsTr("Export your saved Lotties, sounds and titles to one file, or import one from another computer")
+                    onClicked: transferMenu.popup(0, transferButton.height + Theme.spacingXs)
+
+                    ThemedContextMenu {
+                        id: transferMenu
+                        implicitWidth: 240
+                        ThemedMenuItem {
+                            text: qsTr("Export my library…")
+                            icon.name: Theme.icons.folderOutput
+                            enabled: (OnlineAssets.userLibraryRevision, OnlineAssets.savedUserItemCount() > 0)
+                            onTriggered: root.exportUserLibrary()
+                        }
+                        ThemedMenuItem {
+                            text: qsTr("Import a library…")
+                            icon.name: Theme.icons.folderInput
+                            onTriggered: root.importUserLibrary()
+                        }
+                    }
+                }
             }
+            // How to add them is the tab's footer (OnlineSwitchTab); this is what happens to them.
             Text {
-                visible: root.showingUserFiles
+                visible: root.showingUserFiles && (root.userCollection !== "titles" ? root.unsavedCount > 0
+                                                                                    : root.userItemCount > 0)
                 width: parent.width
                 wrapMode: Text.WordWrap
                 color: Theme.mutedForeground
                 font.pixelSize: Theme.fontSizeXs
-                text: root.userCollection === "lotties"
-                      ? qsTr("Drag Lottie files (.json, .lottie) here. Files you don't save are removed when Dafin closes.")
-                      : root.userCollection === "sounds"
-                        ? qsTr("Drag audio files here. Files you don't save are removed when Dafin closes.")
-                        : qsTr("Drag .mogrt templates here. They are added as editable Dafin titles; the After Effects animation inside plays only in Adobe apps.")
+                text: root.userCollection === "titles"
+                      ? qsTr("A .mogrt is added as an editable Dafin title; its After Effects animation plays only in Adobe apps. Unsaved templates are removed when Dafin closes.")
+                      : qsTr("Files you don't save are removed when Dafin closes.")
             }
 
             // Attribution the providers' terms ask for, for the sources shown right now.

@@ -490,4 +490,62 @@ int OnlineAssets::userItemCount(const QString &collection) const
     return int(m_userLibrary->entries(collection).size());
 }
 
+int OnlineAssets::savedUserItemCount() const
+{
+    return m_userLibrary->savedCount();
+}
+
+QString OnlineAssets::userLibraryArchiveFilter() const
+{
+    return tr("Dafin library (*.%1)").arg(UserLibrary::archiveSuffix());
+}
+
+QVariantMap OnlineAssets::exportUserLibrary(const QUrl &fileUrl)
+{
+    QString path = fileUrl.isLocalFile() ? fileUrl.toLocalFile() : fileUrl.toString();
+    if (path.isEmpty())
+        return {};
+    const QString suffix = QLatin1Char('.') + UserLibrary::archiveSuffix();
+    if (!path.endsWith(suffix, Qt::CaseInsensitive))
+        path += suffix;
+    const UserLibrary::TransferResult r = m_userLibrary->exportArchive(path);
+    QString message = r.error;
+    if (r.error.isEmpty()) {
+        message = tr("Exported %n saved item(s) to %1. In Dafin on the other computer, use Import library.", nullptr, r.count)
+                      .arg(QFileInfo(path).fileName());
+        if (r.unsaved > 0)
+            message += QLatin1Char(' ')
+                       + tr("%n unsaved file(s) were left out; save them and export again to include them.", nullptr, r.unsaved);
+    }
+    emit notice(message);
+    return {{QStringLiteral("ok"), r.error.isEmpty()},
+            {QStringLiteral("count"), r.count},
+            {QStringLiteral("unsaved"), r.unsaved},
+            {QStringLiteral("message"), message}};
+}
+
+QVariantMap OnlineAssets::importUserLibrary(const QUrl &fileUrl)
+{
+    const QString path = fileUrl.isLocalFile() ? fileUrl.toLocalFile() : fileUrl.toString();
+    if (path.isEmpty())
+        return {};
+    const UserLibrary::TransferResult r = m_userLibrary->importArchive(path);
+    QStringList parts;
+    if (r.count > 0)
+        parts.append(tr("Imported %n item(s) into My Lotties, My sounds and Titles.", nullptr, r.count));
+    if (r.duplicates > 0)
+        parts.append(tr("%n item(s) were already here.", nullptr, r.duplicates));
+    if (r.skipped > 0 && r.error.isEmpty())
+        parts.append(tr("%n item(s) couldn't be restored.", nullptr, r.skipped));
+    if (!r.error.isEmpty())
+        parts.append(r.error);
+    const QString message = parts.join(QLatin1Char(' '));
+    emit notice(message);
+    return {{QStringLiteral("ok"), r.error.isEmpty()},
+            {QStringLiteral("count"), r.count},
+            {QStringLiteral("duplicates"), r.duplicates},
+            {QStringLiteral("skipped"), r.skipped},
+            {QStringLiteral("message"), message}};
+}
+
 } // namespace dafin::assets

@@ -2,6 +2,7 @@
 
 #include "app/online/library/MogrtInfo.h"
 #include "app/online/library/SessionFiles.h"
+#include "core/base/ZipArchive.h"
 #include "core/project/sources/DotLottie.h"
 
 #include <QCryptographicHash>
@@ -104,6 +105,29 @@ QString sizeLabel(qint64 bytes)
     if (bytes >= 1024 * 1024)
         return QStringLiteral("%1 MB").arg(double(bytes) / (1024.0 * 1024.0), 0, 'f', 1);
     return QStringLiteral("%1 KB").arg(qMax<qint64>(1, (bytes + 1023) / 1024));
+}
+
+const QString kArchiveFormat = QStringLiteral("dafin-library");
+const QString kArchiveManifest = QStringLiteral("dafin-library.json");
+constexpr int kArchiveVersion = 1;
+
+// An entry id as the library makes them: a content hash, or "link-" and a hash.
+bool validEntryId(const QString &id)
+{
+    static const QRegularExpression pattern(QStringLiteral("^[A-Za-z0-9_-]{1,64}$"));
+    return pattern.match(id).hasMatch();
+}
+
+// A path inside an entry's folder, as an archive names it: relative, and never above the folder.
+bool safeRelativePath(const QString &path)
+{
+    if (path.isEmpty() || QDir::isAbsolutePath(path) || path.startsWith(QLatin1Char('/'))
+        || path.contains(QLatin1Char('\\')) || path.contains(QLatin1Char(':')))
+        return false;
+    const QStringList parts = path.split(QLatin1Char('/'));
+    return std::none_of(parts.cbegin(), parts.cend(), [](const QString &part) {
+        return part.isEmpty() || part == QLatin1String(".") || part == QLatin1String("..");
+    });
 }
 
 QJsonObject entryToJson(const UserLibrary::Entry &e)
@@ -563,6 +587,215 @@ void UserLibrary::migrateCatalogLinks(const QString &catalogPath)
         emit changed(kLotties);
     }
     settings.setValue(flag, true);
+}
+
+// ─── moving the library to another computer ─────────────────────────────────────────────────
+
+int UserLibrary::savedCount() const
+{
+    int n = 0;
+    for (const Collection &c : collections())
+        n += int(m_saved.value(c.id).size());
+    return n;
+}
+
+UserLibrary::TransferResult UserLibrary::exportArchive(const QString &path) const
+{
+    TransferResult result;
+    for (const Collection &c : collections())
+        result.unsaved += int(m_session.value(c.id).size());
+
+    // The manifest lists every file of every entry, under a neutral name in the archive: the
+    // names on disk can hold characters archive readers refuse ("..", ":").
+    struct Pending
+    {
+        QString archivePath;
+        QString source;
+    };
+    QList<Pending> files;
+    QJsonObject collectionsJson;
+    for (const Collection &c : collections()) {
+        QJsonArray items;
+        for (const Entry &e : m_saved.value(c.id)) {
+            QJsonObject item = entryToJson(e);
+            QJsonArray list;
+            if (!e.file.isEmpty()) {
+                if (!QFileInfo::exists(e.filePath()))
+                    continue; // removed by hand since Dafin started: nothing to carry over
+                const QDir base(e.dir);
+                QDirIterator it(e.dir, QDir::Files | QDir::Hidden | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
+                int n = 0;
+                while (it.hasNext()) {
+                    const QString source = it.next();
+                    const QString archivePath = QStringLiteral("files/%1/%2/%3").arg(c.id, e.id).arg(n++);
+                    list.append(QJsonObject{{QStringLiteral("zip"), archivePath},
+                                            {QStringLiteral("path"), base.relativeFilePath(source)}});
+                    files.append({archivePath, source});
+                }
+            }
+            item.insert(QStringLiteral("files"), list);
+            items.append(item);
+            ++result.count;
+        }
+        collectionsJson.insert(c.id, items);
+    }
+    if (result.count == 0) {
+        result.error = result.unsaved > 0
+                           ? tr("Nothing is saved yet. Press Save on the files you want to keep, then export.")
+                           : tr("There is nothing to export yet. Add Lotties, sounds or .mogrt titles first.");
+        return result;
+    }
+
+    const QJsonObject manifest{{QStringLiteral("format"), kArchiveFormat},
+                               {QStringLiteral("version"), kArchiveVersion},
+                               {QStringLiteral("exported"), QDateTime::currentDateTimeUtc().toString(Qt::ISODate)},
+                               {QStringLiteral("collections"), collectionsJson}};
+    QSaveFile out(path);
+    if (!out.open(QIODevice::WriteOnly)) {
+        result.error = tr("Can't write %1.").arg(QDir::toNativeSeparators(path));
+        result.count = 0;
+        return result;
+    }
+    drift::zip::Writer zip(&out);
+    bool ok = zip.addData(kArchiveManifest, QJsonDocument(manifest).toJson(QJsonDocument::Indented));
+    for (const Pending &p : std::as_const(files)) {
+        if (!ok)
+            break;
+        ok = zip.addFile(p.archivePath, p.source);
+    }
+    ok = ok && zip.finish();
+    if (!ok || !out.commit()) {
+        if (ok)
+            result.error = tr("Can't write %1.").arg(QDir::toNativeSeparators(path));
+        else
+            result.error = tr("Couldn't export the library: %1.").arg(zip.errorString());
+        out.cancelWriting();
+        result.count = 0;
+    }
+    return result;
+}
+
+UserLibrary::TransferResult UserLibrary::importArchive(const QString &path)
+{
+    TransferResult result;
+    const QString name = QFileInfo(path).fileName();
+    QFile archive(path);
+    if (!archive.open(QIODevice::ReadOnly)) {
+        result.error = tr("Can't open %1.").arg(name);
+        return result;
+    }
+    QHash<QString, drift::zip::Entry> byPath;
+    for (const drift::zip::Entry &z : drift::zip::readEntries(archive, nullptr))
+        byPath.insert(z.path, z);
+    const auto manifestEntry = byPath.constFind(kArchiveManifest);
+    QByteArray manifestBytes;
+    if (manifestEntry == byPath.cend() || manifestEntry->uncompressedSize > 32u * 1024 * 1024
+        || !drift::zip::extractEntry(archive, *manifestEntry, manifestBytes)) {
+        result.error = tr("%1 is not a Dafin library export.").arg(name);
+        return result;
+    }
+    const QJsonObject manifest = QJsonDocument::fromJson(manifestBytes).object();
+    if (manifest.value(QStringLiteral("format")).toString() != kArchiveFormat) {
+        result.error = tr("%1 is not a Dafin library export.").arg(name);
+        return result;
+    }
+    if (manifest.value(QStringLiteral("version")).toInt() > kArchiveVersion) {
+        result.error = tr("%1 was exported by a newer Dafin. Update Dafin, then import it again.").arg(name);
+        return result;
+    }
+
+    const QJsonObject collectionsJson = manifest.value(QStringLiteral("collections")).toObject();
+    for (const Collection &c : collections()) {
+        QList<Entry> imported;
+        for (const QJsonValue &v : collectionsJson.value(c.id).toArray()) {
+            const QJsonObject o = v.toObject();
+            Entry e;
+            e.id = o.value(QStringLiteral("id")).toString();
+            if (!validEntryId(e.id)) {
+                ++result.skipped;
+                continue;
+            }
+            const bool here = std::any_of(imported.cbegin(), imported.cend(), [&e](const Entry &x) { return x.id == e.id; });
+            if (here || contains(c.id, e.id)) {
+                // Dropped this session but not saved yet: it is wanted, so keep it.
+                if (!here && !entry(c.id, e.id)->saved)
+                    save(c.id, e.id);
+                ++result.duplicates;
+                continue;
+            }
+            e.title = o.value(QStringLiteral("title")).toString().trimmed();
+            e.file = QFileInfo(o.value(QStringLiteral("file")).toString()).fileName();
+            e.link = QUrl(o.value(QStringLiteral("link")).toString());
+            e.added = QDateTime::fromString(o.value(QStringLiteral("added")).toString(), Qt::ISODate);
+            if (!e.added.isValid())
+                e.added = QDateTime::currentDateTimeUtc();
+            e.meta = o.value(QStringLiteral("meta")).toObject().toVariantMap();
+            e.saved = true;
+            e.dir = savedDir(c.id) + QLatin1Char('/') + e.id;
+            if (e.title.isEmpty())
+                e.title = e.file.isEmpty() ? tr("Untitled") : titleFromFileName(e.file);
+
+            if (e.file.isEmpty()) {
+                // A remembered Lottie link: nothing to unpack.
+                const bool web = e.link.scheme() == QLatin1String("https") || e.link.scheme() == QLatin1String("http");
+                if (c.id != kLotties || !e.link.isValid() || !web) {
+                    ++result.skipped;
+                    continue;
+                }
+                imported.append(e);
+                continue;
+            }
+            if (!fileSuffixes(c.id).contains(QFileInfo(e.file).suffix().toLower())) {
+                ++result.skipped;
+                continue;
+            }
+
+            QDir(e.dir).removeRecursively();
+            bool ok = QDir().mkpath(e.dir);
+            for (const QJsonValue &f : o.value(QStringLiteral("files")).toArray()) {
+                if (!ok)
+                    break;
+                const QString rel = f.toObject().value(QStringLiteral("path")).toString();
+                const auto z = byPath.constFind(f.toObject().value(QStringLiteral("zip")).toString());
+                if (!safeRelativePath(rel) || z == byPath.cend() || qint64(z->uncompressedSize) > kMaxFileBytes) {
+                    ok = false;
+                    break;
+                }
+                QByteArray data;
+                if (!drift::zip::extractEntry(archive, *z, data)) {
+                    ok = false;
+                    break;
+                }
+                const QString dest = e.dir + QLatin1Char('/') + rel;
+                QDir().mkpath(QFileInfo(dest).absolutePath());
+                QFile out(dest);
+                ok = out.open(QIODevice::WriteOnly) && out.write(data) == data.size();
+            }
+            if (!ok || !QFileInfo::exists(e.filePath())) {
+                QDir(e.dir).removeRecursively();
+                ++result.skipped;
+                continue;
+            }
+            // Files the cards read: only ones that came out of this archive into this folder.
+            for (const QString key : {QStringLiteral("preview"), QStringLiteral("poster"), QStringLiteral("previewVideo")}) {
+                const QString rel = e.meta.value(key).toString();
+                if (!rel.isEmpty() && (!safeRelativePath(rel) || !QFileInfo::exists(e.dir + QLatin1Char('/') + rel)))
+                    e.meta.remove(key);
+            }
+            imported.append(e);
+        }
+        if (imported.isEmpty())
+            continue;
+        QList<Entry> &saved = m_saved[c.id];
+        saved = imported + saved;
+        writeManifest(c.id);
+        result.count += int(imported.size());
+        emit changed(c.id);
+    }
+    if (result.count == 0 && result.duplicates == 0 && result.error.isEmpty())
+        result.error = result.skipped > 0 ? tr("Nothing in %1 could be imported.").arg(name)
+                                          : tr("%1 has nothing to import.").arg(name);
+    return result;
 }
 
 } // namespace dafin::assets

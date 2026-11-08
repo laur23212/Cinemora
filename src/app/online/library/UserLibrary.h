@@ -88,6 +88,22 @@ public:
     // Links the old catalog kept under "My Lotties" move here, once.
     void migrateCatalogLinks(const QString &catalogPath);
 
+    // Moving the library to another computer: every saved Lottie, sound and title in one
+    // .dafinlib file (a ZIP with dafin-library.json and the entries' files), and the import that
+    // adds such a file's entries as saved ones, skipping any already here.
+    struct TransferResult
+    {
+        int count = 0;          // entries exported, or imported
+        int duplicates = 0;     // import: already in the library
+        int skipped = 0;        // import: entries that could not be restored
+        int unsaved = 0;        // export: this session's unsaved files, which are left out
+        QString error;          // empty when it worked
+    };
+    TransferResult exportArchive(const QString &path) const;
+    TransferResult importArchive(const QString &path);
+    int savedCount() const;
+    static QString archiveSuffix() { return QStringLiteral("dafinlib"); }
+
     QString root() const { return m_root; }
 
 signals:

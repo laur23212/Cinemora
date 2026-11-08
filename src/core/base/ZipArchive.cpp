@@ -1,5 +1,6 @@
 #include "core/base/ZipArchive.h"
 
+#include <QDateTime>
 #include <QObject>
 
 #include <zlib.h>
@@ -203,6 +204,178 @@ bool extractEntry(QFile &file, const Entry &entry, QByteArray &outData)
     }
 
     return false;
+}
+
+// ─── writer ──────────────────────────────────────────────────────────────────────────────────
+
+namespace {
+
+constexpr qint64 kZipMax32 = 0xFFFFFFFFLL;
+constexpr quint16 kZipUtf8Flag = 0x0800;
+constexpr quint16 kZipVersion = 20;
+
+void appendU16(QByteArray &out, quint16 v)
+{
+    out.append(char(v & 0xff));
+    out.append(char((v >> 8) & 0xff));
+}
+
+void appendU32(QByteArray &out, quint32 v)
+{
+    for (int shift = 0; shift < 32; shift += 8)
+        out.append(char((v >> shift) & 0xff));
+}
+
+} // namespace
+
+Writer::Writer(QIODevice *device)
+    : m_device(device)
+{
+    const QDateTime now = QDateTime::currentDateTime();
+    const QDate d = now.date();
+    const QTime t = now.time();
+    m_dosTime = quint16((t.hour() << 11) | (t.minute() << 5) | (t.second() / 2));
+    m_dosDate = quint16((qMax(0, d.year() - 1980) << 9) | (d.month() << 5) | d.day());
+}
+
+bool Writer::fail(const QString &message)
+{
+    if (!m_failed)
+        m_error = message;
+    m_failed = true;
+    return false;
+}
+
+bool Writer::begin(const QString &path, Record &record)
+{
+    if (m_failed || m_finished || !m_device || !m_device->isWritable())
+        return fail(QObject::tr("The archive can't be written"));
+    if (m_records.size() >= 0xFFFF)
+        return fail(QObject::tr("Too many files for one archive"));
+    record.name = path.toUtf8();
+    if (record.name.isEmpty() || record.name.size() > 0xFFFF)
+        return fail(QObject::tr("Invalid name in the archive: %1").arg(path));
+    const qint64 offset = m_device->pos();
+    if (offset > kZipMax32)
+        return fail(QObject::tr("The archive would be larger than 4 GB"));
+    record.offset = quint32(offset);
+
+    QByteArray header;
+    appendU32(header, kZipLocalHeaderMagic);
+    appendU16(header, kZipVersion);
+    appendU16(header, kZipUtf8Flag);
+    appendU16(header, 0); // stored
+    appendU16(header, m_dosTime);
+    appendU16(header, m_dosDate);
+    appendU32(header, 0); // crc, patched by end()
+    appendU32(header, 0); // compressed size
+    appendU32(header, 0); // uncompressed size
+    appendU16(header, quint16(record.name.size()));
+    appendU16(header, 0); // extra
+    header.append(record.name);
+    if (m_device->write(header) != header.size())
+        return fail(m_device->errorString());
+    return true;
+}
+
+bool Writer::end(Record &record, quint32 crc, qint64 size)
+{
+    if (size > kZipMax32 || m_device->pos() > kZipMax32)
+        return fail(QObject::tr("The archive would be larger than 4 GB"));
+    record.crc = crc;
+    record.size = quint32(size);
+    const qint64 after = m_device->pos();
+    QByteArray patch;
+    appendU32(patch, record.crc);
+    appendU32(patch, record.size);
+    appendU32(patch, record.size);
+    if (!m_device->seek(qint64(record.offset) + 14) || m_device->write(patch) != patch.size()
+        || !m_device->seek(after))
+        return fail(m_device->errorString());
+    m_records.append(record);
+    return true;
+}
+
+bool Writer::addData(const QString &path, const QByteArray &data)
+{
+    Record record;
+    if (!begin(path, record))
+        return false;
+    if (data.size() > kZipMax32)
+        return fail(QObject::tr("The archive would be larger than 4 GB"));
+    if (m_device->write(data) != data.size())
+        return fail(m_device->errorString());
+    const quint32 crc = quint32(crc32(crc32(0L, Z_NULL, 0),
+                                      reinterpret_cast<const Bytef *>(data.constData()), uInt(data.size())));
+    return end(record, crc, data.size());
+}
+
+bool Writer::addFile(const QString &path, const QString &sourcePath)
+{
+    QFile source(sourcePath);
+    if (!source.open(QIODevice::ReadOnly))
+        return fail(QObject::tr("Can't read %1").arg(sourcePath));
+    if (source.size() > kZipMax32)
+        return fail(QObject::tr("%1 is larger than 4 GB").arg(sourcePath));
+    Record record;
+    if (!begin(path, record))
+        return false;
+    uLong crc = crc32(0L, Z_NULL, 0);
+    qint64 total = 0;
+    QByteArray chunk;
+    while (!source.atEnd()) {
+        chunk = source.read(1 << 20);
+        if (chunk.isEmpty() && source.error() != QFileDevice::NoError)
+            return fail(QObject::tr("Can't read %1").arg(sourcePath));
+        if (m_device->write(chunk) != chunk.size())
+            return fail(m_device->errorString());
+        crc = crc32(crc, reinterpret_cast<const Bytef *>(chunk.constData()), uInt(chunk.size()));
+        total += chunk.size();
+    }
+    return end(record, quint32(crc), total);
+}
+
+bool Writer::finish()
+{
+    if (m_failed || m_finished)
+        return !m_failed && m_finished;
+    const qint64 directoryOffset = m_device->pos();
+    QByteArray directory;
+    for (const Record &r : std::as_const(m_records)) {
+        appendU32(directory, kZipCentralDirMagic);
+        appendU16(directory, kZipVersion); // made by: MS-DOS, 2.0
+        appendU16(directory, kZipVersion);
+        appendU16(directory, kZipUtf8Flag);
+        appendU16(directory, 0); // stored
+        appendU16(directory, m_dosTime);
+        appendU16(directory, m_dosDate);
+        appendU32(directory, r.crc);
+        appendU32(directory, r.size);
+        appendU32(directory, r.size);
+        appendU16(directory, quint16(r.name.size()));
+        appendU16(directory, 0); // extra
+        appendU16(directory, 0); // comment
+        appendU16(directory, 0); // disk
+        appendU16(directory, 0); // internal attributes
+        appendU32(directory, 0); // external attributes
+        appendU32(directory, r.offset);
+        directory.append(r.name);
+    }
+    if (directoryOffset + directory.size() > kZipMax32)
+        return fail(QObject::tr("The archive would be larger than 4 GB"));
+    QByteArray tail;
+    appendU32(tail, kZipEOCDMagic);
+    appendU16(tail, 0);
+    appendU16(tail, 0);
+    appendU16(tail, quint16(m_records.size()));
+    appendU16(tail, quint16(m_records.size()));
+    appendU32(tail, quint32(directory.size()));
+    appendU32(tail, quint32(directoryOffset));
+    appendU16(tail, 0); // comment
+    if (m_device->write(directory) != directory.size() || m_device->write(tail) != tail.size())
+        return fail(m_device->errorString());
+    m_finished = true;
+    return true;
 }
 
 } // namespace drift::zip

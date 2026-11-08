@@ -106,6 +106,14 @@ public:
     Q_INVOKABLE bool deleteUserItem(const QVariantMap &item);
     Q_INVOKABLE int unsavedUserItems(const QString &collection) const;
     Q_INVOKABLE int userItemCount(const QString &collection) const;
+    // Moving the library to Dafin on another computer: every saved Lottie, sound and title in one
+    // .dafinlib file, and the import that adds such a file's contents as saved items. Both return
+    // {ok, count, duplicates, skipped, unsaved, message}; the message is also sent as notice().
+    Q_INVOKABLE QVariantMap exportUserLibrary(const QUrl &fileUrl);
+    Q_INVOKABLE QVariantMap importUserLibrary(const QUrl &fileUrl);
+    Q_INVOKABLE int savedUserItemCount() const;
+    // "Dafin library (*.dafinlib)" for a file dialog.
+    Q_INVOKABLE QString userLibraryArchiveFilter() const;
 
 signals:
     void providersChanged();

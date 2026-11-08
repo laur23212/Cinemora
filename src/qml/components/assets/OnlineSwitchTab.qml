@@ -82,12 +82,36 @@ Item {
         anchors.topMargin: Theme.spacingXs
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.bottom: parent.bottom
+        anchors.bottom: dropHint.visible ? dropHint.top : parent.bottom
+        anchors.bottomMargin: dropHint.visible ? Theme.spacingXs : 0
         sourceComponent: root.online ? onlineComponent : root.builtin
         onLoaded: {
             if (!root.online)
                 root.builtinLoaded(item)
         }
+    }
+
+    // A quiet reminder, in both modes, that the tab takes the user's own files.
+    Text {
+        id: dropHint
+        visible: root.userCollection.length > 0
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.leftMargin: Theme.spacingSm
+        anchors.rightMargin: Theme.spacingSm
+        anchors.bottomMargin: Theme.spacingXs
+        wrapMode: Text.WordWrap
+        maximumLineCount: 2
+        elide: Text.ElideRight
+        color: Theme.mutedForeground
+        opacity: 0.85
+        font.pixelSize: Theme.fontSizeXs
+        text: root.userCollection === "titles"
+              ? qsTr("You can add new title effects by dragging .mogrt files into this tab and pressing Save.")
+              : root.userCollection === "sounds"
+                ? qsTr("You can add new sounds by dragging audio files into this tab and pressing Save. They stay in My sounds.")
+                : qsTr("You can add new Lotties by dragging .json or .lottie files into this tab and pressing Save. They stay in My Lotties.")
     }
 
     Component {
