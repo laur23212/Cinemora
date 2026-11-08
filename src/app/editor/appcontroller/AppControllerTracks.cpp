@@ -180,6 +180,8 @@ QHash<QString, QString> defaultShortcuts()
         // Dafin: the timeline toolbar's keyframe button, on Filmora's key. Not plain K: that is
         // shuttle stop beside J and L in Source Lab, and "key the rows" in the Keyframes panel.
         {QStringLiteral("addKeyframe"), QStringLiteral("Alt+K")},
+        // Dafin: the toolbar's snapping magnet (N, as in DaVinci Resolve).
+        {QStringLiteral("toggleSnap"), QStringLiteral("N")},
         // Masking workspace tools. The masking panel claims these only while the pointer is over the
         // preview or it has focus or hover (never in 3D mode), so they stay free on the timeline.
         {QStringLiteral("maskingPolygonTool"), QStringLiteral("P")},
@@ -1720,6 +1722,8 @@ void AppController::triggerAction(const QString &actionId)
         toggleBookmarkAtPlayhead();
     else if (actionId == QStringLiteral("addKeyframe"))
         toggleKeyframeAtPlayhead();
+    else if (actionId == QStringLiteral("toggleSnap"))
+        setSnapEnabled(!m_snapEnabled);
     else if (actionId == QStringLiteral("nextBookmark"))
         goToNextBookmark();
     else if (actionId == QStringLiteral("previousBookmark"))

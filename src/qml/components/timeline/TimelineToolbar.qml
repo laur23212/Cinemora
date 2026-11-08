@@ -69,6 +69,7 @@ Item {
         case "select": panel.timelineTool = ""; break
         case "cut": panel.timelineTool = panel.timelineTool === "split" ? "" : "split"; break
         case "keyframe": EditorState.toggleKeyframeAtPlayhead(); break
+        case "snap": EditorState.snapEnabled = !EditorState.snapEnabled; break
         case "trimStart": panel.timelineTool = panel.timelineTool === "trimStart" ? "" : "trimStart"; break
         case "trimEnd": panel.timelineTool = panel.timelineTool === "trimEnd" ? "" : "trimEnd"; break
         case "deleteLeft": EditorState.splitSelectedClipLeft(); break
@@ -115,6 +116,7 @@ Item {
         case "select": return panel.timelineTool === ""
         case "cut": return panel.timelineTool === "split"
         case "keyframe": return toolbar.keyframeAtPlayhead
+        case "snap": return EditorState.snapEnabled
         case "trimStart": return panel.timelineTool === "trimStart"
         case "trimEnd": return panel.timelineTool === "trimEnd"
         case "markIn": return EditorState.workAreaInSeconds >= 0
@@ -167,7 +169,8 @@ Item {
         id: timelineReorder
         defaults: ({
             "start": ["import", "separatorA", "play", "timecode", "separatorB"],
-            "end": ["overlap", "autoSelect", "separatorC", "snap", "ripple", "zoom", "separatorD",
+            // Dafin: snapping moved to the edit actions, beside Select, Cut mode and Keyframe.
+            "end": ["overlap", "autoSelect", "separatorC", "ripple", "zoom", "separatorD",
                     "mixer", "overview"]
         })
         stored: EditorState.preferences.barLayouts["timeline"]
@@ -216,7 +219,6 @@ Item {
         "overlap": overlapComponent,
         "autoSelect": autoSelectComponent,
         "separatorC": separatorComponent,
-        "snap": snapComponent,
         "ripple": rippleComponent,
         "zoom": zoomComponent,
         "separatorD": separatorComponent,
@@ -277,17 +279,7 @@ Item {
         }
     }
 
-    // Keep the magnetic tools next to zoom by default, where CapCut users expect them.
-    Component {
-        id: snapComponent
-        TimelineToolbarToolButton {
-            glyph: Theme.icons.magnet
-            tooltip: qsTr("Magnetic snapping: align video and audio edges across tracks")
-            active: EditorState.snapEnabled
-            onClicked: EditorState.snapEnabled = !EditorState.snapEnabled
-        }
-    }
-
+    // Keep the ripple tool next to zoom by default, where CapCut users expect it.
     Component {
         id: rippleComponent
         TimelineToolbarToolButton {

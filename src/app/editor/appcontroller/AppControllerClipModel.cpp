@@ -1693,6 +1693,7 @@ QVariantList AppController::actions() const
         action(QStringLiteral("selectTool"), tr("Select tool")),
         action(QStringLiteral("bladeTool"), tr("Cut tool / Brush mask")),
         action(QStringLiteral("addKeyframe"), tr("Add or remove keyframe at the playhead")),
+        action(QStringLiteral("toggleSnap"), tr("Turn timeline snapping on or off")),
         action(QStringLiteral("maskingPolygonTool"), tr("Polygon mask tool")),
         action(QStringLiteral("maskingAiTool"), tr("AI object mask tool")),
         action(QStringLiteral("maskingBrushSmaller"), tr("Decrease brush size")),

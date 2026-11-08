@@ -19,6 +19,11 @@ QtObject {
         "keyframe": { glyph: Theme.icons.diamondPlus, label: qsTr("Add keyframe"),
                       tip: qsTr("Add keyframe — keys position, scale, rotation and opacity of the selected clip at the playhead. Move the playhead and change the clip to animate it"),
                       shortcut: "addKeyframe" },
+        // Dafin: Filmora keeps its snapping magnet with the edit tools, so it sits here rather
+        // than with the toggles at the right end.
+        "snap": { glyph: Theme.icons.magnet, label: qsTr("Snapping"),
+                  tip: qsTr("Snapping — clips, cuts and the playhead line up with each other as you drag"),
+                  shortcut: "toggleSnap" },
         "separateAudio": { glyph: Theme.icons.audioLines, label: qsTr("Show audio on separate track"),
                            shortcut: "separateAudio" },
         "unlink": { glyph: Theme.icons.unlink, label: qsTr("Unlink video and audio"),
@@ -59,8 +64,8 @@ QtObject {
     })
 
     readonly property var defaultToolbarItems: [
-        "select", "cut", "keyframe", "deleteLeft", "deleteRight", "separator", "undo", "redo", "delete",
-        "separator", "separateAudio", "unlink", "link"
+        "select", "cut", "keyframe", "snap", "deleteLeft", "deleteRight", "separator", "undo", "redo",
+        "delete", "separator", "separateAudio", "unlink", "link"
     ]
     readonly property var defaultMenuItems: [
         "trimStart", "trimEnd", "separator", "copy", "paste", "duplicate", "separator",
@@ -94,6 +99,14 @@ QtObject {
             if (at < 0)
                 at = toolbarItems.indexOf("select")
             toolbarItems.splice(at + 1, 0, "keyframe")
+        }
+        // ...and so does the snapping magnet, after the keyframe button.
+        if (!seen["snap"]) {
+            seen["snap"] = true
+            let at = toolbarItems.indexOf("keyframe")
+            if (at < 0)
+                at = toolbarItems.indexOf("cut")
+            toolbarItems.splice(at + 1, 0, "snap")
         }
         for (const id of Object.keys(actionMeta)) {
             if (!seen[id])
