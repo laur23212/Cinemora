@@ -73,6 +73,11 @@ struct MotionTracker
     TimeUs referenceUs = 0;
     double minConfidence = 0.7;
     QList<TrackerTarget> targets;
+    // Dafin motion tracking (the timeline toolbar's button): the tracker follows one element and
+    // only ever tracks the stretch of the video that element covers. Trimming, extending or moving
+    // the element tracks just the frames it newly needs, and the element's position keys are
+    // rewritten from the track after every edit, so it never drifts off the point.
+    bool autoFollow = false;
 };
 
 inline QString motionTrackerKindToString(MotionTracker::Kind kind)
@@ -189,7 +194,7 @@ inline QJsonObject toJson(const MotionTracker &tracker)
         targets.append(entry);
     }
 
-    return QJsonObject{
+    QJsonObject json{
         {QStringLiteral("id"), tracker.id},
         {QStringLiteral("name"), tracker.name},
         {QStringLiteral("kind"), motionTrackerKindToString(tracker.kind)},
@@ -201,6 +206,10 @@ inline QJsonObject toJson(const MotionTracker &tracker)
         {QStringLiteral("homographies"), homographies},
         {QStringLiteral("targets"), targets},
     };
+    // Written only when set, so projects without Dafin motion tracking save exactly as before.
+    if (tracker.autoFollow)
+        json.insert(QStringLiteral("auto"), true);
+    return json;
 }
 
 inline MotionTracker motionTrackerFromJson(const QJsonObject &object)
@@ -212,6 +221,7 @@ inline MotionTracker motionTrackerFromJson(const QJsonObject &object)
     tracker.solve = motionTrackerSolveFromString(object.value(QStringLiteral("solve")).toString());
     tracker.referenceUs = static_cast<TimeUs>(object.value(QStringLiteral("referenceUs")).toDouble());
     tracker.minConfidence = object.value(QStringLiteral("minConfidence")).toDouble(tracker.minConfidence);
+    tracker.autoFollow = object.value(QStringLiteral("auto")).toBool(false);
 
     for (const QJsonValue &pointValue : object.value(QStringLiteral("points")).toArray()) {
         const QJsonObject pointObject = pointValue.toObject();

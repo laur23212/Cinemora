@@ -1,4 +1,5 @@
 #include "app/editor/appcontroller/AppControllerInternal.h"
+#include "app/jobs/vision/TrackingController.h"
 #include "app/bin/AssetPreviewController.h"
 #include "app/mcp/McpController.h"
 #include "app/editor/sessions/SpeedCurveController.h"
@@ -744,6 +745,11 @@ void AppController::pushProjectEdit(const drift::Project &before, const QString 
     // from a future mutation path that forgets to call notifyTracksChanged().
     m_tracksCacheValid = false;
     m_durationCacheValid = false;
+    // Dafin motion tracking: elements that follow a tracked point are re-aimed for wherever this
+    // edit left them (and a drag of one becomes its offset from the point) inside this very step,
+    // so undo and redo always restore an element and its track together.
+    if (m_tracking)
+        m_tracking->syncAutoFollow(before);
     if (m_mcpController->undoSuspended())
         return;
     {

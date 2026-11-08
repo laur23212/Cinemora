@@ -91,12 +91,26 @@ bool retimed(const drift::Clip &clip)
     return std::abs(clip.effectiveSpeed() - 1.0) > 1e-6 || clip.reverse || clip.hasSpeedCurve();
 }
 
+// Dafin's Sync audio reads up to this much of each recording.
+constexpr double kMaxSimilarSeconds = 15.0 * 60.0;
+// And tries at most this many clips around a single selected one.
+constexpr int kMaxSimilarCandidates = 16;
+
 } // namespace
 
 AudioAlignController::AudioAlignController(AppController *app, QObject *parent)
     : QObject(parent)
     , m_app(app)
 {
+}
+
+// The workers capture `this` and poll m_cancel; a sync of long recordings can still be running when
+// the editor closes, so it is stopped and waited for first.
+AudioAlignController::~AudioAlignController()
+{
+    m_cancel.storeRelaxed(1);
+    if (m_future.isRunning())
+        m_future.waitForFinished();
 }
 
 void AudioAlignController::cancel()
@@ -178,7 +192,7 @@ void AudioAlignController::removeSilence(int trackIndex, int clipIndex)
     if (!begin(tr("Finding silence…")))
         return;
 
-    (void)QtConcurrent::run([this, snap, targetId, startUs, durationUs]() {
+    m_future = QtConcurrent::run([this, snap, targetId, startUs, durationUs]() {
         const qint64 frames = durationUs * kAnalysisRate / drift::kUsPerSecond;
         const std::vector<float> mono = mixMono(snap, startUs, frames, [this](double f) {
             reportProgress(0.95 * f, {});
@@ -326,7 +340,7 @@ void AudioAlignController::syncByAudio()
     if (!begin(tr("Matching audio…")))
         return;
 
-    (void)QtConcurrent::run([this, anchor, other, anchorSnap, otherSnap]() {
+    m_future = QtConcurrent::run([this, anchor, other, anchorSnap, otherSnap]() {
         const auto framesFor = [](drift::TimeUs durationUs) {
             return qint64(std::min(drift::usToSeconds(durationUs), kMaxSyncSeconds) * kAnalysisRate);
         };
@@ -435,6 +449,390 @@ void AudioAlignController::applySync(const QString &anchorId, const QString &oth
     m_app->setLastMessage(
         tr("Moved the second clip %1 s to match the first")
             .arg(drift::usToSeconds(delta), 0, 'f', 3));
+}
+
+// ---- Dafin: Sync audio (any number of clips recorded together) ------------------------------
+
+// One item to line up: a clip with sound and everything linked to it (a video and its separated
+// audio move together), represented by its first member that carries the sound.
+struct AudioAlignController::SimilarUnit
+{
+    QString key;
+    QString repId;
+    QString name;
+    drift::TimeUs startUs = 0;
+    drift::TimeUs durationUs = 0;
+    bool hasVideo = false;
+    bool retimed = false;
+};
+
+struct AudioAlignController::SimilarMatch
+{
+    SimilarUnit unit;
+    drift::AudioOffsetResult result;
+};
+
+namespace {
+
+QString linkKey(const drift::Clip &clip)
+{
+    return clip.linkId.isEmpty() ? clip.id : clip.linkId;
+}
+
+bool unitHasVideo(const drift::Project &project, const drift::Clip &clip)
+{
+    if (clip.type == drift::ClipType::Video)
+        return true;
+    for (const drift::ClipRef &ref : drift::linkedPartners(project, clip)) {
+        if (project.tracks().at(ref.trackIndex).clips.at(ref.clipIndex).type == drift::ClipType::Video)
+            return true;
+    }
+    return false;
+}
+
+bool unitRetimed(const drift::Project &project, const drift::Clip &clip)
+{
+    bool bad = retimed(clip);
+    for (const drift::ClipRef &ref : drift::linkedPartners(project, clip))
+        bad = bad || retimed(project.tracks().at(ref.trackIndex).clips.at(ref.clipIndex));
+    return bad;
+}
+
+// The clip a unit is shown as: the video when there is one, else the sound clip.
+QString unitName(const drift::Project &project, const drift::Clip &clip)
+{
+    if (clip.type != drift::ClipType::Video) {
+        for (const drift::ClipRef &ref : drift::linkedPartners(project, clip)) {
+            const drift::Clip &partner = project.tracks().at(ref.trackIndex).clips.at(ref.clipIndex);
+            if (partner.type == drift::ClipType::Video && !partner.name.isEmpty())
+                return partner.name;
+        }
+    }
+    return clip.name;
+}
+
+} // namespace
+
+QList<AudioAlignController::SimilarUnit> AudioAlignController::selectedSimilarUnits() const
+{
+    const drift::Project &project = m_app->m_project;
+    QList<SimilarUnit> units;
+    for (const QPair<int, int> &pair : std::as_const(m_app->m_selection)) {
+        if (!m_app->isValidClipIndex(pair.first, pair.second))
+            continue;
+        const drift::Clip &picked = project.tracks().at(pair.first).clips.at(pair.second);
+        const drift::Clip *clip = audibleClip(project, picked);
+        if (!clip)
+            continue;
+        const QString key = linkKey(*clip);
+        if (std::any_of(units.cbegin(), units.cend(), [&key](const SimilarUnit &u) { return u.key == key; }))
+            continue;
+        units.append({key, clip->id, unitName(project, *clip), clip->timelineStart, clip->timelineDuration,
+                      unitHasVideo(project, *clip), unitRetimed(project, *clip)});
+    }
+    return units;
+}
+
+bool AudioAlignController::canSyncSimilar() const
+{
+    if (m_running)
+        return false;
+    if (!selectedSimilarUnits().isEmpty())
+        return true;
+    for (const drift::Track &track : m_app->m_project.tracks()) {
+        for (const drift::Clip &clip : track.clips) {
+            if (carriesAudio(clip) && clip.containsTime(m_app->m_playheadUs))
+                return true;
+        }
+    }
+    return false;
+}
+
+void AudioAlignController::syncSimilarAudio()
+{
+    if (m_running) {
+        m_app->setLastMessage(tr("Audio analysis already in progress"), QStringLiteral("warning"));
+        return;
+    }
+    const drift::Project &project = m_app->m_project;
+    QList<SimilarUnit> units = selectedSimilarUnits();
+    // The video's own sound is the reference: everything else is lined up to the picture. Among
+    // several, the longest, which the other recordings most likely sit inside.
+    const auto better = [](const SimilarUnit &a, const SimilarUnit &b) {
+        if (a.hasVideo != b.hasVideo)
+            return a.hasVideo;
+        return a.durationUs > b.durationUs;
+    };
+
+    SimilarUnit anchor;
+    QList<SimilarUnit> others;
+    bool gathered = false;
+    if (units.size() >= 2) {
+        int best = 0;
+        for (int i = 1; i < units.size(); ++i) {
+            if (better(units.at(i), units.at(best)))
+                best = i;
+        }
+        anchor = units.takeAt(best);
+        others = units;
+    } else {
+        gathered = true;
+        if (units.size() == 1) {
+            anchor = units.first();
+        } else {
+            bool found = false;
+            for (const drift::Track &track : project.tracks()) {
+                for (const drift::Clip &clip : track.clips) {
+                    if (!carriesAudio(clip) || !clip.containsTime(m_app->m_playheadUs))
+                        continue;
+                    const SimilarUnit unit{linkKey(clip), clip.id, unitName(project, clip), clip.timelineStart,
+                                           clip.timelineDuration, unitHasVideo(project, clip), unitRetimed(project, clip)};
+                    if (!found || better(unit, anchor)) {
+                        anchor = unit;
+                        found = true;
+                    }
+                }
+            }
+            if (!found) {
+                m_app->setLastMessage(tr("Select the clips that were recorded together (the video and the "
+                                         "microphone recordings), then press Sync audio"),
+                                      QStringLiteral("warning"));
+                return;
+            }
+        }
+        // Every other clip with sound that shares time with it, give or take its own length:
+        // recordings started at different moments land anywhere near each other.
+        QList<QPair<drift::TimeUs, SimilarUnit>> near;
+        const drift::TimeUs from = anchor.startUs - anchor.durationUs;
+        const drift::TimeUs to = anchor.startUs + 2 * anchor.durationUs;
+        QSet<QString> seen{anchor.key};
+        // Other pieces of the reference's own recording (it was cut up or copied) are not another
+        // microphone: they stay where the user put them.
+        QSet<QString> ownFiles;
+        int rt = -1;
+        int rc = -1;
+        if (findClip(project, anchor.repId, &rt, &rc)) {
+            const drift::Clip &rep = project.tracks().at(rt).clips.at(rc);
+            ownFiles.insert(rep.path);
+            for (const drift::ClipRef &ref : drift::linkedPartners(project, rep))
+                ownFiles.insert(project.tracks().at(ref.trackIndex).clips.at(ref.clipIndex).path);
+        }
+        ownFiles.remove(QString());
+        for (const drift::Track &track : project.tracks()) {
+            for (const drift::Clip &clip : track.clips) {
+                if (!carriesAudio(clip) || seen.contains(linkKey(clip)) || ownFiles.contains(clip.path))
+                    continue;
+                const drift::TimeUs overlap = qMin(clip.timelineEnd(), to) - qMax(clip.timelineStart, from);
+                if (overlap <= 0)
+                    continue;
+                seen.insert(linkKey(clip));
+                near.append({overlap, SimilarUnit{linkKey(clip), clip.id, unitName(project, clip), clip.timelineStart,
+                                                  clip.timelineDuration, unitHasVideo(project, clip),
+                                                  unitRetimed(project, clip)}});
+            }
+        }
+        std::stable_sort(near.begin(), near.end(), [](const auto &a, const auto &b) { return a.first > b.first; });
+        for (const auto &entry : std::as_const(near)) {
+            if (others.size() >= kMaxSimilarCandidates)
+                break;
+            others.append(entry.second);
+        }
+        if (others.isEmpty()) {
+            m_app->setLastMessage(tr("Nothing else with sound near “%1” to sync it with. Select the clips that "
+                                     "were recorded together, then press Sync audio")
+                                      .arg(anchor.name),
+                                  QStringLiteral("warning"));
+            return;
+        }
+    }
+
+    // Speed or direction changes break the fixed-offset assumption.
+    if (anchor.retimed) {
+        m_app->setLastMessage(tr("“%1” plays at a changed speed or reversed, so it can't be the reference. Reset "
+                                 "its speed and direction first.")
+                                  .arg(anchor.name),
+                              QStringLiteral("warning"));
+        return;
+    }
+    QStringList skipped;
+    for (int i = others.size() - 1; i >= 0; --i) {
+        if (others.at(i).retimed)
+            skipped.prepend(others.takeAt(i).name);
+    }
+    if (others.isEmpty()) {
+        m_app->setLastMessage(tr("Clips with changed speed or reversed playback can't be synced. Reset their "
+                                 "speed and direction first."),
+                              QStringLiteral("warning"));
+        return;
+    }
+
+    drift::Project anchorSnap = project.detachedCopy();
+    drift::muteAllButClip(anchorSnap, anchor.repId);
+    QList<drift::Project> otherSnaps;
+    for (const SimilarUnit &unit : std::as_const(others)) {
+        drift::Project snap = project.detachedCopy();
+        drift::muteAllButClip(snap, unit.repId);
+        otherSnaps.append(snap);
+    }
+
+    if (!begin(tr("Matching audio…")))
+        return;
+
+    m_future = QtConcurrent::run([this, anchor, others, anchorSnap, otherSnaps, gathered, skipped]() {
+        const auto framesFor = [](drift::TimeUs durationUs) {
+            return qint64(std::min(drift::usToSeconds(durationUs), kMaxSimilarSeconds) * kAnalysisRate);
+        };
+        const auto alive = [this]() { return m_cancel.loadRelaxed() == 0; };
+        const double share = 1.0 / double(others.size() + 1);
+        const std::vector<float> a = mixMono(anchorSnap, anchor.startUs, framesFor(anchor.durationUs),
+                                             [this, &alive, share](double f) {
+                                                 reportProgress(share * f, {});
+                                                 return alive();
+                                             });
+        QList<SimilarMatch> matches;
+        for (int i = 0; i < others.size() && alive() && !a.empty(); ++i) {
+            const SimilarUnit &unit = others.at(i);
+            reportProgress(share * (i + 1), tr("Listening to %1…").arg(unit.name));
+            const std::vector<float> b = mixMono(otherSnaps.at(i), unit.startUs, framesFor(unit.durationUs),
+                                                 [this, &alive, share, i](double f) {
+                                                     reportProgress(share * (i + 1 + 0.9 * f), {});
+                                                     return alive();
+                                                 });
+            if (!alive())
+                break;
+            SimilarMatch match{unit, {}};
+            if (!b.empty())
+                match.result = drift::findRecordingOffset(a, b, kAnalysisRate, alive);
+            matches.append(match);
+        }
+        const bool cancelled = !alive() || a.empty();
+        QMetaObject::invokeMethod(
+            this,
+            [this, anchor, matches, cancelled, gathered, skipped]() {
+                end();
+                if (cancelled || m_cancel.loadRelaxed() != 0) {
+                    m_app->setLastMessage(tr("Audio sync cancelled"));
+                    return;
+                }
+                applySimilar(anchor, matches, gathered);
+                if (!skipped.isEmpty() && !gathered)
+                    m_app->setLastMessage(m_app->lastMessage() + QLatin1Char(' ')
+                                              + tr("Skipped (changed speed): %1.").arg(skipped.join(QStringLiteral(", "))),
+                                          QStringLiteral("warning"));
+            },
+            Qt::QueuedConnection);
+    });
+}
+
+void AudioAlignController::applySimilar(const SimilarUnit &anchor, const QList<SimilarMatch> &matches, bool gathered)
+{
+    drift::Project &project = m_app->m_project;
+    int at = -1, ac = -1;
+    if (!findClip(project, anchor.repId, &at, &ac) || project.tracks().at(at).clips.at(ac).timelineStart != anchor.startUs) {
+        m_app->setLastMessage(tr("The clips changed while they were analysed"), QStringLiteral("warning"));
+        return;
+    }
+    const drift::TimeUs halfFrame = drift::frameDurationUs(project.fps()) / 2;
+
+    const drift::Project before = project;
+    QStringList moved;
+    QStringList trimmed;
+    QStringList unmatched;
+    QStringList blocked;
+    int already = 0;
+    for (const SimilarMatch &match : matches) {
+        const SimilarUnit &unit = match.unit;
+        if (match.result.status != drift::AudioOffsetResult::Status::Ok) {
+            unmatched.append(unit.name);
+            continue;
+        }
+        int ot = -1, oc = -1;
+        if (!findClip(project, unit.repId, &ot, &oc) || project.tracks().at(ot).clips.at(oc).timelineStart != unit.startUs) {
+            blocked.append(unit.name);
+            continue;
+        }
+        // other[n] ~ anchor[n + lag], so its first sample belongs lag after the anchor's.
+        const drift::TimeUs delta = anchor.startUs + drift::secondsToUs(match.result.lagSeconds) - unit.startUs;
+        if (std::llabs(delta) < std::max<drift::TimeUs>(1, halfFrame / 10)) {
+            ++already;
+            continue;
+        }
+        QList<QPair<int, int>> group{{ot, oc}};
+        for (const drift::ClipRef &ref : drift::linkedPartners(project, project.tracks().at(ot).clips.at(oc)))
+            group.append({ref.trackIndex, ref.clipIndex});
+        QSet<QString> ids;
+        for (const QPair<int, int> &p : std::as_const(group))
+            ids.insert(project.tracks().at(p.first).clips.at(p.second).id);
+        // Where each member lands. A recording that was already running before the reference
+        // started can need to begin before the timeline does: the part that would fall before 0
+        // is trimmed off (non-destructively), so the rest still lines up.
+        QList<drift::Clip> placed;
+        bool fits = true;
+        bool cut = false;
+        for (const QPair<int, int> &p : std::as_const(group)) {
+            const drift::Track &track = project.tracks().at(p.first);
+            drift::Clip clip = track.clips.at(p.second);
+            const drift::TimeUs target = clip.timelineStart + delta;
+            if (target < 0) {
+                drift::Clip rest;
+                if (!drift::sliceClipToTimelineRange(clip, clip.timelineStart - target, clip.timelineEnd(), rest,
+                                                     project.fps())) {
+                    fits = false;
+                    break;
+                }
+                clip = rest;
+                cut = true;
+            }
+            clip.timelineStart += delta;
+            if (!m_app->allowClipOverlap()
+                && drift::clampClipStartNoOverlap(track, ids, clip.timelineStart, clip.timelineDuration)
+                       != clip.timelineStart) {
+                fits = false;
+                break;
+            }
+            placed.append(clip);
+        }
+        if (!fits) {
+            blocked.append(unit.name);
+            continue;
+        }
+        for (int i = 0; i < group.size(); ++i)
+            project.tracks()[group.at(i).first].clips[group.at(i).second] = placed.at(i);
+        moved.append(unit.name);
+        if (cut)
+            trimmed.append(unit.name);
+    }
+
+    if (!moved.isEmpty()) {
+        m_app->pushProjectEdit(before, tr("Sync audio"));
+        m_app->finishEdit(tr("Sync audio"));
+    }
+
+    QStringList parts;
+    QString severity = QStringLiteral("info");
+    if (!moved.isEmpty())
+        parts.append(tr("Synced %n clip(s) to “%1”.", "", int(moved.size())).arg(anchor.name));
+    if (!trimmed.isEmpty())
+        parts.append(tr("%1 started recording earlier, so its beginning is trimmed off at the start of the timeline.")
+                         .arg(trimmed.join(QStringLiteral(", "))));
+    else if (already > 0 && (unmatched.isEmpty() || gathered))
+        parts.append(tr("Already in sync with “%1”.").arg(anchor.name));
+    else {
+        parts.append(gathered ? tr("No other clip shares the sound of “%1”. Nothing was moved.").arg(anchor.name)
+                              : tr("No clear match with the sound of “%1”. Nothing was moved.").arg(anchor.name));
+        severity = QStringLiteral("warning");
+    }
+    // Clips picked up around a single selected one that do not match are simply other sound
+    // (music, effects); only clips the user chose are reported.
+    if (!gathered && !unmatched.isEmpty() && !moved.isEmpty()) {
+        parts.append(tr("No match: %1.").arg(unmatched.join(QStringLiteral(", "))));
+        severity = QStringLiteral("warning");
+    }
+    if (!blocked.isEmpty()) {
+        parts.append(tr("No room to move: %1.").arg(blocked.join(QStringLiteral(", "))));
+        severity = QStringLiteral("warning");
+    }
+    m_app->setLastMessage(parts.join(QLatin1Char(' ')), severity);
 }
 
 #include "moc_AudioAlignController.cpp"

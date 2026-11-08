@@ -24,6 +24,17 @@ QtObject {
         "snap": { glyph: Theme.icons.magnet, label: qsTr("Snapping"),
                   tip: qsTr("Snapping — clips, cuts and the playhead line up with each other as you drag"),
                   shortcut: "toggleSnap" },
+        // Dafin: one-click chroma key, motion tracking that follows the element as it is moved
+        // or trimmed, and syncing clips recorded together by their sound.
+        "chromaKey": { glyph: Theme.icons.chromaKey, label: qsTr("Chroma key"),
+                       tip: qsTr("Chroma key — takes out the green or blue background of the selected clip, with the colour read from the frame at the playhead. Click again to turn it off or on"),
+                       shortcut: "chromaKey" },
+        "motionTrack": { glyph: Theme.icons.motionTrack, label: qsTr("Motion tracking"),
+                         tip: qsTr("Motion tracking — select a title, sticker, Lottie or image over a video, click this, then click the spot in the video it should follow. Only the part of the video the element covers is tracked, and the tracking keeps up as you move, trim or extend it"),
+                         shortcut: "motionTrack" },
+        "syncAudio": { glyph: Theme.icons.audioSync, label: qsTr("Sync audio"),
+                       tip: qsTr("Sync audio — lines up clips recorded at the same time, such as a camera and separate microphones, by their sound. The video stays put and the recordings move to match it. Select the clips, or just the video"),
+                       shortcut: "syncAudio" },
         "separateAudio": { glyph: Theme.icons.audioLines, label: qsTr("Show audio on separate track"),
                            shortcut: "separateAudio" },
         "unlink": { glyph: Theme.icons.unlink, label: qsTr("Unlink video and audio"),
@@ -65,8 +76,11 @@ QtObject {
 
     readonly property var defaultToolbarItems: [
         "select", "cut", "keyframe", "snap", "deleteLeft", "deleteRight", "separator", "undo", "redo",
-        "delete", "separator", "separateAudio", "unlink", "link"
+        "delete", "separator", "chromaKey", "motionTrack", "syncAudio", "separator", "separateAudio",
+        "unlink", "link"
     ]
+    // Dafin's tools, which join a toolbar arranged before they existed as a group after Delete.
+    readonly property var dafinTools: ["chromaKey", "motionTrack", "syncAudio"]
     readonly property var defaultMenuItems: [
         "trimStart", "trimEnd", "separator", "copy", "paste", "duplicate", "separator",
         "bookmark", "markIn", "markOut", "loop", "clearWorkArea", "separator",
@@ -107,6 +121,19 @@ QtObject {
             if (at < 0)
                 at = toolbarItems.indexOf("cut")
             toolbarItems.splice(at + 1, 0, "snap")
+        }
+        // ...and chroma key, motion tracking and audio sync, together after Delete (else at the
+        // end), between separators.
+        const missing = dafinTools.filter((id) => !seen[id])
+        if (missing.length > 0) {
+            for (const id of missing)
+                seen[id] = true
+            const at = toolbarItems.indexOf("delete")
+            const group = ["separator"].concat(missing)
+            if (at >= 0)
+                toolbarItems.splice(at + 1, 0, ...group, "separator")
+            else
+                toolbarItems.push(...group)
         }
         for (const id of Object.keys(actionMeta)) {
             if (!seen[id])

@@ -17,12 +17,19 @@
 #include "app/editor/sessions/KeyframeController.h"
 #include "core/edit/TimelineOps.h"
 #include "core/text/TextStyle.h"
+#include "engine/decode/readers/ClipReaderPool.h"
+#include "engine/packages/effects/EffectCatalog.h"
 
+#include <QColor>
+#include <QImageReader>
 #include <QUuid>
+#include <QtConcurrent>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <limits>
+#include <numbers>
 
 using namespace drift::appdetail;
 using namespace drift::appcontroller_detail;
@@ -82,6 +89,37 @@ static QStringList diamondProps(const QStringList &animated, bool keyframedHere)
     return props;
 }
 
+// Dafin motion tracking writes the position of an element that follows a tracked point (and its
+// rotation and size for a rotate or scale solve). Those keys come from the track, so they are not
+// drawn as the user's diamonds and a diamond never drags them.
+static QStringList withoutTrackedProps(const drift::Project &project, const QString &clipId, QStringList props)
+{
+    for (const drift::Track &track : project.tracks()) {
+        for (const drift::Clip &host : track.clips) {
+            for (const drift::MotionTracker &tracker : host.motionTrackers) {
+                if (!tracker.autoFollow)
+                    continue;
+                for (const drift::TrackerTarget &target : tracker.targets) {
+                    if (target.mode != drift::TrackerTarget::Mode::FollowClip || target.clipId != clipId)
+                        continue;
+                    const bool planar = tracker.kind == drift::MotionTracker::Kind::Planar;
+                    props.removeAll(QStringLiteral("x"));
+                    props.removeAll(QStringLiteral("y"));
+                    if (planar || tracker.solve != drift::MotionTracker::Solve::Translate)
+                        props.removeAll(QStringLiteral("rotation"));
+                    if (planar || tracker.solve == drift::MotionTracker::Solve::TranslateRotateScale
+                        || tracker.solve == drift::MotionTracker::Solve::Perspective) {
+                        props.removeAll(QStringLiteral("width"));
+                        props.removeAll(QStringLiteral("height"));
+                    }
+                    return props;
+                }
+            }
+        }
+    }
+    return props;
+}
+
 QVariantList AppController::clipKeyframeTimes(int trackIndex, int clipIndex) const
 {
     QVariantList out;
@@ -89,8 +127,9 @@ QVariantList AppController::clipKeyframeTimes(int trackIndex, int clipIndex) con
         return out;
     const drift::Clip &clip = m_project.tracks().at(trackIndex).clips.at(clipIndex);
     QList<drift::TimeUs> times;
-    const QStringList props = diamondProps(clipAnimatedProperties(trackIndex, clipIndex),
-                                           m_keyframedClipIds.contains(clip.id));
+    const QStringList props = withoutTrackedProps(m_project, clip.id,
+                                                  diamondProps(clipAnimatedProperties(trackIndex, clipIndex),
+                                                               m_keyframedClipIds.contains(clip.id)));
     for (const QString &prop : props) {
         int hostTrack = trackIndex;
         int hostClip = clipIndex;
@@ -140,8 +179,9 @@ QVariantList AppController::clipKeyframeRefsAt(int trackIndex, int clipIndex, do
     if (!isValidClipIndex(trackIndex, clipIndex))
         return refs;
     const drift::Clip &clip = m_project.tracks().at(trackIndex).clips.at(clipIndex);
-    const QStringList props = diamondProps(clipAnimatedProperties(trackIndex, clipIndex),
-                                           m_keyframedClipIds.contains(clip.id));
+    const QStringList props = withoutTrackedProps(m_project, clip.id,
+                                                  diamondProps(clipAnimatedProperties(trackIndex, clipIndex),
+                                                               m_keyframedClipIds.contains(clip.id)));
     for (const QString &prop : props) {
         int hostTrack = trackIndex;
         int hostClip = clipIndex;
@@ -373,4 +413,241 @@ void AppController::addTemplateTitle(const QString &text, const QString &presetI
     // so the preview shows the new title.
     if (m_playheadUs < start || m_playheadUs >= start + duration)
         setPlayheadSeconds(drift::usToSeconds(start));
+}
+
+// ---- Chroma key (the timeline toolbar's button) ----------------------------------------------
+//
+// Drift already keys green and blue screens (effects/chroma_key, a hue key with spill removal and
+// an eyedropper in the Effects inspector). The button puts it on the selected clip in one click,
+// with the backdrop colour read from the frame at the playhead, and switches it off and on again.
+
+namespace {
+
+const QString &chromaKeyEffectId()
+{
+    static const QString id = QStringLiteral("key.chroma");
+    return id;
+}
+
+// A decoder of its own, so reading the frame does not disturb the preview's.
+constexpr quint64 kChromaStreamId = 0xDAF1'0C4A'0000'0001ull;
+
+QImage chromaAnalysisFrame(const QString &path, drift::ClipType type, drift::TimeUs sourceUs, int rotation)
+{
+    constexpr int kSide = 320;
+    if (type == drift::ClipType::Image) {
+        QImageReader reader(path);
+        reader.setAutoTransform(true);
+        const QSize size = reader.size();
+        if (size.isValid() && (size.width() > kSide || size.height() > kSide))
+            reader.setScaledSize(size.scaled(kSide, kSide, Qt::KeepAspectRatio));
+        return reader.read();
+    }
+    // A frame timestamp is rarely a whole microsecond: nudge past it so the read lands on it.
+    return ClipReaderPool::instance().readVideoFrame(path, kChromaStreamId, sourceUs + 1000, kSide, kSide, rotation);
+}
+
+// The backdrop's hue in degrees: the dominant strongly saturated hue of the frame, its outer fifth
+// counting three times (the subject usually stands in the middle). NaN when no hue dominates, e.g.
+// a frame with no screen in it.
+double dominantBackdropHue(const QImage &source)
+{
+    const double none = std::numeric_limits<double>::quiet_NaN();
+    if (source.isNull())
+        return none;
+    const QImage image = source.convertToFormat(QImage::Format_RGB32);
+    constexpr int kBins = 72; // 5 degrees each
+    std::array<double, kBins> weight{};
+    double total = 0.0;
+    const int w = image.width();
+    const int h = image.height();
+    const int step = std::max(1, std::max(w, h) / 160);
+    for (int y = 0; y < h; y += step) {
+        const QRgb *row = reinterpret_cast<const QRgb *>(image.constScanLine(y));
+        for (int x = 0; x < w; x += step) {
+            const QColor colour = QColor::fromRgb(row[x]);
+            const float hue = colour.hsvHueF();
+            const float saturation = colour.hsvSaturationF();
+            if (hue < 0.0f || saturation < 0.25f || colour.valueF() < 0.15f)
+                continue;
+            const bool edge = x < w / 5 || x >= w - w / 5 || y < h / 5 || y >= h - h / 5;
+            const double vote = saturation * (edge ? 3.0 : 1.0);
+            weight[std::min(kBins - 1, int(hue * kBins))] += vote;
+            total += vote;
+        }
+    }
+    if (total <= 0.0)
+        return none;
+    int best = 0;
+    double bestMass = -1.0;
+    for (int i = 0; i < kBins; ++i) {
+        const double mass = weight[(i + kBins - 1) % kBins] + weight[i] + weight[(i + 1) % kBins];
+        if (mass > bestMass) {
+            bestMass = mass;
+            best = i;
+        }
+    }
+    if (bestMass < 0.2 * total)
+        return none;
+    double sx = 0.0;
+    double sy = 0.0;
+    for (int d = -2; d <= 2; ++d) {
+        const int i = (best + d + kBins) % kBins;
+        const double angle = (i + 0.5) * (2.0 * std::numbers::pi / kBins);
+        sx += weight[i] * std::cos(angle);
+        sy += weight[i] * std::sin(angle);
+    }
+    double degrees = std::atan2(sy, sx) * 180.0 / std::numbers::pi;
+    if (degrees < 0.0)
+        degrees += 360.0;
+    return degrees;
+}
+
+} // namespace
+
+QVariantMap AppController::chromaKeyInfo(int trackIndex, int clipIndex) const
+{
+    QVariantMap out{{QStringLiteral("eligible"), false},
+                    {QStringLiteral("present"), false},
+                    {QStringLiteral("enabled"), false},
+                    {QStringLiteral("effectIndex"), -1}};
+    if (!isValidClipIndex(trackIndex, clipIndex))
+        return out;
+    const drift::Clip &clip = m_project.tracks().at(trackIndex).clips.at(clipIndex);
+    const drift::Clip *stack = nullptr;
+    if (clip.type == drift::ClipType::Adjustment && clip.adjustmentKind == drift::AdjustmentKind::VideoEffects)
+        stack = &clip;
+    else if (clip.type == drift::ClipType::Video || clip.type == drift::ClipType::Image)
+        stack = effectHostClip(trackIndex, clipIndex, drift::AdjustmentKind::VideoEffects);
+    else
+        return out;
+    out.insert(QStringLiteral("eligible"), true);
+    if (!stack)
+        return out;
+    for (int i = 0; i < stack->effects.size(); ++i) {
+        const drift::Effect &effect = stack->effects.at(i);
+        if (effect.catalogId != chromaKeyEffectId())
+            continue;
+        out.insert(QStringLiteral("present"), true);
+        out.insert(QStringLiteral("enabled"), effect.enabled);
+        out.insert(QStringLiteral("effectIndex"), i);
+        break;
+    }
+    return out;
+}
+
+void AppController::toggleChromaKey(int trackIndex, int clipIndex)
+{
+    if (trackIndex < 0 && clipIndex < 0) {
+        trackIndex = m_selectedTrack;
+        clipIndex = m_selectedClip;
+    }
+    const QVariantMap info = chromaKeyInfo(trackIndex, clipIndex);
+    if (!info.value(QStringLiteral("eligible")).toBool()) {
+        setLastMessage(tr("Select a video or image clip to take out its green or blue background"),
+                       QStringLiteral("warning"));
+        return;
+    }
+    if (info.value(QStringLiteral("present")).toBool()) {
+        int hostTrack = trackIndex;
+        int hostClip = clipIndex;
+        if (!redirectToEffectHost(&hostTrack, &hostClip, drift::AdjustmentKind::VideoEffects, /*create=*/false))
+            return;
+        const bool enable = !info.value(QStringLiteral("enabled")).toBool();
+        setEffectEnabled(hostTrack, hostClip, info.value(QStringLiteral("effectIndex")).toInt(), enable);
+        setLastMessage(enable ? tr("Chroma key on") : tr("Chroma key off"));
+        return;
+    }
+    if (m_chromaDetecting)
+        return;
+
+    // Read the backdrop colour from the frame at the playhead first, so the key lands on it in one
+    // undo step. The clip whose pixels are keyed is the media clip, also when its effects
+    // adjustment is what is selected.
+    const drift::Clip &target = m_project.tracks().at(trackIndex).clips.at(clipIndex);
+    const drift::Clip *media = &target;
+    if (target.type == drift::ClipType::Adjustment) {
+        int mt = -1;
+        int mc = -1;
+        media = !target.linkedClipId.isEmpty() && findClipById(m_project, target.linkedClipId, &mt, &mc)
+                    ? &m_project.tracks().at(mt).clips.at(mc)
+                    : nullptr;
+    }
+    QString path;
+    drift::ClipType type = drift::ClipType::Video;
+    drift::TimeUs sourceUs = 0;
+    int rotation = 0;
+    if (media && (media->type == drift::ClipType::Video || media->type == drift::ClipType::Image)
+        && !media->path.isEmpty() && media->timelineDuration > 0) {
+        const drift::TimeUs at = qBound(media->timelineStart, m_playheadUs, media->timelineEnd() - 1);
+        path = media->path;
+        type = media->type;
+        sourceUs = media->timelineToSourceUs(at);
+        rotation = media->rotationCorrection;
+    }
+    const QString targetId = target.id;
+    m_chromaDetecting = true;
+    (void)QtConcurrent::run([this, targetId, path, type, sourceUs, rotation]() {
+        const double hue = path.isEmpty() ? std::numeric_limits<double>::quiet_NaN()
+                                          : dominantBackdropHue(chromaAnalysisFrame(path, type, sourceUs, rotation));
+        QMetaObject::invokeMethod(
+            this,
+            [this, targetId, hue]() {
+                m_chromaDetecting = false;
+                addChromaKey(targetId, hue);
+            },
+            Qt::QueuedConnection);
+    });
+}
+
+void AppController::addChromaKey(const QString &clipId, double hue)
+{
+    int trackIndex = -1;
+    int clipIndex = -1;
+    if (!findClipById(m_project, clipId, &trackIndex, &clipIndex))
+        return;
+    const EffectPresetEntry *def = effectDefForId(chromaKeyEffectId());
+    if (!def) {
+        setLastMessage(tr("The Chroma Key effect is missing from this installation"), QStringLiteral("error"));
+        return;
+    }
+    QString why;
+    if (!effectFitsTrack(trackIndex, chromaKeyEffectId(), &why)) {
+        setLastMessage(why, QStringLiteral("warning"));
+        return;
+    }
+
+    drift::Effect effect;
+    effect.name = def->filterName;
+    effect.catalogId = def->meta.id;
+    for (auto it = def->fixedParams.constBegin(); it != def->fixedParams.constEnd(); ++it)
+        effect.parameters.insert(it.key(), it.value());
+    for (const drift::EffectParamSpec &p : def->meta.parameters)
+        p.insertDefault(effect.parameters);
+    const bool detected = std::isfinite(hue);
+    if (detected)
+        effect.parameters.insert(QStringLiteral("u_keyHue"), hue);
+
+    m_project.ensureTrackIds();
+    const drift::Project before = m_project;
+    int hostTrack = trackIndex;
+    int hostClip = clipIndex;
+    if (!redirectToEffectHost(&hostTrack, &hostClip, drift::AdjustmentKind::VideoEffects, /*create=*/true))
+        return;
+    m_project.tracks()[hostTrack].clips[hostClip].effects.append(effect);
+    // The adjustment carrying the stack is what shows the Effects tab (as addEffect does).
+    m_selectedTrack = hostTrack;
+    m_selectedClip = hostClip;
+    m_selection = {qMakePair(hostTrack, hostClip)};
+    pushProjectEdit(before, tr("Chroma key"));
+    finishEdit(tr("Chroma key"));
+
+    const bool green = detected && hue >= 70.0 && hue <= 170.0;
+    const bool blue = detected && hue >= 180.0 && hue <= 260.0;
+    setLastMessage(green  ? tr("Chroma key on: green screen found. Fine-tune Tolerance and Edge Softness in Effects.")
+                   : blue ? tr("Chroma key on: blue screen found. Fine-tune Tolerance and Edge Softness in Effects.")
+                   : detected
+                       ? tr("Chroma key on, keyed on the frame's main colour. Change Key Colour in Effects if needed.")
+                       : tr("Chroma key on. Pick the backdrop with Key Colour's eyedropper in Effects."));
+    emit chromaKeyAdded();
 }

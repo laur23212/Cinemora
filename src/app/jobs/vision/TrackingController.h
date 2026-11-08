@@ -4,17 +4,24 @@
 #include "core/project/Project.h"
 
 #include <QAtomicInt>
+#include <QElapsedTimer>
+#include <QFuture>
+#include <QHash>
 #include <QObject>
 #include <QPointF>
 #include <QString>
+#include <QStringList>
 #include <QVariant>
 #include <QVariantList>
 #include <QVariantMap>
 #include <QVector>
 
 #include <functional>
+#include <limits>
+#include <optional>
 
 class AppController;
+class QTimer;
 class TrackerListModel;
 
 // Point and planar motion tracking on a media clip, and turning a track into mask or transform
@@ -31,14 +38,63 @@ class TrackingController : public QObject
     Q_PROPERTY(double progress READ progress NOTIFY progressChanged)
     Q_PROPERTY(QString busyTrackerId READ busyTrackerId NOTIFY busyChanged)
     Q_PROPERTY(TrackerListModel *trackerList READ trackerList CONSTANT)
+    // Dafin motion tracking: true while the running job is one the timeline toolbar's motion
+    // tracking started in the background, and the element that job is for.
+    Q_PROPERTY(bool busyAuto READ busyAuto NOTIFY busyChanged)
+    Q_PROPERTY(QString busyFollowerId READ busyFollowerId NOTIFY busyChanged)
 
 public:
     explicit TrackingController(AppController *app, QObject *parent = nullptr);
+    ~TrackingController() override;
 
     bool busy() const { return m_busy; }
     double progress() const { return m_progress; }
     QString busyTrackerId() const { return m_busyTrackerId; }
     TrackerListModel *trackerList() const { return m_trackerList; }
+    bool busyAuto() const { return m_busy && m_jobAuto; }
+    QString busyFollowerId() const { return busyAuto() ? m_jobFollowerId : QString(); }
+
+    // ---- Dafin motion tracking (the timeline toolbar's button) ---------------------------------
+    // Filmora tracks a whole clip once and allows one tracked element per video. Here each element
+    // (title, sticker, Lottie, image, picture-in-picture) gets an automatic point tracker of its own
+    // on the video under it, and only the stretch of video the element covers is ever tracked:
+    // trimming, extending or moving the element tracks just the frames it newly needs, and its
+    // position keys are rewritten from the track after every edit. Any number of elements can follow
+    // points in the same video at once. Where the point is lost, or past the end of what was
+    // tracked, the element holds the last position the point was seen at instead of disappearing.
+    //
+    // What the button would do now, from the selection and the playhead:
+    //   {mode: "place", hostClipId, hostName, followerIds, followerNames, label, playheadInside,
+    //    suggestedSeconds} — the selected elements follow a point still to be clicked on the video;
+    //   {mode: "choose", hostClipId, hostName, candidates: [{clipId, name, track, clip, following}]}
+    //    — a video (or nothing) is selected: one of the elements over it has to be picked first;
+    //   {mode: "none", message} — nothing that could be tracked.
+    Q_INVOKABLE QVariantMap motionPlan() const;
+    // One automatic tracker per follower on `hostClipId`, at the normalized point (x, y) of the
+    // host's frame at the playhead, its box `boxWidth` wide (normalized; <= 0 for the default).
+    // Each follower's centre goes onto the point; a tracker already driving a follower is replaced.
+    // Tracking then runs in the background over each follower's own span. One undo step.
+    // Returns the new tracker ids.
+    Q_INVOKABLE QStringList startMotionFollow(const QString &hostClipId, const QStringList &followerIds,
+                                              double x, double y, double boxWidth);
+    // {following, hostClipId, hostName, trackerId, center, tracking, lost, startSeconds, endSeconds}
+    // for an element; following is false when no automatic tracker drives it.
+    Q_INVOKABLE QVariantMap motionInfo(const QString &followerClipId) const;
+    // Moves the element's tracked point to (x, y) at the playhead (a hand-placed key: tracking
+    // restarts from it). One undo step.
+    Q_INVOKABLE void correctMotionPoint(const QString &followerClipId, double x, double y);
+    // Removes the automatic tracker driving the element and the keys it wrote; the element goes
+    // back to where it was before it followed anything. One undo step.
+    Q_INVOKABLE void stopMotionFollow(const QString &followerClipId);
+    // Puts the element's centre back onto the point (dragging the element sets an offset instead).
+    Q_INVOKABLE void setMotionCenter(const QString &followerClipId, bool center);
+    // Forgets that tracking was lost or stopped for this element and tries its span again.
+    Q_INVOKABLE void retrackMotion(const QString &followerClipId);
+    // Called by AppController just before an edit's undo snapshot is taken, so what this changes is
+    // part of the same step. For every automatic tracker: drops it when its element is gone, turns a
+    // drag of the element on the canvas into its offset from the point, and rewrites the element's
+    // keys for wherever it and the video now sit.
+    void syncAutoFollow(const drift::Project &before);
 
     // [{id, name, kind: "point"|"planar", solve, minConfidence, pointCount, referenceSeconds,
     //   targets: [{clipId, mode, name, center, via: "clip"|"camera", zoom}], sampleRange: [startSec, endSec]}]. Seconds are timeline.
@@ -238,6 +294,49 @@ private:
     QString applyTargets(const QString &clipId, const QString &trackerId, const QString &onlyTargetId = {});
     void unapplyTarget(const drift::Clip &host, const drift::MotionTracker &tracker, const drift::TrackerTarget &target);
 
+    // Dafin motion tracking: the background queue. Each run picks the first automatic tracker whose
+    // element needs frames that are not tracked yet and tracks just those, then looks again.
+    void scheduleAutoTracking();
+    void runAutoTracking();
+    // Tracks from the tracked edge (startTimelineUs, the sample at startSourceUs) towards toTimelineUs.
+    bool startAutoJob(const drift::Clip &host, const drift::MotionTracker &tracker, drift::TimeUs startTimelineUs,
+                      drift::TimeUs startSourceUs, drift::TimeUs toTimelineUs, bool forward);
+    void mergeAutoBatch(quint64 generation, const QString &clipId, const QString &trackerId,
+                        const QList<FrameResult> &frames);
+    void finishAutoJob(quint64 generation, const QString &message, const QString &severity, bool lost);
+    // Re-writes the tracker's elements from the samples there are now, outside the undo stack: the
+    // samples are a cache of the video, and undoing the edit that asked for them must not be undone
+    // first. Empty ids: every automatic tracker's.
+    void refreshAutoTargets(const QString &hostId, const QString &trackerId);
+    // Drops what the running automatic job still sends and asks it to stop.
+    void cancelAutoJob();
+    // The automatic tracker driving `followerClipId`: its host and id. False when there is none.
+    bool autoTrackerFor(const QString &followerClipId, QString *hostId, QString *trackerId) const;
+    // Removes the automatic trackers driving the follower (and their keys) from the project. The
+    // caller owns the undo step. True when one was removed.
+    bool removeAutoTrackers(const QString &followerClipId);
+
+    struct AutoBlock
+    {
+        // Where tracking last stopped in each direction (lost the point, was stopped, or could go no
+        // further): the source time of the tracked edge, and how far the element then reached on the
+        // timeline. That direction is not tried again until either moves.
+        drift::TimeUs forwardEdge = std::numeric_limits<drift::TimeUs>::min();
+        drift::TimeUs forwardNeed = std::numeric_limits<drift::TimeUs>::min();
+        drift::TimeUs backwardEdge = std::numeric_limits<drift::TimeUs>::min();
+        drift::TimeUs backwardNeed = std::numeric_limits<drift::TimeUs>::min();
+        // A hole filled back from a hand-placed key: that key and where the hole began.
+        drift::TimeUs fillEdge = std::numeric_limits<drift::TimeUs>::min();
+        drift::TimeUs fillNeed = std::numeric_limits<drift::TimeUs>::min();
+    };
+    struct PendingTrack
+    {
+        QString clipId;
+        QString trackerId;
+        bool forward = true;
+        bool singleFrame = false;
+    };
+
     AppController *m_app = nullptr;
     bool m_busy = false;
     bool m_reapplying = false;
@@ -250,4 +349,24 @@ private:
     QString m_jobTrackerId;
     drift::MotionTracker m_jobTrackerBefore;
     bool m_jobChanged = false;
+
+    // Dafin motion tracking.
+    bool m_jobAuto = false;
+    bool m_jobForward = true;
+    // The running automatic job fills a hole back from a hand-placed key (else it extends an edge).
+    bool m_jobFill = false;
+    bool m_syncing = false;
+    // A refresh was skipped while a drag on the canvas was under way.
+    bool m_autoRefreshPending = false;
+    QString m_jobFollowerId;
+    drift::TimeUs m_jobEdgeBefore = 0;
+    drift::TimeUs m_jobNeed = 0;
+    quint64 m_jobGeneration = 0;
+    quint64 m_autoGeneration = 0;
+    QHash<QString, AutoBlock> m_autoBlocks;
+    QTimer *m_autoTimer = nullptr;
+    QElapsedTimer m_autoApplyClock;
+    std::optional<PendingTrack> m_pendingTrack;
+    // The running worker (one at a time), waited for on destruction.
+    QFuture<void> m_jobFuture;
 };

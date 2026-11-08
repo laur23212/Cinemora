@@ -371,11 +371,34 @@ Item {
         defaults: ({
             "left": ["projects", "save", "video"],
             "right": ["downloads", "settings", "separator1", "extras", "notifications", "separator2",
-                      "agent", "separator3", "exportBadge", "export"]
+                      "agent", "shortcuts", "separator3", "exportBadge", "export"]
         })
-        stored: EditorState.preferences.barLayouts["header"]
+        stored: root.withShortcutsButton(EditorState.preferences.barLayouts["header"])
         layer: headerReorderLayer
         onSaveRequested: (layout) => EditorState.preferences.setBarLayout("header", layout)
+    }
+
+    // Dafin: a header arranged before the Shortcuts button existed gets it beside Agent rather
+    // than at the end of the right side, where BarReorder puts a new item.
+    function withShortcutsButton(saved) {
+        if (!saved)
+            return saved
+        for (const group in saved) {
+            if ((saved[group] || []).indexOf("shortcuts") >= 0)
+                return saved
+        }
+        const result = {}
+        let placed = false
+        for (const group in saved) {
+            const list = (saved[group] || []).slice()
+            const at = list.indexOf("agent")
+            if (at >= 0 && !placed) {
+                list.splice(at + 1, 0, "shortcuts")
+                placed = true
+            }
+            result[group] = list
+        }
+        return result
     }
 
     readonly property var headerItems: ({
@@ -389,6 +412,7 @@ Item {
         "notifications": notificationsComponent,
         "separator2": separatorComponent,
         "agent": agentComponent,
+        "shortcuts": shortcutsComponent,
         "separator3": separatorComponent,
         "exportBadge": exportBadgeComponent,
         "export": exportComponent
@@ -456,6 +480,9 @@ Item {
             onClicked: agentAccessDialog.openDialog()
         }
     }
+
+    // Dafin: every keyboard shortcut, and changing them, one click away.
+    Component { id: shortcutsComponent; EditorHeaderShortcutsButton { } }
 
     Component {
         id: exportBadgeComponent

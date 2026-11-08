@@ -464,6 +464,7 @@ private slots:
     void audioSyncGradesCuts();
     void silenceSegmentsSyntheticSignal();
     void audioOffsetRecoversShift();
+    void recordingOffsetLinesUpMicrophones();
     void audioSheetRendersLanes();
     void vadRangesFollowSileroRules();
     void vadModelScoresSilenceLow();
@@ -17084,6 +17085,94 @@ void EngineTest::audioOffsetRecoversShift()
     const std::vector<float> silent(other.size(), 0.0f);
     QCOMPARE(drift::findAudioOffset(anchor, silent, kRate, params).status,
              drift::AudioOffsetResult::Status::Silent);
+}
+
+// Dafin's Sync audio: two microphones on the same talk (a far, reverberant, dull camera mic and a
+// close, bright lav that started recording earlier) line up at any offset, to the sample, while
+// unrelated sound does not match at all.
+void EngineTest::recordingOffsetLinesUpMicrophones()
+{
+    constexpr int kRate = 8000;
+    std::mt19937 rng(11);
+    std::uniform_real_distribution<double> uniform(0.0, 1.0);
+    std::normal_distribution<double> gauss(0.0, 1.0);
+
+    // Speech-like: words of voiced or hissed syllables, short gaps, now and then a longer pause.
+    const auto talk = [&](double seconds) {
+        std::vector<float> out(size_t(seconds * kRate), 0.0f);
+        size_t i = 0;
+        double smooth = 0.0;
+        while (i < out.size()) {
+            i += size_t((uniform(rng) < 0.12 ? 0.6 + 1.2 * uniform(rng) : 0.03 + 0.25 * uniform(rng)) * kRate);
+            const int syllables = 1 + int(uniform(rng) * 4);
+            for (int s = 0; s < syllables && i < out.size(); ++s) {
+                const size_t length = size_t((0.08 + 0.22 * uniform(rng)) * kRate);
+                const double amplitude = 0.2 + 0.8 * uniform(rng);
+                const double pitch = 90.0 + 120.0 * uniform(rng);
+                const bool voiced = uniform(rng) < 0.7;
+                double phase = 0.0;
+                for (size_t k = 0; k < length && i < out.size(); ++k, ++i) {
+                    double x = 0.5 * gauss(rng);
+                    if (voiced) {
+                        phase += pitch / kRate;
+                        x = 0.1 * gauss(rng);
+                        for (int h = 1; h <= 12; ++h)
+                            x += 0.4 * std::sin(2.0 * M_PI * h * phase) / h;
+                        smooth = 0.7 * smooth + 0.3 * x;
+                        x = smooth;
+                    }
+                    out[i] = float(amplitude * std::sin(M_PI * double(k) / double(length)) * x);
+                }
+                i += size_t((0.01 + 0.05 * uniform(rng)) * kRate);
+            }
+        }
+        return out;
+    };
+    // A microphone recording [from, to) of the event: a room's reflections, a one-pole low-pass,
+    // gain and its own hiss.
+    const auto microphone = [&](const std::vector<float> &event, double from, double to, double gain,
+                                double lowpass, double reverbSeconds, double hiss) {
+        QList<QPair<int, double>> taps{{0, 1.0}};
+        for (int r = 0; r < 60; ++r) {
+            const int at = 1 + int(uniform(rng) * (reverbSeconds * kRate - 1));
+            taps.append({at, 0.12 * gauss(rng) * std::exp(-6.9 * at / (reverbSeconds * kRate))});
+        }
+        std::vector<float> out(size_t((to - from) * kRate), 0.0f);
+        double filtered = 0.0;
+        for (size_t n = 0; n < out.size(); ++n) {
+            const qint64 t = qint64(from * kRate) + qint64(n);
+            double sum = 0.0;
+            for (const auto &tap : std::as_const(taps)) {
+                if (t - tap.first >= 0 && t - tap.first < qint64(event.size()))
+                    sum += tap.second * event[size_t(t - tap.first)];
+            }
+            filtered += lowpass * (sum - filtered);
+            out[n] = float(gain * filtered + hiss * gauss(rng));
+        }
+        return out;
+    };
+
+    const std::vector<float> event = talk(80.0);
+    const std::vector<float> camera = microphone(event, 12.0, 62.0, 0.4, 0.35, 0.3, 0.02);
+    const std::vector<float> lav = microphone(event, 0.0, 75.0, 1.0, 0.9, 0.04, 0.004);
+
+    // lav[n] ~ camera[n + k]: the lav started 12 s before the camera.
+    const drift::AudioOffsetResult r = drift::findRecordingOffset(camera, lav, kRate);
+    QCOMPARE(r.status, drift::AudioOffsetResult::Status::Ok);
+    QVERIFY2(qAbs(r.lagSeconds + 12.0) < 0.002, qPrintable(QString::number(r.lagSeconds, 'f', 4)));
+    const drift::AudioOffsetResult swapped = drift::findRecordingOffset(lav, camera, kRate);
+    QCOMPARE(swapped.status, drift::AudioOffsetResult::Status::Ok);
+    QVERIFY2(qAbs(swapped.lagSeconds - 12.0) < 0.002, qPrintable(QString::number(swapped.lagSeconds, 'f', 4)));
+
+    // Another conversation, or plain noise, is not taken for the same one.
+    const std::vector<float> stranger = microphone(talk(80.0), 0.0, 75.0, 1.0, 0.9, 0.04, 0.004);
+    QVERIFY(drift::findRecordingOffset(camera, stranger, kRate).status != drift::AudioOffsetResult::Status::Ok);
+    std::vector<float> hiss(size_t(40 * kRate));
+    for (float &v : hiss)
+        v = float(0.1 * gauss(rng));
+    QVERIFY(drift::findRecordingOffset(camera, hiss, kRate).status != drift::AudioOffsetResult::Status::Ok);
+    const std::vector<float> silent(size_t(40 * kRate), 0.0f);
+    QCOMPARE(drift::findRecordingOffset(camera, silent, kRate).status, drift::AudioOffsetResult::Status::Silent);
 }
 
 void EngineTest::audioSheetRendersLanes()

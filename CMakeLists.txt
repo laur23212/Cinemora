@@ -1754,6 +1754,7 @@ qt_add_qml_module(drift
         src/qml/components/preview/masking/MaskBrushOverlay.qml
         src/qml/components/preview/masking/MaskAiOverlay.qml
         src/qml/components/preview/masking/TrackerOverlay.qml
+        src/qml/components/preview/MotionPickOverlay.qml
         src/qml/components/preview/DepthEffectOverlay.qml
         src/qml/components/preview/DepthLight3dOverlay.qml
         src/qml/components/preview/Checkerboard.qml
@@ -2584,6 +2585,9 @@ qt_add_qml_module(drift
         src/qml/components/shell/EditorHeaderSearchField.qml
         src/qml/components/shell/EditorHeaderProjectsButton.qml
         src/qml/components/shell/EditorHeaderNotificationsButton.qml
+        src/qml/components/shell/EditorHeaderShortcutsButton.qml
+        src/qml/components/shell/ShortcutsPopup.qml
+        src/qml/components/shell/MotionTrackingFlow.qml
         src/qml/components/shell/EditorHeaderHairline.qml
         src/qml/components/shell/EditorHeaderExtrasWave.qml
         src/qml/components/shell/EditorHeaderExtrasButton.qml

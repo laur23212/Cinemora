@@ -80,6 +80,14 @@ PanelFrame {
                 z: -1
                 viewport: panelViewport
             }
+
+            // Dafin motion tracking: above every tool while it waits for the click on the point,
+            // and otherwise only a progress badge that takes no input.
+            MotionPickOverlay {
+                anchors.fill: parent
+                z: 200
+                canvas: panelViewport.canvas
+            }
         }
 
         PreviewOsd {

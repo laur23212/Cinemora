@@ -54,4 +54,19 @@ AudioOffsetResult findAudioOffset(const std::vector<float> &anchor, const std::v
                                   int sampleRate, const AudioOffsetParams &params = {},
                                   const std::function<bool()> &keepGoing = {});
 
+// The loudness contour of a mono signal, `envelopeRate` values a second: log energy per window,
+// floored 10 dB under the signal's mean and with its slow trend (over +-1 s) taken out, so what is
+// left is the pattern of sound and pause. Two microphones on the same event give contours that
+// line up even where their waveforms do not (different frequency response, distance, room).
+std::vector<float> loudnessEnvelope(const std::vector<float> &mono, int sampleRate, int envelopeRate = 100);
+
+// Dafin's Sync audio: lines up two recordings of the same event at any offset that leaves them a
+// few seconds in common. A coarse search over every lag on the loudness contours finds the match
+// and tells similar recordings from unrelated ones (the shorter the stretch they share, the
+// stronger the match has to be); a phase-transform correlation of the waveforms then refines it to
+// the sample when they share a clear peak. Same convention as findAudioOffset:
+// other[n] ~ anchor[n + k].
+AudioOffsetResult findRecordingOffset(const std::vector<float> &anchor, const std::vector<float> &other,
+                                      int sampleRate, const std::function<bool()> &keepGoing = {});
+
 } // namespace drift

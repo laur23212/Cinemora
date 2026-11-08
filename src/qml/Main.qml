@@ -663,6 +663,12 @@ ApplicationWindow {
         }
     }
 
+    // Dafin: the timeline toolbar's Motion tracking button and its shortcut (ShellBridge
+    // .motionTrackingRequested); the point itself is picked on the preview (MotionPickOverlay).
+    MotionTrackingFlow {
+        id: motionTrackingFlow
+    }
+
     // Another view of the same timeline rather than an editor of its own — see MulticamWindow.
     LazyLoader {
         id: multicamWindowLoader
@@ -1270,6 +1276,13 @@ ApplicationWindow {
             multicamWindowLoader.ensure().openSession()
         }
 
+        // Dafin: the timeline toolbar's chroma key was just added; its Tolerance, Edge Softness
+        // and Key Colour are in the Effects tab, which is shown once the selection has moved to
+        // the clip carrying it.
+        function onChromaKeyAdded() {
+            Qt.callLater(() => ShellBridge.navigate("panel:properties.effects"))
+        }
+
         function onProjectLayoutChosenChanged() {
             if (!EditorState.projectLayoutChosen) {
                 // New Project reasserts this even when already false, so the layout
@@ -1421,6 +1434,16 @@ ApplicationWindow {
     // Escape (clearSelection): CapCut-style — if a timeline cut tool is active,
     // first press returns to Select; only then does Escape clear the selection.
     function dispatchAction(id) {
+        // Dafin motion tracking: its flow is QML (picking elements and the point), and Escape backs
+        // out of the click it is waiting for before it clears anything.
+        if (id === "motionTrack") {
+            ShellBridge.motionTrackingRequested()
+            return
+        }
+        if (id === "clearSelection" && ShellBridge.motionPick) {
+            ShellBridge.motionPick = null
+            return
+        }
         if (ShellBridge.keyframesActionHandler && ShellBridge.keyframesActionHandler.handleAction(id))
             return
         if (ShellBridge.maskingActionHandler && ShellBridge.maskingActionHandler.handleAction(id))

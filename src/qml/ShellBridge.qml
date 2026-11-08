@@ -31,6 +31,12 @@ QtObject {
     // selected. Both clear when the selection moves off the follower.
     property string trackerHostId: ""
     property string trackerFollowerId: ""
+    // Dafin motion tracking (the timeline toolbar's button): while set, the next click on the
+    // preview picks the point the elements follow, or corrects it (MotionPickOverlay):
+    // {mode: "start" | "correct", hostClipId, hostName, followerIds, label}.
+    property var motionPick: null
+    // The button (or its shortcut) was pressed; the desktop shell's MotionTrackingFlow answers.
+    signal motionTrackingRequested()
     // Where trackers live for the selection. An adjustment layer has none of its own, so it uses
     // the topmost video clip under the playhead and carries the layer's name as viaAdjustment.
     function trackerTarget() {

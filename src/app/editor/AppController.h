@@ -1262,6 +1262,14 @@ public:
     // Removing a property's last keyframe leaves the property at that keyframe's value.
     Q_INVOKABLE void removeClipKeyframesAt(int trackIndex, int clipIndex, double atSeconds);
     Q_INVOKABLE void clearClipKeyframes(int trackIndex, int clipIndex);
+    // Dafin: the timeline toolbar's chroma key button (AppControllerDafin.cpp).
+    // {eligible, present, enabled, effectIndex} for a video or image clip, or for the effects
+    // adjustment pinned to one (where the effect lives, and what is selected once it is added).
+    Q_INVOKABLE QVariantMap chromaKeyInfo(int trackIndex, int clipIndex) const;
+    // Adds Drift's Chroma Key to the clip with the backdrop colour picked from the frame at the
+    // playhead (the dominant saturated hue, the frame's edges counting most), or switches the key the
+    // clip already has off or back on. (-1, -1) means the selected clip.
+    Q_INVOKABLE void toggleChromaKey(int trackIndex = -1, int clipIndex = -1);
     // Adds an imported Motion Graphics Template (Titles panel) as an editable title at the
     // playhead: its text, a matching built-in style and its length.
     Q_INVOKABLE void addTemplateTitle(const QString &text, const QString &presetId, double durationSeconds,
@@ -1508,6 +1516,9 @@ public:
     Q_INVOKABLE void setTimelineTrimCursor(int side, int heightPx = 0, int owner = 0);
     Q_INVOKABLE int acquireTrimCursorToken() { return ++m_trimCursorTokenSeq; }
     Q_INVOKABLE QString shortcutFor(const QString &actionId) const;
+    // Dafin's Shortcuts menu: the key an action has out of the box ("" for none), so a changed
+    // one can be put back on its own.
+    Q_INVOKABLE QString defaultShortcutFor(const QString &actionId) const;
     // Returns an empty string on success, or the label of the action already bound to
     // `keys` when the binding is refused. Qt resolves an ambiguous application
     // shortcut by firing *neither* action, so a silent double-binding would break
@@ -1730,6 +1741,11 @@ signals:
     void multicamFramesChanged();
     // Raised by the "multicam" shortcut/action. QML owns the window, as with the file actions.
     void openMulticamWindowRequested();
+    // Dafin: a chroma key was just added to the selected clip; the shell shows its settings.
+    void chromaKeyAdded();
+    // Dafin: the "motionTrack" action reached triggerAction (from an agent, say); the shell's
+    // motion tracking flow takes it from there, as the toolbar button does.
+    void motionTrackingRequested();
     void selectionChanged();
     void editCapabilitiesChanged();
     void sequenceTabsChanged();
@@ -2296,6 +2312,9 @@ protected:
     int inlineRenderedPos(int modelPos) const;
     int inlineModelPos(int renderedPos) const;
     bool m_previewDragActive = false;
+    // Dafin chroma key: adds the effect once the backdrop colour has been read (NaN: not found).
+    void addChromaKey(const QString &clipId, double hue);
+    bool m_chromaDetecting = false;
     drift::Clip *textClipAt(int trackIndex, int clipIndex);
     // A text, subtitle or shape clip: anything that carries a shading stack.
     drift::Clip *styledClipAt(int trackIndex, int clipIndex, bool textOnly = false);

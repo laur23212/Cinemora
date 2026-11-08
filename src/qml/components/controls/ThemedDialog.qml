@@ -14,6 +14,8 @@ Dialog {
     property bool showFooter: true
     property bool showAccept: true
     property bool showReject: true
+    // False greys out the accept button (and Enter), e.g. until something is chosen.
+    property bool acceptEnabled: true
     property string acceptVariant: "primary"
     property string rejectVariant: "secondary"
     // Natural width; clamped against the window so the dialog always fits.
@@ -250,6 +252,7 @@ Dialog {
             ThemedButton {
                 id: acceptButton
                 visible: root.showAccept
+                enabled: root.acceptEnabled
                 text: root.acceptText
                 variant: root.acceptVariant
                 onClicked: root.accept()

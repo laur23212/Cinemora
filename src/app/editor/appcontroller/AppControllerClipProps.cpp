@@ -1,5 +1,6 @@
 #include "engine/platform/AndroidUri.h"
 #include "app/editor/appcontroller/AppControllerInternal.h"
+#include "app/jobs/vision/TrackingController.h"
 #include "engine/packages/effects/EffectCatalog.h"
 #include "app/mcp/McpController.h"
 
@@ -497,6 +498,10 @@ void AppController::commitPreviewDrag()
     };
     const QString before = selectedId(m_previewDragBefore);
     const QScopedValueRollback quietSelection(m_quietSelection, !before.isEmpty() && before == selectedId(m_project));
+    // As in pushProjectEdit: a dragged element that follows a tracked point keeps where it was
+    // dropped as its offset from the point, in this same undo step.
+    if (m_tracking)
+        m_tracking->syncAutoFollow(m_previewDragBefore);
     if (!m_mcpController->undoSuspended()) {
         const QScopedValueRollback quietPush(m_quietUndoPush, true);
         m_undoStack.push(new drift::ProjectSnapshotCommand(&m_project, m_previewDragBefore, m_project, text));

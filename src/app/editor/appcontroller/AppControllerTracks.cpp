@@ -1,4 +1,5 @@
 #include "app/editor/appcontroller/AppControllerInternal.h"
+#include "app/jobs/audio/AudioAlignController.h"
 #include "engine/decode/probe/MediaProbe.h"
 #include "app/editor/sessions/MaskingController.h"
 #include "app/mcp/McpController.h"
@@ -182,6 +183,11 @@ QHash<QString, QString> defaultShortcuts()
         {QStringLiteral("addKeyframe"), QStringLiteral("Alt+K")},
         // Dafin: the toolbar's snapping magnet (N, as in DaVinci Resolve).
         {QStringLiteral("toggleSnap"), QStringLiteral("N")},
+        // Dafin: the toolbar's chroma key, audio sync and motion tracking buttons. Registered so they
+        // can be given a key in the Shortcuts menu; none is bound out of the box.
+        {QStringLiteral("chromaKey"), QString()},
+        {QStringLiteral("syncAudio"), QString()},
+        {QStringLiteral("motionTrack"), QString()},
         // Masking workspace tools. The masking panel claims these only while the pointer is over the
         // preview or it has focus or hover (never in 3D mode), so they stay free on the timeline.
         {QStringLiteral("maskingPolygonTool"), QStringLiteral("P")},
@@ -1428,6 +1434,11 @@ QString AppController::shortcutFor(const QString &actionId) const
     return m_shortcuts.value(actionId);
 }
 
+QString AppController::defaultShortcutFor(const QString &actionId) const
+{
+    return defaultShortcuts().value(actionId);
+}
+
 QString AppController::setShortcut(const QString &actionId, const QString &keys)
 {
     if (!m_shortcuts.contains(actionId))
@@ -1724,6 +1735,13 @@ void AppController::triggerAction(const QString &actionId)
         toggleKeyframeAtPlayhead();
     else if (actionId == QStringLiteral("toggleSnap"))
         setSnapEnabled(!m_snapEnabled);
+    else if (actionId == QStringLiteral("chromaKey"))
+        toggleChromaKey();
+    else if (actionId == QStringLiteral("syncAudio"))
+        m_audioAlign->syncSimilarAudio();
+    // Picking the elements and the point is QML's: the shell runs the flow (MotionTrackingFlow).
+    else if (actionId == QStringLiteral("motionTrack"))
+        emit motionTrackingRequested();
     else if (actionId == QStringLiteral("nextBookmark"))
         goToNextBookmark();
     else if (actionId == QStringLiteral("previousBookmark"))

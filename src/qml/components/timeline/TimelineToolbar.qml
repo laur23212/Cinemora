@@ -54,8 +54,27 @@ Item {
         let label = meta.tip || meta.label
         if (id === "keyframe" && actionActive("keyframe"))
             label = qsTr("Remove keyframe — the playhead is on a keyframe of the selected clip")
+        else if (id === "chromaKey" && toolbar.chromaKeyState.present)
+            label = toolbar.chromaKeyState.enabled
+                    ? qsTr("Chroma key is on for the selected clip — click to turn it off. Its settings are in Effects")
+                    : qsTr("Chroma key is off for the selected clip — click to turn it back on")
+        else if (id === "motionTrack" && toolbar.selectedFollows)
+            label = qsTr("Motion tracking — the selected element follows a point. Click to correct the point, pick a new one or stop")
+        else if (id === "syncAudio" && EditorState.audioAlign.running)
+            label = qsTr("Sync audio — listening to the clips… %1%").arg(Math.round(EditorState.audioAlign.progress * 100))
         return meta.shortcut ? withShortcut(label, meta.shortcut) : label
     }
+
+    // Dafin: the selected clip's chroma key ({eligible, present, enabled}): the button lights up
+    // while the key is on.
+    readonly property var chromaKeyState: (EditorState.selectedClipData, EditorState.tracksRevision,
+        EditorState.selectedTrack >= 0 && EditorState.selectedClip >= 0
+        ? EditorState.chromaKeyInfo(EditorState.selectedTrack, EditorState.selectedClip)
+        : ({ eligible: false, present: false, enabled: false }))
+    // ...and the selected element follows a tracked point: the motion tracking button lights up.
+    readonly property bool selectedFollows: (EditorState.tracksRevision,
+        !!EditorState.selectedClipData.id
+        && EditorState.tracking.motionInfo(EditorState.selectedClipData.id).following === true)
 
     // The playhead sits on a keyframe of the selected clip: the keyframe button lights up and
     // a click removes that keyframe instead of adding one (as Filmora's diamonds do).
@@ -70,6 +89,14 @@ Item {
         case "cut": panel.timelineTool = panel.timelineTool === "split" ? "" : "split"; break
         case "keyframe": EditorState.toggleKeyframeAtPlayhead(); break
         case "snap": EditorState.snapEnabled = !EditorState.snapEnabled; break
+        case "chromaKey": EditorState.toggleChromaKey(-1, -1); break
+        case "motionTrack": ShellBridge.motionTrackingRequested(); break
+        case "syncAudio":
+            if (EditorState.audioAlign.running)
+                EditorState.audioAlign.cancel()
+            else
+                EditorState.audioAlign.syncSimilarAudio()
+            break
         case "trimStart": panel.timelineTool = panel.timelineTool === "trimStart" ? "" : "trimStart"; break
         case "trimEnd": panel.timelineTool = panel.timelineTool === "trimEnd" ? "" : "trimEnd"; break
         case "deleteLeft": EditorState.splitSelectedClipLeft(); break
@@ -117,6 +144,9 @@ Item {
         case "cut": return panel.timelineTool === "split"
         case "keyframe": return toolbar.keyframeAtPlayhead
         case "snap": return EditorState.snapEnabled
+        case "chromaKey": return toolbar.chromaKeyState.enabled === true
+        case "motionTrack": return !!ShellBridge.motionPick || toolbar.selectedFollows
+        case "syncAudio": return EditorState.audioAlign.running
         case "trimStart": return panel.timelineTool === "trimStart"
         case "trimEnd": return panel.timelineTool === "trimEnd"
         case "markIn": return EditorState.workAreaInSeconds >= 0

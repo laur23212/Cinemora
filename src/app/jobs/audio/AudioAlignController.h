@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QAtomicInt>
+#include <QFuture>
 #include <QList>
 #include <QObject>
 #include <QPair>
@@ -19,6 +20,7 @@ class AudioAlignController : public QObject
 
 public:
     explicit AudioAlignController(AppController *app, QObject *parent = nullptr);
+    ~AudioAlignController() override;
 
     bool running() const { return m_running; }
     double progress() const { return m_progress; }
@@ -37,6 +39,15 @@ public:
     // moves so its sound lines up with the anchor's.
     Q_INVOKABLE void syncByAudio();
 
+    // Dafin's Sync audio (the timeline toolbar's button): lines up any number of clips recorded
+    // together — a camera and separate microphones — by their sound. The video's own audio is the
+    // reference and stays put (else the longest recording); every other clip, with its linked
+    // partners, moves to where its sound matches. Select the clips; with just one (or nothing:
+    // the video under the playhead), every other clip with sound near it is tried, and only the
+    // ones that really share its sound move. Offsets of any size are found. One undo step.
+    Q_INVOKABLE bool canSyncSimilar() const;
+    Q_INVOKABLE void syncSimilarAudio();
+
     Q_INVOKABLE void cancel();
 
 signals:
@@ -46,6 +57,8 @@ signals:
 
 private:
     struct SyncUnit;
+    struct SimilarUnit;
+    struct SimilarMatch;
     bool begin(const QString &message);
     void end();
     void reportProgress(double fraction, const QString &status);
@@ -53,10 +66,14 @@ private:
                       const QList<QPair<double, double>> &silences);
     void applySync(const QString &anchorId, const QString &otherId, qint64 anchorStartUs,
                    qint64 otherStartUs, double lagSeconds);
+    QList<SimilarUnit> selectedSimilarUnits() const;
+    void applySimilar(const SimilarUnit &anchor, const QList<SimilarMatch> &matches, bool gathered);
 
     AppController *m_app = nullptr;
     bool m_running = false;
     double m_progress = 0.0;
     QString m_status;
     QAtomicInt m_cancel = 0;
+    // The running worker, waited for on destruction.
+    QFuture<void> m_future;
 };

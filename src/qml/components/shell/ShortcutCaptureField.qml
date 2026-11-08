@@ -14,6 +14,10 @@ AbstractButton {
     property string actionId
     property string shortcut
     property bool capturing: false
+    // A chord that already belongs to another action is refused. By default a toast says so;
+    // a host that offers to move the key over turns that off and answers `clashed` instead.
+    property bool toastClash: true
+    signal clashed(string chord, string holder)
 
     implicitWidth: 120
     implicitHeight: 26
@@ -103,11 +107,21 @@ AbstractButton {
         // Non-empty means refused: the chord already belongs to another action, and
         // binding it twice would make Qt fire neither.
         const clash = EditorState.setShortcut(root.actionId, chord)
-        if (clash.length > 0)
-            Toasts.warning(qsTr("“%1” is already used by %2.")
-                           .arg(Theme.shortcutDisplay(chord)).arg(clash))
+        if (clash.length > 0) {
+            if (root.toastClash)
+                Toasts.warning(qsTr("“%1” is already used by %2.")
+                               .arg(Theme.shortcutDisplay(chord)).arg(clash))
+            root.clashed(chord, clash)
+        }
         root.capturing = false
         event.accepted = true
+    }
+
+    // While armed, every key is part of the chord being recorded. Without this a key the app
+    // already uses (Space, M, Delete…) fired that action instead of being recorded.
+    Keys.onShortcutOverride: function(event) {
+        if (root.capturing)
+            event.accepted = true
     }
 
     onActiveFocusChanged: {

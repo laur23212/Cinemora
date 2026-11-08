@@ -653,6 +653,11 @@ QtObject {
         crop: "crop",
         diamondPlus: "diamond-plus",
         diamondMinus: "diamond-minus",
+        // Dafin's own, drawn in Lucide's style: the timeline toolbar's chroma key, motion tracking
+        // and audio sync buttons.
+        chromaKey: "chroma-key",
+        motionTrack: "motion-track",
+        audioSync: "audio-sync",
         mask: "square-dashed",
         puzzle: "puzzle",
         bug: "bug",
