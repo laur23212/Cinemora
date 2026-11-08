@@ -1196,6 +1196,12 @@ target_sources(driftapp PRIVATE
     src/app/online/library/LocalAssetDatabase.cpp
     src/app/online/library/OnlineAssets.h
     src/app/online/library/OnlineAssets.cpp
+    src/app/online/library/UserLibrary.h
+    src/app/online/library/UserLibrary.cpp
+    src/app/online/library/MogrtInfo.h
+    src/app/online/library/MogrtInfo.cpp
+    src/app/online/library/providers/UserLibraryProvider.h
+    src/app/online/library/providers/UserLibraryProvider.cpp
     src/app/online/library/providers/PexelsProvider.h
     src/app/online/library/providers/PexelsProvider.cpp
     src/app/online/library/providers/PixabayProvider.h
@@ -1226,6 +1232,7 @@ target_sources(driftapp PRIVATE
     src/app/editor/appcontroller/AppControllerTracks.cpp
     src/app/editor/appcontroller/AppControllerProject.cpp
     src/app/editor/appcontroller/AppControllerTextLayers.cpp
+    src/app/editor/appcontroller/AppControllerDafin.cpp
     src/app/mcp/AgentImageLog.h
     src/app/mcp/AgentImageLog.cpp
     src/app/mcp/McpController.h
@@ -2119,6 +2126,7 @@ qt_add_qml_module(drift
         src/qml/components/timeline/TimelineGapHover.qml
         src/qml/components/timeline/TimelineFadeHandle.qml
         src/qml/components/timeline/TimelineVolumeEnvelope.qml
+        src/qml/components/timeline/TimelineKeyframeMarkers.qml
         src/qml/components/timeline/TimelineEmptyState.qml
         src/qml/components/timeline/TimelineCutOverlay.qml
         src/qml/components/timeline/TimelineCutDoomGradient.qml

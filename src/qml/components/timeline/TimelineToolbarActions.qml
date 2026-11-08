@@ -14,6 +14,11 @@ QtObject {
                     tip: qsTr("Select — normal editing"), shortcut: "selectTool" },
         "cut": { glyph: Theme.icons.scissors, label: qsTr("Cut mode"),
                  tip: qsTr("Cut mode — click a clip to split it"), shortcut: "bladeTool" },
+        // Dafin: Filmora's keyframe button. Keys the selected clip at the playhead; its diamonds
+        // then show on the clip, where they can be dragged or right-clicked.
+        "keyframe": { glyph: Theme.icons.diamondPlus, label: qsTr("Add keyframe"),
+                      tip: qsTr("Add keyframe — keys position, scale, rotation and opacity of the selected clip at the playhead. Move the playhead and change the clip to animate it"),
+                      shortcut: "addKeyframe" },
         "separateAudio": { glyph: Theme.icons.audioLines, label: qsTr("Show audio on separate track"),
                            shortcut: "separateAudio" },
         "unlink": { glyph: Theme.icons.unlink, label: qsTr("Unlink video and audio"),
@@ -54,8 +59,8 @@ QtObject {
     })
 
     readonly property var defaultToolbarItems: [
-        "select", "cut", "deleteLeft", "deleteRight", "separator", "undo", "redo", "delete", "separator",
-        "separateAudio", "unlink", "link"
+        "select", "cut", "keyframe", "deleteLeft", "deleteRight", "separator", "undo", "redo", "delete",
+        "separator", "separateAudio", "unlink", "link"
     ]
     readonly property var defaultMenuItems: [
         "trimStart", "trimEnd", "separator", "copy", "paste", "duplicate", "separator",
@@ -81,6 +86,15 @@ QtObject {
         })
         const toolbarItems = clean(storedToolbar)
         const menuItems = clean(storedMenu)
+        // Dafin: the keyframe button joins Select and Cut mode on a toolbar arranged before it
+        // existed, rather than landing at the end of the More menu.
+        if (!seen["keyframe"]) {
+            seen["keyframe"] = true
+            let at = toolbarItems.indexOf("cut")
+            if (at < 0)
+                at = toolbarItems.indexOf("select")
+            toolbarItems.splice(at + 1, 0, "keyframe")
+        }
         for (const id of Object.keys(actionMeta)) {
             if (!seen[id])
                 menuItems.push(id)

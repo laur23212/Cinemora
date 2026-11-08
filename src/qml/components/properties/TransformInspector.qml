@@ -195,7 +195,7 @@ Item {
             Text {
                 width: parent.width
                 wrapMode: Text.WordWrap
-                text: qsTr("Move to a time, set a value, then click the diamond to add a keyframe. With Auto keyframes on, dragging a slider or the preview also creates them.")
+                text: qsTr("Move to a time and click a diamond, or the keyframe button on the timeline toolbar, to add a keyframe. Once a property has keyframes, changing it at another time adds one there. Auto keyframes also keys properties that have none yet.")
                 color: Theme.c.transformInspector.foregroundMuted
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontSizeXs

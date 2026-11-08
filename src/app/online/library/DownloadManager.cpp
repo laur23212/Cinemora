@@ -428,6 +428,16 @@ void DownloadManager::fetchPreview(const AssetItem &item)
     const QUrl url = item.previewUrl.isValid() ? item.previewUrl : item.downloadUrl;
     if (!url.isValid() || m_previewReplies.value(key))
         return;
+    // The user's own Lottie files (My Lotties) were checked when they were added: drawn in place.
+    if (url.isLocalFile()) {
+        const QString local = url.toLocalFile();
+        if (QFileInfo(local).suffix().compare(QLatin1String("json"), Qt::CaseInsensitive) == 0
+            && QFileInfo::exists(local)) {
+            m_previews.insert(key, local);
+            emit previewReady(key, local);
+            return;
+        }
+    }
     // Bundled library files are read straight from the resources.
     if (url.scheme() == QLatin1String("qrc")) {
         const QString dest = sessionRoot() + QStringLiteral("/previews/") + util::safeFileName(key) + QStringLiteral(".json");

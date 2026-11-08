@@ -13,6 +13,10 @@ import Drift
 //                  on hover and resting on a representative frame
 // Download button states: none → queued → downloading (ring) → done (✓, click adds it again) /
 // failed (retry). Items whose licence forbids download show a lock with the reason.
+//
+// Dafin: the user's own files (My Lotties, My sounds, imported .mogrt titles) carry Save and
+// Delete in the top-right corner; an unsaved one is marked and goes away when Dafin closes. A
+// .mogrt shows its poster, plays its embedded preview on hover and is added as an editable title.
 Item {
     id: root
 
@@ -21,11 +25,16 @@ Item {
     property real cardWidth: 160
 
     signal added()
+    // A saved file of the user's own: the panel confirms before deleting it.
+    signal deleteRequested(var item)
 
     readonly property string key: item.key || ""
     readonly property string kind: item.kind || "video"
     readonly property bool isAudio: kind === "music" || kind === "sfx"
-    readonly property bool isLottie: kind === "sticker" || kind === "title"
+    readonly property bool userItem: !!(item.extra && item.extra.userLibrary)
+    readonly property bool saved: userItem && !!item.extra.saved
+    readonly property bool isMogrt: userItem && item.extra.format === "mogrt"
+    readonly property bool isLottie: (kind === "sticker" || kind === "title") && !isMogrt
     readonly property real aspect: kind === "sticker" ? 1.0 : isAudio ? 0.42 : 9 / 16
     readonly property string dlState: OnlineAssets.downloadsRevision >= 0 ? OnlineAssets.downloadState(key) : "none"
     readonly property real dlProgress: OnlineAssets.downloadsRevision >= 0 ? OnlineAssets.downloadProgress(key) : 0
@@ -52,9 +61,26 @@ Item {
         return h > 0 ? h + "p" : ""
     }
     function startDownload() {
+        if (root.isMogrt) {
+            root.addTitle()
+            return
+        }
         if (!item.downloadable || dlState === "downloading" || dlState === "queued")
             return
         OnlineAssets.download(item)
+    }
+    // A Motion Graphics Template becomes an ordinary Dafin title: its text fields, a matching
+    // built-in style and its length. Its After Effects animation needs Adobe's renderer.
+    function addTitle() {
+        const extra = root.item.extra || {}
+        EditorState.addTemplateTitle(extra.text || "", extra.preset || "title", extra.duration || 0, root.item.title || "")
+        root.added()
+    }
+    function deleteItem() {
+        if (root.saved)
+            root.deleteRequested(root.item)
+        else
+            OnlineAssets.deleteUserItem(root.item)
     }
 
     Rectangle {
@@ -74,16 +100,17 @@ Item {
             anchors.margins: 1
             source: root.isLottie ? "" : root.thumbnail
             asynchronous: true
-            fillMode: root.isAudio ? Image.PreserveAspectFit : Image.PreserveAspectCrop
+            fillMode: root.isAudio || root.isMogrt ? Image.PreserveAspectFit : Image.PreserveAspectCrop
             sourceSize: Qt.size(Math.round(width * Screen.devicePixelRatio), Math.round(height * Screen.devicePixelRatio))
             visible: status === Image.Ready && !(video.visible)
             opacity: root.isAudio ? 0.9 : 1.0
         }
 
-        // ── video hover preview ──
+        // ── video hover preview (stock video, or the preview a .mogrt carries) ──
+        readonly property bool hoverVideo: root.kind === "video" || (root.isMogrt && !!root.item.previewUrl)
         MediaPlayer {
             id: player
-            source: root.kind === "video" && root.hovered ? (root.item.previewUrl || "") : ""
+            source: preview.hoverVideo && root.hovered ? (root.item.previewUrl || "") : ""
             videoOutput: video
             loops: MediaPlayer.Infinite
             audioOutput: AudioOutput { muted: true }
@@ -93,8 +120,8 @@ Item {
             id: video
             anchors.fill: parent
             anchors.margins: 1
-            fillMode: VideoOutput.PreserveAspectCrop
-            visible: root.kind === "video" && player.playbackState === MediaPlayer.PlayingState
+            fillMode: root.isMogrt ? VideoOutput.PreserveAspectFit : VideoOutput.PreserveAspectCrop
+            visible: preview.hoverVideo && player.playbackState === MediaPlayer.PlayingState
         }
 
         // ── audio: waveform peaks when there is no image ──
@@ -188,7 +215,7 @@ Item {
             anchors.centerIn: parent
             visible: !root.isAudio && !video.visible && thumb.status !== Image.Ready
                      && !(root.isLottie && (frameA.status === Image.Ready || frameB.status === Image.Ready))
-            glyph: root.kind === "video" ? Theme.icons.film : Theme.icons.smile
+            glyph: root.kind === "video" ? Theme.icons.film : root.kind === "title" ? Theme.icons.type : Theme.icons.smile
             iconSize: 26
             iconColor: Theme.mutedForeground
             opacity: root.isLottie && !root.lottieFailed && root.lottiePath.length === 0 ? 0.4 : 0.8
@@ -242,8 +269,10 @@ Item {
             width: 28
             height: 28
             radius: 14
-            visible: root.hovered || root.dlState !== "none" || !root.item.downloadable
-            color: root.dlState === "done" ? Theme.primary
+            visible: root.isMogrt ? root.hovered
+                                  : root.hovered || root.dlState !== "none" || !root.item.downloadable
+            color: root.isMogrt ? (dlHover.hovered ? Theme.primary : "#cc000000")
+                 : root.dlState === "done" ? Theme.primary
                  : root.dlState === "failed" ? "#c0392b"
                  : "#cc000000"
             border.color: dlHover.hovered ? "white" : "transparent"
@@ -251,17 +280,19 @@ Item {
 
             IconGlyph {
                 anchors.centerIn: parent
-                visible: root.dlState !== "downloading" && root.dlState !== "queued"
-                glyph: !root.item.downloadable ? Theme.icons.lock
+                visible: root.isMogrt || (root.dlState !== "downloading" && root.dlState !== "queued")
+                glyph: root.isMogrt ? Theme.icons.plus
+                     : !root.item.downloadable ? Theme.icons.lock
                      : root.dlState === "done" ? Theme.icons.check
                      : root.dlState === "failed" ? Theme.icons.refresh
+                     : root.userItem ? Theme.icons.plus
                      : Theme.icons.download
                 iconSize: 15
-                iconColor: root.dlState === "done" ? Theme.primaryForeground : "white"
+                iconColor: !root.isMogrt && root.dlState === "done" ? Theme.primaryForeground : "white"
             }
             CircularProgress {
                 anchors.centerIn: parent
-                visible: root.dlState === "downloading" || root.dlState === "queued"
+                visible: !root.isMogrt && (root.dlState === "downloading" || root.dlState === "queued")
                 size: 22
                 value: root.dlProgress
                 indeterminate: root.dlState === "queued" || root.dlProgress <= 0
@@ -269,7 +300,7 @@ Item {
             HoverHandler { id: dlHover; cursorShape: root.item.downloadable ? Qt.PointingHandCursor : Qt.ArrowCursor }
             TapHandler {
                 onTapped: {
-                    if (root.dlState === "downloading" || root.dlState === "queued")
+                    if (!root.isMogrt && (root.dlState === "downloading" || root.dlState === "queued"))
                         OnlineAssets.cancelDownload(root.key)
                     else
                         root.startDownload()
@@ -277,12 +308,102 @@ Item {
             }
             ThemedToolTip {
                 visible: dlHover.hovered
-                text: !root.item.downloadable ? (root.item.downloadBlockedReason || qsTr("Download not allowed"))
-                    : root.dlState === "done" ? qsTr("Downloaded. Click to add it to Media again.")
+                text: root.isMogrt ? qsTr("Add as a title at the playhead. Dafin uses the template's text with one of its own title styles; the After Effects animation inside a .mogrt plays only in Adobe apps.")
+                    : !root.item.downloadable ? (root.item.downloadBlockedReason || qsTr("Download not allowed"))
+                    : root.dlState === "done" ? (root.userItem ? qsTr("Added. Click to add it to Media again.")
+                                                               : qsTr("Downloaded. Click to add it to Media again."))
                     : root.dlState === "downloading" ? qsTr("Downloading %1%. Click to cancel.").arg(Math.round(root.dlProgress * 100))
                     : root.dlState === "queued" ? qsTr("Waiting… Click to cancel.")
                     : root.dlState === "failed" ? (root.dlMessage || qsTr("Download failed. Click to retry."))
+                    : root.userItem ? qsTr("Add to Media")
                     : qsTr("Download and add to Media")
+            }
+        }
+
+        // ── the user's own files: "Not saved" mark, Save and Delete ──
+        Rectangle {
+            id: unsavedBadge
+            visible: root.userItem && !root.saved
+            anchors.left: parent.left
+            anchors.top: parent.top
+            anchors.margins: 5
+            radius: 3
+            color: "#d0b9770e"
+            width: unsavedText.implicitWidth + 8
+            height: unsavedText.implicitHeight + 2
+            Text {
+                id: unsavedText
+                anchors.centerIn: parent
+                text: qsTr("Not saved")
+                color: "white"
+                font.pixelSize: Theme.fontSizeXs
+            }
+            HoverHandler { id: unsavedHover }
+            ThemedToolTip {
+                visible: unsavedHover.hovered
+                text: qsTr("Only kept until Dafin closes. Click Save to keep it.")
+            }
+        }
+        Row {
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.margins: 4
+            spacing: 4
+            visible: root.userItem && (root.hovered || !root.saved)
+
+            Rectangle {
+                visible: !root.saved
+                width: saveLabel.implicitWidth + 14
+                height: 22
+                radius: 11
+                color: saveHover.hovered ? Qt.lighter(Theme.primary, 1.15) : Theme.primary
+                Row {
+                    id: saveLabel
+                    anchors.centerIn: parent
+                    spacing: 3
+                    IconGlyph {
+                        anchors.verticalCenter: parent.verticalCenter
+                        glyph: Theme.icons.save
+                        iconSize: 12
+                        iconColor: Theme.primaryForeground
+                    }
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: qsTr("Save")
+                        color: Theme.primaryForeground
+                        font.pixelSize: Theme.fontSizeXs
+                        font.weight: Font.DemiBold
+                    }
+                }
+                HoverHandler { id: saveHover; cursorShape: Qt.PointingHandCursor }
+                TapHandler { onTapped: OnlineAssets.saveUserItem(root.item) }
+                ThemedToolTip {
+                    visible: saveHover.hovered
+                    text: qsTr("Keep it in Dafin until you delete it")
+                }
+                Accessible.role: Accessible.Button
+                Accessible.name: qsTr("Save")
+            }
+            Rectangle {
+                visible: root.hovered
+                width: 22
+                height: 22
+                radius: 11
+                color: deleteHover.hovered ? "#c0392b" : "#cc000000"
+                IconGlyph {
+                    anchors.centerIn: parent
+                    glyph: Theme.icons.trash
+                    iconSize: 12
+                    iconColor: "white"
+                }
+                HoverHandler { id: deleteHover; cursorShape: Qt.PointingHandCursor }
+                TapHandler { onTapped: root.deleteItem() }
+                ThemedToolTip {
+                    visible: deleteHover.hovered
+                    text: root.saved ? qsTr("Delete from Dafin") : qsTr("Remove")
+                }
+                Accessible.role: Accessible.Button
+                Accessible.name: qsTr("Delete")
             }
         }
     }
@@ -306,6 +427,19 @@ Item {
             visible: text.length > 0
             text: {
                 const parts = []
+                if (root.userItem) {
+                    const extra = root.item.extra || {}
+                    if (root.isMogrt) {
+                        const fields = (extra.texts || []).length
+                        parts.push(fields > 0 ? qsTr("%n text field(s)", "", fields) : qsTr("Template"))
+                    } else if (extra.isLink) {
+                        parts.push(qsTr("Link"))
+                    } else {
+                        if (extra.format) parts.push(extra.format)
+                        if (extra.sizeLabel) parts.push(extra.sizeLabel)
+                    }
+                    return parts.join(" · ")
+                }
                 if (root.item.author) parts.push(root.item.author)
                 if (root.isAudio && root.item.license) parts.push(root.item.license)
                 return parts.join(" · ")

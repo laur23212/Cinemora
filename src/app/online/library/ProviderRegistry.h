@@ -31,6 +31,12 @@ public:
     QList<AssetProvider *> providers() const;
     QList<AssetProvider *> providersFor(AssetKind kind) const;
 
+    // A provider's items changed without the provider list changing (a file was added to or
+    // removed from the user's own library): open grids search again.
+    void notifyContentChanged(const QString &providerId) { emit contentChanged(providerId); }
+    // One item changed in place (saved): grids that show it update that card only.
+    void notifyItemChanged(const QVariantMap &item) { emit itemChanged(item); }
+
     // ProviderContext
     QNetworkAccessManager *network() override { return m_network; }
     Credentials credentials(const QString &providerId) const override;
@@ -40,6 +46,8 @@ public:
 
 signals:
     void providersChanged();
+    void contentChanged(const QString &providerId);
+    void itemChanged(const QVariantMap &item);
 
 private:
     QNetworkAccessManager *m_network;

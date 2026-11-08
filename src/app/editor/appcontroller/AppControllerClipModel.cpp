@@ -404,6 +404,8 @@ namespace drift::appdetail {
 // key at/near the playhead is required. Empty tracks get a constant key at 0
 // when auto-key is off so static layout edits still work; a track with a single
 // key retargets that key from anywhere so single-keyframe clips still edit freely.
+// Dafin: interactive edits pass AppController::autoKeyFor(), which is on for a property that is
+// already animated, so changing it away from its keys adds a keyframe there (Filmora).
 bool writeKeyframeValue(drift::KeyframeTrack<double> &track, drift::TimeUs relative, double value,
                         bool autoKey, bool force)
 {
@@ -1103,9 +1105,12 @@ void AppController::syncClipModels()
 
         QList<TimelineClipsModel::Row> rows;
         rows.reserve(track.clips.size());
-        for (const drift::Clip &clip : track.clips) {
+        for (int ci = 0; ci < track.clips.size(); ++ci) {
+            const drift::Clip &clip = track.clips.at(ci);
             rows.append(clipRow(clip, videoHosts.value(clip.id, nullptr),
                                 audioHosts.value(clip.id, nullptr)));
+            // Dafin: the keyframe diamonds drawn on the clip.
+            rows.last().keyTimes = clipKeyframeTimes(ti, ci);
         }
         m_clipModels[ti]->setRows(std::move(rows));
         m_clipModels[ti]->setDecorations(trackDecorations(track, laneIndexes));
@@ -1687,6 +1692,7 @@ QVariantList AppController::actions() const
         action(QStringLiteral("toggleLoop"), tr("Loop work area playback")),
         action(QStringLiteral("selectTool"), tr("Select tool")),
         action(QStringLiteral("bladeTool"), tr("Cut tool / Brush mask")),
+        action(QStringLiteral("addKeyframe"), tr("Add or remove keyframe at the playhead")),
         action(QStringLiteral("maskingPolygonTool"), tr("Polygon mask tool")),
         action(QStringLiteral("maskingAiTool"), tr("AI object mask tool")),
         action(QStringLiteral("maskingBrushSmaller"), tr("Decrease brush size")),

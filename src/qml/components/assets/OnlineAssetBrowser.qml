@@ -6,6 +6,10 @@ import Drift
 // the left, the provider notice + search above a grid of large previews on the right. Results
 // come from AssetSearchModel (all usable providers for the panel's kinds, interleaved, loaded a
 // page at a time as the grid scrolls).
+//
+// Dafin: the user's own files lead the sidebar ("My Lotties" in Stickers, "My sounds" in Audio);
+// imported .mogrt titles have no row and open the Titles grid. Files are dropped on the panel
+// (OnlineSwitchTab) or picked with "Add files…".
 Item {
     id: root
 
@@ -27,14 +31,63 @@ Item {
         "sticker": qsTr("Stickers"), "title": qsTr("Titles")
     })
 
-    // Sidebar entries: for each kind, "All <kind>" then one row per provider.
+    // ─── the user's own files ───────────────────────────────────────────────────────────────
+    readonly property string userCollection: OnlineAssets.userCollectionForKinds(root.kinds)
+    readonly property string userProvider: OnlineAssets.userCollectionProvider(root.userCollection)
+    readonly property string userCollectionName: OnlineAssets.userCollectionName(root.userCollection)
+    // Where those files are listed: their own row, or for titles the main grid.
+    readonly property string userCategory: {
+        if (root.userCollection === "titles")
+            return "title"
+        for (const entry of root.sidebarModel) {
+            if (entry.provider === root.userProvider)
+                return entry.id
+        }
+        return ""
+    }
+    readonly property bool showingUserFiles: root.userCollection.length > 0 && root.activeCategory === root.userCategory
+    readonly property int unsavedCount: (OnlineAssets.userLibraryRevision,
+                                         root.userCollection.length > 0 ? OnlineAssets.unsavedUserItems(root.userCollection) : 0)
+    readonly property int userItemCount: (OnlineAssets.userLibraryRevision,
+                                          root.userCollection.length > 0 ? OnlineAssets.userItemCount(root.userCollection) : 0)
+
+    function showUserFiles() {
+        if (root.userCategory.length > 0) {
+            root.searchText = ""
+            root.activeCategory = root.userCategory
+        }
+    }
+    function browseUserFiles() {
+        const urls = FileDialogs.openFiles(root.userCollection === "titles" ? qsTr("Add Motion Graphics Templates")
+                                                                           : qsTr("Add to %1").arg(root.userCollectionName),
+                                           [OnlineAssets.userCollectionFilter(root.userCollection), qsTr("All Files (*)")])
+        if (!urls || urls.length === 0)
+            return
+        const result = OnlineAssets.importUserFiles(root.userCollection, urls)
+        if (result.added > 0 || result.duplicates > 0)
+            root.showUserFiles()
+    }
+
+    // Sidebar entries: the user's own collection first, then for each kind "All <kind>" and one
+    // row per provider.
     readonly property var sidebarModel: {
         void OnlineAssets.providers
         const out = []
         for (const k of root.kinds) {
+            for (const p of OnlineAssets.providersFor(k)) {
+                if (p.userLibrary && p.ownSidebarEntry)
+                    out.push({ id: k + "|" + p.id, name: p.name, heading: "", provider: p.id,
+                               locked: false, state: p.state, user: true })
+            }
+        }
+        if (out.length > 0)
+            out.push({ id: "", name: "", heading: "", provider: "", locked: false, separator: true })
+        for (const k of root.kinds) {
             out.push({ id: k, name: qsTr("All %1").arg((root.kindLabels[k] || k).toLowerCase()), heading: root.kindLabels[k] || k,
                        locked: false, provider: "" })
             for (const p of OnlineAssets.providersFor(k)) {
+                if (p.userLibrary)
+                    continue
                 out.push({ id: k + "|" + p.id, name: p.name, heading: "", provider: p.id,
                            locked: p.requiresAccount && p.state !== "connected", state: p.state })
             }
@@ -74,6 +127,19 @@ Item {
                 required property var modelData
                 width: ListView.view.width
 
+                // Between the user's own collection and the online sources.
+                Item {
+                    visible: !!entry.modelData.separator
+                    width: entry.width
+                    height: visible ? Theme.spacingSm * 2 + 1 : 0
+                    Rectangle {
+                        anchors.verticalCenter: parent.verticalCenter
+                        x: Theme.spacingMd
+                        width: parent.width - Theme.spacingMd * 2
+                        height: 1
+                        color: Theme.panelBorder
+                    }
+                }
                 Text {
                     visible: entry.modelData.heading.length > 0 && root.kinds.length > 1
                     leftPadding: Theme.spacingMd
@@ -86,21 +152,50 @@ Item {
                 }
                 Rectangle {
                     readonly property bool selected: root.activeCategory === entry.modelData.id
+                    visible: !entry.modelData.separator
                     x: Theme.spacingSm
                     width: entry.width - Theme.spacingSm * 2
-                    height: 30
+                    height: visible ? 30 : 0
                     radius: Theme.radiusSm
                     color: selected ? Theme.panelAccent : (rowHover.hovered ? Theme.c.assetsPanel.optionBackgroundHover : "transparent")
 
+                    IconGlyph {
+                        id: userGlyph
+                        visible: !!entry.modelData.user
+                        anchors.verticalCenter: parent.verticalCenter
+                        x: Theme.spacingMd
+                        glyph: Theme.icons.folder
+                        iconSize: 13
+                        iconColor: parent.selected ? Theme.primary : Theme.mutedForeground
+                    }
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
-                        x: entry.modelData.provider ? Theme.spacingLg : Theme.spacingMd
+                        x: entry.modelData.user ? Theme.spacingMd + userGlyph.width + 6
+                                                : entry.modelData.provider ? Theme.spacingLg : Theme.spacingMd
                         width: parent.width - x - 22
                         elide: Text.ElideRight
                         text: entry.modelData.name
                         color: parent.selected ? Theme.primary : entry.modelData.locked ? Theme.mutedForeground : Theme.panelForeground
                         font.pixelSize: Theme.fontSizeBase
-                        font.weight: entry.modelData.provider ? Font.Normal : Font.DemiBold
+                        font.weight: entry.modelData.provider && !entry.modelData.user ? Font.Normal : Font.DemiBold
+                    }
+                    // Files waiting to be saved.
+                    Rectangle {
+                        visible: !!entry.modelData.user && root.unsavedCount > 0
+                        anchors.right: parent.right
+                        anchors.rightMargin: 6
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: Math.max(16, unsavedCountText.implicitWidth + 8)
+                        height: 16
+                        radius: 8
+                        color: "#b9770e"
+                        Text {
+                            id: unsavedCountText
+                            anchors.centerIn: parent
+                            text: root.unsavedCount
+                            color: "white"
+                            font.pixelSize: Theme.fontSizeXs
+                        }
                     }
                     IconGlyph {
                         visible: entry.modelData.locked || entry.modelData.state === "expired"
@@ -187,13 +282,50 @@ Item {
                     id: addLink
                     variant: "secondary"
                     glyph: Theme.icons.download
-                    tooltip: qsTr("Download the link and add it to Media")
+                    tooltip: root.activeKind === "sticker" ? qsTr("Download the link, add it to Media and keep it in My Lotties")
+                                                           : qsTr("Download the link and add it to Media")
                     enabled: linkField.text.trim().length > 0
                     onClicked: {
                         if (OnlineAssets.importLink(linkField.text))
                             linkField.text = ""
                     }
                 }
+            }
+
+            // The user's own files: add more, keep the ones dropped this session.
+            Flow {
+                visible: root.showingUserFiles
+                width: parent.width
+                spacing: Theme.spacingXs
+                ThemedButton {
+                    variant: "secondary"
+                    glyph: Theme.icons.folderInput
+                    text: root.userCollection === "titles" ? qsTr("Add .mogrt…") : qsTr("Add files…")
+                    tooltip: root.userCollection === "lotties" ? qsTr("Add Lottie animations (.json, .lottie) from your computer")
+                           : root.userCollection === "sounds" ? qsTr("Add audio files from your computer")
+                           : qsTr("Add Motion Graphics Templates (.mogrt) from your computer")
+                    onClicked: root.browseUserFiles()
+                }
+                ThemedButton {
+                    visible: root.unsavedCount > 0
+                    variant: "primary"
+                    glyph: Theme.icons.save
+                    text: qsTr("Save all (%1)").arg(root.unsavedCount)
+                    tooltip: qsTr("Keep every file added this session until you delete it")
+                    onClicked: OnlineAssets.saveAllUserItems(root.userCollection)
+                }
+            }
+            Text {
+                visible: root.showingUserFiles
+                width: parent.width
+                wrapMode: Text.WordWrap
+                color: Theme.mutedForeground
+                font.pixelSize: Theme.fontSizeXs
+                text: root.userCollection === "lotties"
+                      ? qsTr("Drag Lottie files (.json, .lottie) here. Files you don't save are removed when Dafin closes.")
+                      : root.userCollection === "sounds"
+                        ? qsTr("Drag audio files here. Files you don't save are removed when Dafin closes.")
+                        : qsTr("Drag .mogrt templates here. They are added as editable Dafin titles; the After Effects animation inside plays only in Adobe apps.")
             }
 
             // Attribution the providers' terms ask for, for the sources shown right now.
@@ -282,6 +414,7 @@ Item {
                     thumbnail: parent.thumbnail
                     cardWidth: grid.cellWidth - Theme.spacingSm
                     onAdded: root.added()
+                    onDeleteRequested: (item) => deleteDialog.openFor(item)
                 }
             }
 
@@ -325,9 +458,23 @@ Item {
                         return qsTr("The sources couldn't answer right now.")
                     if (locked.length > 0 && results.sources.every(s => s.locked))
                         return qsTr("Connect a free account to browse here: %1.").arg(locked.map(p => p.name).join(", "))
-                    return root.searchText.trim().length > 0 ? qsTr("Nothing found for \"%1\".").arg(root.searchText.trim())
-                                                             : qsTr("Nothing here yet.")
+                    if (root.searchText.trim().length > 0)
+                        return qsTr("Nothing found for \"%1\".").arg(root.searchText.trim())
+                    if (root.showingUserFiles && root.userCollection === "lotties")
+                        return qsTr("No Lotties yet. Drag .json or .lottie animations here, or click Add files.")
+                    if (root.showingUserFiles && root.userCollection === "sounds")
+                        return qsTr("No sounds yet. Drag audio files here, or click Add files.")
+                    return qsTr("Nothing here yet.")
                 }
+            }
+            ThemedButton {
+                anchors.horizontalCenter: parent.horizontalCenter
+                visible: root.showingUserFiles && root.userCollection !== "titles" && results.problems.length === 0
+                         && root.searchText.trim().length === 0
+                variant: "primary"
+                glyph: Theme.icons.folderInput
+                text: qsTr("Add files…")
+                onClicked: root.browseUserFiles()
             }
             ThemedButton {
                 anchors.horizontalCenter: parent.horizontalCenter
@@ -342,6 +489,41 @@ Item {
                         ShellBridge.main.openSettings("assetproviders")
                 }
             }
+        }
+    }
+
+    // Deleting a saved file of the user's own (an unsaved one goes without asking).
+    ThemedDialog {
+        id: deleteDialog
+
+        property var item: null
+
+        title: qsTr("Delete from Dafin")
+        acceptText: qsTr("Delete")
+        acceptVariant: "destructive"
+        preferredWidth: Theme.dialogWidthSm
+        acceptOnReturn: false
+
+        function openFor(item) {
+            deleteDialog.item = item
+            open()
+        }
+
+        onAccepted: {
+            if (deleteDialog.item)
+                OnlineAssets.deleteUserItem(deleteDialog.item)
+            deleteDialog.item = null
+        }
+
+        contentItem: Text {
+            width: parent ? parent.width : 320
+            wrapMode: Text.WordWrap
+            text: qsTr("Delete “%1” from %2? The file you added it from is not touched, and projects that already use it keep their own copy.")
+                      .arg(deleteDialog.item ? deleteDialog.item.title : "")
+                      .arg(root.userCollection === "titles" ? qsTr("Titles") : root.userCollectionName)
+            color: Theme.panelForeground
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSizeSm
         }
     }
 

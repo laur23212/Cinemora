@@ -57,6 +57,8 @@ public:
         EffectsRole,
         AudioEffectsRole,
         VolumeKeysRole,
+        // Dafin: seconds from the clip's start of each keyframe diamond the timeline draws.
+        KeyTimesRole,
     };
     Q_ENUM(Role)
 
@@ -88,6 +90,7 @@ public:
         QVariantList effects;
         QVariantList audioEffects;
         QVariantList volumeKeys;
+        QVariantList keyTimes;
 
         // Not roles: typed copies for the scene-graph renderer, derived from the fields above so
         // any change to them already arrives as a changed row.

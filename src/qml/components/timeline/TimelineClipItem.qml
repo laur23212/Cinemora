@@ -364,4 +364,10 @@ Item {
         anchors.top: parent.top
         anchors.bottom: parent.bottom
     }
+
+    // Dafin: keyframe diamonds along the bottom edge. Last, so a diamond at the very start or
+    // end of the clip stays grabbable over the trim strip; presses beside a diamond fall through.
+    TimelineKeyframeMarkers {
+        owner: clipItem
+    }
 }

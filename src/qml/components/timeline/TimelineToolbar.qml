@@ -51,14 +51,24 @@ Item {
 
     function actionTooltip(id) {
         const meta = actionMeta[id]
-        const label = meta.tip || meta.label
+        let label = meta.tip || meta.label
+        if (id === "keyframe" && actionActive("keyframe"))
+            label = qsTr("Remove keyframe — the playhead is on a keyframe of the selected clip")
         return meta.shortcut ? withShortcut(label, meta.shortcut) : label
     }
+
+    // The playhead sits on a keyframe of the selected clip: the keyframe button lights up and
+    // a click removes that keyframe instead of adding one (as Filmora's diamonds do).
+    readonly property bool keyframeAtPlayhead: (EditorState.selectedClipData, EditorState.playheadSeconds,
+        EditorState.selectedTrack >= 0 && EditorState.selectedClip >= 0
+        && EditorState.clipHasKeyframeAt(EditorState.selectedTrack, EditorState.selectedClip,
+                                         EditorState.playheadSeconds))
 
     function triggerAction(id) {
         switch (id) {
         case "select": panel.timelineTool = ""; break
         case "cut": panel.timelineTool = panel.timelineTool === "split" ? "" : "split"; break
+        case "keyframe": EditorState.toggleKeyframeAtPlayhead(); break
         case "trimStart": panel.timelineTool = panel.timelineTool === "trimStart" ? "" : "trimStart"; break
         case "trimEnd": panel.timelineTool = panel.timelineTool === "trimEnd" ? "" : "trimEnd"; break
         case "deleteLeft": EditorState.splitSelectedClipLeft(); break
@@ -104,6 +114,7 @@ Item {
         switch (id) {
         case "select": return panel.timelineTool === ""
         case "cut": return panel.timelineTool === "split"
+        case "keyframe": return toolbar.keyframeAtPlayhead
         case "trimStart": return panel.timelineTool === "trimStart"
         case "trimEnd": return panel.timelineTool === "trimEnd"
         case "markIn": return EditorState.workAreaInSeconds >= 0

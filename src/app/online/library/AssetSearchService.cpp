@@ -6,6 +6,8 @@
 
 #include <QSet>
 
+#include <algorithm>
+
 namespace dafin::assets {
 
 // ─── service ─────────────────────────────────────────────────────────────────────────────────
@@ -109,6 +111,11 @@ AssetSearchModel::AssetSearchModel(QObject *parent)
         // A connect/logout in Settings changes which providers answer: search again.
         connect(s_service->auth(), &AuthManager::stateChanged, this, [this](const QString &) { scheduleRefresh(); });
         connect(s_service->registry(), &ProviderRegistry::providersChanged, this, &AssetSearchModel::scheduleRefresh);
+        // The user's own library: a file added or deleted reloads the grid; a save only
+        // updates its card, so the grid does not jump back to the top.
+        connect(s_service->registry(), &ProviderRegistry::contentChanged, this,
+                [this](const QString &) { scheduleRefresh(); });
+        connect(s_service->registry(), &ProviderRegistry::itemChanged, this, &AssetSearchModel::updateItem);
     }
 }
 
@@ -320,10 +327,28 @@ void AssetSearchModel::startRound()
 void AssetSearchModel::finishRound()
 {
     m_handles.clear();
-    // Interleave the round's pages so no single source floods the top of the grid.
+    // Interleave the round's pages so no single source floods the top of the grid. The user's
+    // own files (My Lotties, My sounds, imported titles) are not mixed in: they lead the list.
     QList<AssetItem> merged;
     QList<int> order = m_roundBuffer.keys();
     std::sort(order.begin(), order.end());
+    const auto isUserLibrary = [this](int stream) {
+        if (stream < 0 || stream >= m_streams.size())
+            return false;
+        AssetProvider *p = s_service->registry()->provider(m_streams.at(stream).providerId);
+        return p && p->info().userLibrary;
+    };
+    for (int stream : std::as_const(order)) {
+        if (!isUserLibrary(stream))
+            continue;
+        for (const AssetItem &a : std::as_const(m_roundBuffer[stream])) {
+            if (!m_keys.contains(a.key())) {
+                m_keys.insert(a.key());
+                merged.append(a);
+            }
+        }
+    }
+    order.erase(std::remove_if(order.begin(), order.end(), isUserLibrary), order.end());
     for (int pos = 0;; ++pos) {
         bool any = false;
         for (int stream : order) {

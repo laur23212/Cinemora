@@ -1245,6 +1245,27 @@ public:
     Q_INVOKABLE QVariantList clipKeyframes(int trackIndex, int clipIndex, const QString &prop) const;
     // Every property of the clip that carries an animation, in strip order.
     Q_INVOKABLE QStringList clipAnimatedProperties(int trackIndex, int clipIndex) const;
+
+    // Dafin: Filmora-style keyframing from the timeline (AppControllerDafin.cpp).
+    // The toolbar's keyframe button and Alt+K: keys position, scale, rotation and opacity at the
+    // playhead on the selected clip (or the topmost clip under the playhead), or removes the
+    // keyframe there when the playhead already sits on one.
+    Q_INVOKABLE void toggleKeyframeAtPlayhead();
+    Q_INVOKABLE bool addTransformKeyframes(int trackIndex, int clipIndex, double atSeconds);
+    // Seconds from the clip's start of each keyframe the timeline draws on it. Volume keys are
+    // left out: the volume line shows those.
+    Q_INVOKABLE QVariantList clipKeyframeTimes(int trackIndex, int clipIndex) const;
+    Q_INVOKABLE bool clipHasKeyframeAt(int trackIndex, int clipIndex, double atSeconds) const;
+    // {prop, seconds} of every key one timeline diamond stands for, in the form
+    // EditorState.keyframes.previewMoveKeys takes.
+    Q_INVOKABLE QVariantList clipKeyframeRefsAt(int trackIndex, int clipIndex, double atSeconds) const;
+    // Removing a property's last keyframe leaves the property at that keyframe's value.
+    Q_INVOKABLE void removeClipKeyframesAt(int trackIndex, int clipIndex, double atSeconds);
+    Q_INVOKABLE void clearClipKeyframes(int trackIndex, int clipIndex);
+    // Adds an imported Motion Graphics Template (Titles panel) as an editable title at the
+    // playhead: its text, a matching built-in style and its length.
+    Q_INVOKABLE void addTemplateTitle(const QString &text, const QString &presetId, double durationSeconds,
+                                      const QString &name);
     // Whether a property's keyframes drive it. Switched off, the keys are kept but the property
     // holds its first key's value — the inspector row's label is what toggles this.
     Q_INVOKABLE bool clipPropertyKeyframesEnabled(int trackIndex, int clipIndex,
@@ -2362,6 +2383,15 @@ protected:
                                                           const QString &prop) const;
     static drift::TimeUs keyframeToleranceUs();
     static drift::TimeUs keyframeWriteSnapUs();
+    // Dafin: auto-key for one interactive write (canvas, gizmo, inspector slider). On with Auto
+    // keyframes, for a property that is already animated (Filmora: changing it at another time
+    // adds a keyframe there), and for the button's properties on a clip keyframed from the
+    // timeline this session. `track` is the property's track when the caller has it at hand.
+    bool autoKeyFor(const drift::Clip &clip, const QString &prop,
+                    const drift::KeyframeTrack<double> *track = nullptr) const;
+    // Clips keyframed from the timeline whose keys may still all sit at the clip's start, where
+    // a lone key cannot be told from the static value. Session only; cleared on undo.
+    QSet<QString> m_keyframedClipIds;
     static drift::EasingSpec easingSpecFromMap(const QVariantMap &spec);
     void clearPose3d(drift::Clip &clip);
     // Freeze frames and full-size MCP captures share one media path.

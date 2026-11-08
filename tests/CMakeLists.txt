@@ -252,6 +252,7 @@ qt_add_executable(tst_mcp
     ../src/app/editor/appcontroller/AppControllerTracks.cpp
     ../src/app/editor/appcontroller/AppControllerProject.cpp
     ../src/app/editor/appcontroller/AppControllerTextLayers.cpp
+    ../src/app/editor/appcontroller/AppControllerDafin.cpp
     ../src/app/mcp/McpController.cpp
     ../src/app/mcp/AgentImageLog.cpp
     ../src/app/editor/PreferencesController.cpp

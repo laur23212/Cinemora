@@ -177,6 +177,9 @@ QHash<QString, QString> defaultShortcuts()
         // TimelinePanel they were neither.
         {QStringLiteral("selectTool"), QStringLiteral("V")},
         {QStringLiteral("bladeTool"), QStringLiteral("B")},
+        // Dafin: the timeline toolbar's keyframe button, on Filmora's key. Not plain K: that is
+        // shuttle stop beside J and L in Source Lab, and "key the rows" in the Keyframes panel.
+        {QStringLiteral("addKeyframe"), QStringLiteral("Alt+K")},
         // Masking workspace tools. The masking panel claims these only while the pointer is over the
         // preview or it has focus or hover (never in 3D mode), so they stay free on the timeline.
         {QStringLiteral("maskingPolygonTool"), QStringLiteral("P")},
@@ -1715,6 +1718,8 @@ void AppController::triggerAction(const QString &actionId)
                                                                                                  : QStringLiteral("world"));
     else if (actionId == QStringLiteral("toggleBookmark"))
         toggleBookmarkAtPlayhead();
+    else if (actionId == QStringLiteral("addKeyframe"))
+        toggleKeyframeAtPlayhead();
     else if (actionId == QStringLiteral("nextBookmark"))
         goToNextBookmark();
     else if (actionId == QStringLiteral("previousBookmark"))
@@ -1773,6 +1778,8 @@ void AppController::undo()
         m_masking->waitForBrushSaves(2000);
     if (!m_undoStack.canUndo())
         return;
+    // Dafin: a keyframe taken back must not leave its clip keying every later change.
+    m_keyframedClipIds.clear();
     captureSelectionClipIds();
     m_undoStack.undo();
     m_undoSelectionCaptured = false;

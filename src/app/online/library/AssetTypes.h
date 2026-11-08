@@ -126,6 +126,12 @@ struct ProviderInfo
     int responseCacheSeconds = 600;  // Pixabay requires 24 h
     int thumbnailCacheSeconds = 24 * 3600;
     bool nonCommercialOnly = false;
+    // Dafin: the user's own files (My Lotties, My sounds, imported titles). Listed first in
+    // "All …", never cached, and their cards carry Save / Delete.
+    bool userLibrary = false;
+    // False when the source has no row of its own in the panel's sidebar and its items only
+    // appear under "All …" (imported .mogrt titles).
+    bool ownSidebarEntry = true;
 };
 
 // Credentials as stored (JSON in the secure store). Values are opaque to everyone but the

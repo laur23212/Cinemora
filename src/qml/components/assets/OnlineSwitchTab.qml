@@ -4,6 +4,11 @@ import Drift
 // Wraps a built-in asset tab (Stickers, Audio effects, Text styles) with an "Online | Built-in"
 // switch at the top. Online shows OnlineAssetBrowser for `onlineKinds`; the choice is remembered
 // per tab. `builtin` is the tab's original component, untouched.
+//
+// Dafin: files dragged onto the tab from the computer join the user's own library for it —
+// Lottie files go to My Lotties (Stickers), audio to My sounds (Audio), .mogrt templates to
+// Titles — and the view jumps to them. Other files fall through to the panel, which imports
+// them into Media as before.
 Item {
     id: root
 
@@ -12,6 +17,15 @@ Item {
     property string builtinLabel: qsTr("Built-in")
     property Component builtin
     property bool allowLinks: true
+
+    readonly property string userCollection: OnlineAssets.userCollectionForKinds(root.onlineKinds)
+
+    function showUserFiles() {
+        if (!root.online)
+            root.setOnline(true)
+        if (content.item && content.item.showUserFiles)
+            content.item.showUserFiles()
+    }
 
     // AssetsPanel remembers search/category per tab through these (forwarded to the active side).
     property string searchText: ""
@@ -82,6 +96,62 @@ Item {
             kinds: root.onlineKinds
             allowLinks: root.allowLinks
             onAdded: root.added()
+        }
+    }
+
+    // Above the content, so it sees a drag before the panel-wide import area does. A drag with
+    // nothing this tab takes is refused here and reaches that area unchanged.
+    DropArea {
+        id: userDrop
+        anchors.fill: parent
+        enabled: root.userCollection.length > 0
+        keys: ["text/uri-list"]
+        onEntered: (drag) => {
+            drag.accepted = drag.hasUrls && OnlineAssets.userCollectionAccepts(root.userCollection, drag.urls)
+        }
+        onDropped: (drop) => {
+            if (!drop.hasUrls)
+                return
+            drop.accept(Qt.CopyAction)
+            const urls = drop.urls
+            // Online first, so the grid that lists them (and shows the result) exists.
+            if (!root.online)
+                root.setOnline(true)
+            const result = OnlineAssets.importUserFiles(root.userCollection, urls)
+            if (result.added > 0 || result.duplicates > 0)
+                root.showUserFiles()
+        }
+    }
+
+    Rectangle {
+        anchors.fill: parent
+        anchors.margins: 2
+        visible: userDrop.containsDrag
+        radius: Theme.radiusSm
+        color: Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.12)
+        border.width: 2
+        border.color: Theme.primary
+
+        Column {
+            anchors.centerIn: parent
+            width: parent.width - Theme.spacingLg * 2
+            spacing: Theme.spacingSm
+            IconGlyph {
+                anchors.horizontalCenter: parent.horizontalCenter
+                glyph: Theme.icons.download
+                iconSize: 28
+                iconColor: Theme.primary
+            }
+            Text {
+                width: parent.width
+                horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.WordWrap
+                text: root.userCollection === "titles" ? qsTr("Drop to add the templates to Titles")
+                                                       : qsTr("Drop to add to %1").arg(OnlineAssets.userCollectionName(root.userCollection))
+                color: Theme.panelForeground
+                font.pixelSize: Theme.fontSizeBase
+                font.weight: Font.DemiBold
+            }
         }
     }
 }

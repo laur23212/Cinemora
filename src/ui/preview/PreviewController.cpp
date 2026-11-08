@@ -475,7 +475,7 @@ QVariantMap PreviewController::applyGizmoDrag(const QVariantMap &start, const QS
         bool wrote = false;
         QStringList keys;
         const auto write = [&](drift::KeyframeTrack<double> &track, double value, const QString &key) {
-            if (writeKeyframeValue(track, relative, value, m_app.m_autoKeyEnabled, false)) {
+            if (writeKeyframeValue(track, relative, value, m_app.autoKeyFor(clip, key, &track), false)) {
                 wrote = true;
                 keys << key;
             }
@@ -510,7 +510,7 @@ QVariantMap PreviewController::applyGizmoDrag(const QVariantMap &start, const QS
     bool wrote = false;
     QStringList keys;
     const auto write = [&](drift::KeyframeTrack<double> &track, double value, const QString &key) {
-        if (writeKeyframeValue(track, relative, value, m_app.m_autoKeyEnabled, false)) {
+        if (writeKeyframeValue(track, relative, value, m_app.autoKeyFor(clip, key, &track), false)) {
             wrote = true;
             keys << key;
         }
@@ -655,7 +655,7 @@ QVariantMap PreviewController::applyGroupGizmoDrag(const QVariantMap &pivot, con
         bool wroteClip = false;
         QStringList keys;
         const auto write = [&](drift::KeyframeTrack<double> &track, double v, const QString &key) {
-            if (writeKeyframeValue(track, relative, v, m_app.m_autoKeyEnabled, false)) {
+            if (writeKeyframeValue(track, relative, v, m_app.autoKeyFor(clip, key, &track), false)) {
                 wroteClip = true;
                 keys << key;
             }
@@ -876,7 +876,7 @@ bool PreviewController::writeSceneCamera(int trackIndex, int clipIndex, const dr
     bool wrote = false;
     QStringList keys;
     const auto write = [&](drift::KeyframeTrack<double> &track, double value, const QString &key) {
-        if (writeKeyframeValue(track, relative, value, m_app.m_autoKeyEnabled, false)) {
+        if (writeKeyframeValue(track, relative, value, m_app.autoKeyFor(clip, key, &track), false)) {
             wrote = true;
             keys << key;
         }

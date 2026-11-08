@@ -197,8 +197,8 @@ void AppController::previewSetClipPosition(int trackIndex, int clipIndex, double
     drift::Clip &clip = track.clips[clipIndex];
     beginImplicitPreviewDrag(tr("Move clip"));
     const drift::TimeUs relative = qMax<drift::TimeUs>(0, m_playheadUs - clip.timelineStart);
-    const bool wroteX = writeKeyframeValue(clip.transformX, relative, xPixels, m_autoKeyEnabled, false);
-    const bool wroteY = writeKeyframeValue(clip.transformY, relative, yPixels, m_autoKeyEnabled, false);
+    const bool wroteX = writeKeyframeValue(clip.transformX, relative, xPixels, autoKeyFor(clip, QStringLiteral("x"), &clip.transformX), false);
+    const bool wroteY = writeKeyframeValue(clip.transformY, relative, yPixels, autoKeyFor(clip, QStringLiteral("y"), &clip.transformY), false);
     if (!wroteX && !wroteY) {
         emit transformBlocked(tr("Turn on Auto keyframes to move this"));
         return;
@@ -220,9 +220,9 @@ void AppController::previewSetClipSize(int trackIndex, int clipIndex, double wid
     beginImplicitPreviewDrag(tr("Resize clip"));
     const drift::TimeUs relative = qMax<drift::TimeUs>(0, m_playheadUs - clip.timelineStart);
     const bool wroteW =
-        writeKeyframeValue(clip.transformW, relative, qMax(1.0, widthPixels), m_autoKeyEnabled, false);
+        writeKeyframeValue(clip.transformW, relative, qMax(1.0, widthPixels), autoKeyFor(clip, QStringLiteral("width"), &clip.transformW), false);
     const bool wroteH =
-        writeKeyframeValue(clip.transformH, relative, qMax(1.0, heightPixels), m_autoKeyEnabled, false);
+        writeKeyframeValue(clip.transformH, relative, qMax(1.0, heightPixels), autoKeyFor(clip, QStringLiteral("height"), &clip.transformH), false);
     if (!wroteW && !wroteH) {
         emit transformBlocked(tr("Turn on Auto keyframes to resize this"));
         return;
@@ -245,11 +245,11 @@ void AppController::previewSetClipRect(int trackIndex, int clipIndex, double xPi
     beginImplicitPreviewDrag(tr("Transform clip"));
     const drift::TimeUs relative = qMax<drift::TimeUs>(0, m_playheadUs - clip.timelineStart);
     bool wrote = false;
-    wrote = writeKeyframeValue(clip.transformX, relative, xPixels, m_autoKeyEnabled, false) || wrote;
-    wrote = writeKeyframeValue(clip.transformY, relative, yPixels, m_autoKeyEnabled, false) || wrote;
-    wrote = writeKeyframeValue(clip.transformW, relative, qMax(1.0, widthPixels), m_autoKeyEnabled, false)
+    wrote = writeKeyframeValue(clip.transformX, relative, xPixels, autoKeyFor(clip, QStringLiteral("x"), &clip.transformX), false) || wrote;
+    wrote = writeKeyframeValue(clip.transformY, relative, yPixels, autoKeyFor(clip, QStringLiteral("y"), &clip.transformY), false) || wrote;
+    wrote = writeKeyframeValue(clip.transformW, relative, qMax(1.0, widthPixels), autoKeyFor(clip, QStringLiteral("width"), &clip.transformW), false)
             || wrote;
-    wrote = writeKeyframeValue(clip.transformH, relative, qMax(1.0, heightPixels), m_autoKeyEnabled, false)
+    wrote = writeKeyframeValue(clip.transformH, relative, qMax(1.0, heightPixels), autoKeyFor(clip, QStringLiteral("height"), &clip.transformH), false)
             || wrote;
     if (!wrote) {
         emit transformBlocked(tr("Turn on Auto keyframes to change this"));
@@ -273,7 +273,7 @@ void AppController::previewSetClipRotation(int trackIndex, int clipIndex, double
     drift::Clip &clip = track.clips[clipIndex];
     beginImplicitPreviewDrag(tr("Rotate clip"));
     const drift::TimeUs relative = qMax<drift::TimeUs>(0, m_playheadUs - clip.timelineStart);
-    if (!writeKeyframeValue(clip.rotation, relative, degrees, m_autoKeyEnabled, false)) {
+    if (!writeKeyframeValue(clip.rotation, relative, degrees, autoKeyFor(clip, QStringLiteral("rotation"), &clip.rotation), false)) {
         emit transformBlocked(tr("Turn on Auto keyframes to rotate this"));
         return;
     }
@@ -301,7 +301,9 @@ void AppController::previewSetClipKeyframe(int trackIndex, int clipIndex, const 
     drift::Clip &clip = track.clips[clipIndex];
     beginImplicitPreviewDrag(tr("Edit keyframe"));
     const drift::TimeUs rel = qMax<drift::TimeUs>(0, drift::secondsToUs(atSeconds) - clip.timelineStart);
-    if (!writeClipPropValue(clip, prop, rel, value, m_autoKeyEnabled, /*force=*/false)) {
+    // Decided before the write: the write itself may make the property animated.
+    const bool keyHere = autoKeyFor(clip, prop);
+    if (!writeClipPropValue(clip, prop, rel, value, keyHere, /*force=*/false)) {
         emit transformBlocked(tr("Turn on Auto keyframes to edit this"));
         return;
     }
@@ -312,9 +314,12 @@ void AppController::previewSetClipKeyframe(int trackIndex, int clipIndex, const 
         drift::KeyframeTrack<double> *otherKt = keyframeTrackForProp(clip, otherProp, false);
         if (otherKt && !otherKt->isEmpty()) {
             const drift::TimeUs otherNearest = otherKt->nearestKeyframe(rel, kKeyframeToleranceUs);
-            if (otherNearest < 0 && m_autoKeyEnabled) {
+            // Dafin: the partner keys along whenever this write keyed the playhead — Auto
+            // keyframes, or (Filmora) a property that already animates — so linked X/Y stay one
+            // position. Drift did this with Auto keyframes only.
+            if (otherNearest < 0 && keyHere) {
                 const double otherVal = otherKt->evaluateAt(rel);
-                if (writeClipPropValue(clip, otherProp, rel, otherVal, m_autoKeyEnabled, /*force=*/false))
+                if (writeClipPropValue(clip, otherProp, rel, otherVal, /*autoKey=*/true, /*force=*/false))
                     affected.append(otherProp);
             }
         }
@@ -1545,11 +1550,11 @@ void AppController::previewSetTextRect(int trackIndex, int clipIndex, double xPi
     beginImplicitPreviewDrag(tr("Resize text"));
     const drift::TimeUs relative = qMax<drift::TimeUs>(0, m_playheadUs - clip.timelineStart);
     bool wrote = false;
-    wrote = writeKeyframeValue(clip.transformX, relative, xPixels, m_autoKeyEnabled, false) || wrote;
-    wrote = writeKeyframeValue(clip.transformY, relative, yPixels, m_autoKeyEnabled, false) || wrote;
-    wrote = writeKeyframeValue(clip.transformW, relative, qMax(1.0, widthPixels), m_autoKeyEnabled, false)
+    wrote = writeKeyframeValue(clip.transformX, relative, xPixels, autoKeyFor(clip, QStringLiteral("x"), &clip.transformX), false) || wrote;
+    wrote = writeKeyframeValue(clip.transformY, relative, yPixels, autoKeyFor(clip, QStringLiteral("y"), &clip.transformY), false) || wrote;
+    wrote = writeKeyframeValue(clip.transformW, relative, qMax(1.0, widthPixels), autoKeyFor(clip, QStringLiteral("width"), &clip.transformW), false)
             || wrote;
-    wrote = writeKeyframeValue(clip.transformH, relative, qMax(1.0, heightPixels), m_autoKeyEnabled, false)
+    wrote = writeKeyframeValue(clip.transformH, relative, qMax(1.0, heightPixels), autoKeyFor(clip, QStringLiteral("height"), &clip.transformH), false)
             || wrote;
 
     const int clamped = qBound(8, pixelSize, 800);

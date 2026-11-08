@@ -7,10 +7,13 @@
 #include "app/online/library/ProviderRegistry.h"
 #include "app/online/library/SecretStore.h"
 #include "app/online/library/ThumbnailCache.h"
+#include "app/online/library/UserLibrary.h"
+#include "app/online/library/providers/UserLibraryProvider.h"
 
 #include <QCryptographicHash>
 #include <QDesktopServices>
 #include <QDir>
+#include <QDirIterator>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
@@ -24,9 +27,12 @@
 namespace dafin::assets {
 
 namespace {
+// "my-lotties" is the user's own library now (UserLibrary); its old catalog entries are migrated.
 const QStringList kNativeCatalogIds = {QStringLiteral("pexels-video"), QStringLiteral("pixabay-video"),
-                                       QStringLiteral("freesound-sfx"), QStringLiteral("lottie-starter")};
+                                       QStringLiteral("freesound-sfx"), QStringLiteral("lottie-starter"),
+                                       QStringLiteral("my-lotties")};
 QString appData() { return QStandardPaths::writableLocation(QStandardPaths::AppDataLocation); }
+const QString kLottieCollection = QStringLiteral("lotties");
 } // namespace
 
 OnlineAssets::OnlineAssets(QObject *parent)
@@ -40,7 +46,11 @@ OnlineAssets::OnlineAssets(QObject *parent)
     m_registry = std::make_unique<ProviderRegistry>(m_network.get(), m_auth.get());
     m_auth->setRegistry(m_registry.get());
     m_registry->registerBuiltins();
+    m_userLibrary = std::make_unique<UserLibrary>(appData() + QStringLiteral("/user-library"));
+    for (const UserLibrary::Collection &c : UserLibrary::collections())
+        m_registry->add(std::make_unique<UserLibraryProvider>(m_registry.get(), m_userLibrary.get(), c.id));
     ensureUserCatalog();
+    m_userLibrary->migrateCatalogLinks(catalogPath());
     m_registry->loadCatalogProviders(catalogPath(), kNativeCatalogIds);
     m_auth->migrateLegacyKeys();
     m_auth->restore();
@@ -75,6 +85,34 @@ OnlineAssets::OnlineAssets(QObject *parent)
             [this](const QString &key, const QString &binId, const QString &) { emit downloaded(key, binId); });
     connect(m_downloads.get(), &DownloadManager::failed, this, &OnlineAssets::downloadFailed);
     connect(m_downloads.get(), &DownloadManager::previewReady, this, &OnlineAssets::previewReady);
+
+    // The user's own library: grids reload on add/delete and update one card on save.
+    connect(m_userLibrary.get(), &UserLibrary::changed, this, [this](const QString &collection) {
+        if (const UserLibrary::Collection *c = UserLibrary::collection(collection))
+            m_registry->notifyContentChanged(c->providerId);
+        ++m_userRevision;
+        emit userLibraryChanged();
+    });
+    connect(m_userLibrary.get(), &UserLibrary::entryChanged, this, [this](const QString &collection, const QString &id) {
+        const UserLibrary::Collection *c = UserLibrary::collection(collection);
+        const std::optional<UserLibrary::Entry> e = m_userLibrary->entry(collection, id);
+        if (c && e)
+            m_registry->notifyItemChanged(UserLibraryProvider::toItem(*c, *e).toVariant());
+        ++m_userRevision;
+        emit userLibraryChanged();
+    });
+    // A pasted Lottie link, once fetched and checked, is kept in My Lotties.
+    connect(m_downloads.get(), &DownloadManager::downloaded, this,
+            [this](const QString &key, const QString &, const QString &path) {
+                const auto it = m_pendingLottieLinks.constFind(key);
+                if (it == m_pendingLottieLinks.constEnd())
+                    return;
+                const QPair<QUrl, QString> link = it.value();
+                m_pendingLottieLinks.remove(key);
+                m_userLibrary->addFetchedFile(kLottieCollection, path, link.second, link.first);
+            });
+    connect(m_downloads.get(), &DownloadManager::failed, this,
+            [this](const QString &key, const QString &) { m_pendingLottieLinks.remove(key); });
 }
 
 OnlineAssets::~OnlineAssets()
@@ -124,6 +162,8 @@ QVariantMap OnlineAssets::describe(const QString &id) const
         {QStringLiteral("supportsOAuth"), i.supportsOAuth},
         {QStringLiteral("supportsRegistration"), i.supportsRegistration},
         {QStringLiteral("nonCommercialOnly"), i.nonCommercialOnly},
+        {QStringLiteral("userLibrary"), i.userLibrary},
+        {QStringLiteral("ownSidebarEntry"), i.ownSidebarEntry},
         {QStringLiteral("fields"), fields},
         {QStringLiteral("accountHint"), i.accountHint},
         {QStringLiteral("state"), connectionStateToString(s)},
@@ -264,51 +304,6 @@ void OnlineAssets::reloadCatalog()
     m_registry->loadCatalogProviders(catalogPath(), kNativeCatalogIds);
 }
 
-void OnlineAssets::rememberLottieLink(const QString &url)
-{
-    ensureUserCatalog();
-    QFile file(catalogPath());
-    if (!file.open(QIODevice::ReadOnly))
-        return;
-    QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
-    file.close();
-    if (!doc.isObject())
-        return; // never overwrite a catalog the user is in the middle of fixing
-    QJsonObject root = doc.object();
-    QJsonArray sources = root.value(QStringLiteral("sources")).toArray();
-    int index = -1;
-    for (int i = 0; i < sources.size(); ++i) {
-        if (sources.at(i).toObject().value(QStringLiteral("id")).toString() == QLatin1String("my-lotties"))
-            index = i;
-    }
-    if (index < 0) {
-        sources.append(QJsonObject{{QStringLiteral("id"), QStringLiteral("my-lotties")},
-                                   {QStringLiteral("name"), QStringLiteral("My Lotties")},
-                                   {QStringLiteral("kind"), QStringLiteral("lottie")},
-                                   {QStringLiteral("type"), QStringLiteral("static")},
-                                   {QStringLiteral("items"), QJsonArray()}});
-        index = int(sources.size()) - 1;
-    }
-    QJsonObject mine = sources.at(index).toObject();
-    QJsonArray items = mine.value(QStringLiteral("items")).toArray();
-    for (const QJsonValue &v : std::as_const(items)) {
-        if (v.toObject().value(QStringLiteral("url")).toString() == url)
-            return;
-    }
-    const QString title = QFileInfo(QUrl(url).path()).completeBaseName();
-    items.append(QJsonObject{{QStringLiteral("title"), title.isEmpty() ? QStringLiteral("Lottie") : title},
-                             {QStringLiteral("url"), url}});
-    mine.insert(QStringLiteral("items"), items);
-    sources.replace(index, mine);
-    root.insert(QStringLiteral("sources"), sources);
-    QSaveFile out(catalogPath());
-    if (out.open(QIODevice::WriteOnly)) {
-        out.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
-        out.commit();
-    }
-    reloadCatalog();
-}
-
 bool OnlineAssets::importLink(const QString &text)
 {
     const QUrl url = QUrl::fromUserInput(text.trimmed());
@@ -328,9 +323,10 @@ bool OnlineAssets::importLink(const QString &text)
         item.title = tr("Link");
     const QString suffix = QFileInfo(url.path()).suffix().toLower();
     if (lottie) {
-        rememberLottieLink(url.toString());
-        item.providerId = QStringLiteral("catalog-my-lotties");
+        // Fetched like any sticker, then kept in My Lotties (saved) for next time.
+        item.providerId = QStringLiteral("my-lotties");
         item.kind = AssetKind::Sticker;
+        m_pendingLottieLinks.insert(item.key(), {url, item.title});
     } else {
         item.providerId = QStringLiteral("link");
         item.kind = QStringList{QStringLiteral("mp3"), QStringLiteral("wav"), QStringLiteral("ogg"), QStringLiteral("flac"),
@@ -340,6 +336,158 @@ bool OnlineAssets::importLink(const QString &text)
     }
     m_downloads->enqueue(item);
     return true;
+}
+
+// ─── the user's own library (My Lotties, My sounds, imported titles) ─────────────────────────
+
+QString OnlineAssets::userCollectionForKinds(const QStringList &kinds) const
+{
+    for (const QString &kind : kinds) {
+        bool ok = false;
+        const AssetKind k = kindFromString(kind, &ok);
+        if (!ok)
+            continue;
+        if (k == AssetKind::Music)
+            return QStringLiteral("sounds"); // the Audio panel: music and sound effects alike
+        for (const UserLibrary::Collection &c : UserLibrary::collections()) {
+            if (c.kind == k)
+                return c.id;
+        }
+    }
+    return {};
+}
+
+QString OnlineAssets::userCollectionProvider(const QString &collection) const
+{
+    const UserLibrary::Collection *c = UserLibrary::collection(collection);
+    return c ? c->providerId : QString();
+}
+
+QString OnlineAssets::userCollectionName(const QString &collection) const
+{
+    return UserLibrary::displayName(collection);
+}
+
+QString OnlineAssets::userCollectionFilter(const QString &collection) const
+{
+    QStringList globs;
+    for (const QString &suffix : UserLibrary::fileSuffixes(collection))
+        globs.append(QStringLiteral("*.") + suffix);
+    const QString label = collection == QLatin1String("lotties") ? tr("Lottie animations")
+                        : collection == QLatin1String("sounds")  ? tr("Audio files")
+                        : collection == QLatin1String("titles")  ? tr("Motion Graphics Templates")
+                                                                 : tr("Files");
+    return QStringLiteral("%1 (%2)").arg(label, globs.join(QLatin1Char(' ')));
+}
+
+QStringList OnlineAssets::localFilesFrom(const QString &collection, const QVariantList &urls) const
+{
+    QStringList files;
+    for (const QVariant &v : urls) {
+        const QUrl url = v.canConvert<QUrl>() && v.toUrl().isValid() ? v.toUrl() : QUrl(v.toString());
+        const QString path = url.isLocalFile() ? url.toLocalFile() : QString();
+        if (path.isEmpty())
+            continue;
+        const QFileInfo info(path);
+        if (info.isDir()) {
+            // A dropped folder brings every matching file inside it.
+            QStringList globs;
+            for (const QString &suffix : UserLibrary::fileSuffixes(collection))
+                globs.append(QStringLiteral("*.") + suffix);
+            QDirIterator it(path, globs, QDir::Files, QDirIterator::Subdirectories);
+            while (it.hasNext() && files.size() < 500)
+                files.append(it.next());
+        } else {
+            files.append(path);
+        }
+    }
+    return files;
+}
+
+bool OnlineAssets::userCollectionAccepts(const QString &collection, const QVariantList &urls) const
+{
+    if (!UserLibrary::collection(collection))
+        return false;
+    for (const QVariant &v : urls) {
+        const QUrl url = v.canConvert<QUrl>() && v.toUrl().isValid() ? v.toUrl() : QUrl(v.toString());
+        if (!url.isLocalFile())
+            continue;
+        const QFileInfo info(url.toLocalFile());
+        if (info.isDir() || UserLibrary::fileSuffixes(collection).contains(info.suffix().toLower()))
+            return true;
+    }
+    return false;
+}
+
+QVariantMap OnlineAssets::importUserFiles(const QString &collection, const QVariantList &urls)
+{
+    if (!UserLibrary::collection(collection))
+        return {};
+    const UserLibrary::ImportResult r = m_userLibrary->importFiles(collection, localFilesFrom(collection, urls));
+    const QString where = collection == QLatin1String("titles") ? tr("Titles") : UserLibrary::displayName(collection);
+    QStringList parts;
+    if (!r.added.isEmpty()) {
+        parts.append(tr("Added %n file(s) to %1. Use Save to keep them after Dafin closes.", nullptr,
+                        int(r.added.size())).arg(where));
+    }
+    if (r.duplicates > 0)
+        parts.append(tr("%n file(s) already in %1.", nullptr, r.duplicates).arg(where));
+    if (!r.error.isEmpty())
+        parts.append(r.error);
+    else if (!r.rejected.isEmpty()) {
+        const QString kinds = collection == QLatin1String("lotties") ? tr("Lottie animations (.json, .lottie)")
+                             : collection == QLatin1String("sounds")  ? tr("audio files")
+                                                                      : tr("Motion Graphics Templates (.mogrt)");
+        parts.append(tr("Skipped %n file(s): only %1 can go here.", nullptr, int(r.rejected.size())).arg(kinds));
+    }
+    const QString message = parts.join(QLatin1Char(' '));
+    if (!message.isEmpty())
+        emit notice(message);
+    return {{QStringLiteral("added"), int(r.added.size())},
+            {QStringLiteral("ids"), r.added},
+            {QStringLiteral("duplicates"), r.duplicates},
+            {QStringLiteral("rejected"), r.rejected},
+            {QStringLiteral("message"), message}};
+}
+
+bool OnlineAssets::saveUserItem(const QVariantMap &map)
+{
+    const AssetItem item = AssetItem::fromVariant(map);
+    const UserLibrary::Collection *c = UserLibrary::collectionForProvider(item.providerId);
+    if (!c)
+        return false;
+    QString error;
+    const bool ok = m_userLibrary->save(c->id, item.id, &error);
+    if (!error.isEmpty())
+        emit notice(error);
+    return ok;
+}
+
+int OnlineAssets::saveAllUserItems(const QString &collection)
+{
+    if (!UserLibrary::collection(collection))
+        return 0;
+    const int saved = m_userLibrary->saveAll(collection);
+    if (saved > 0)
+        emit notice(tr("Saved %n file(s). They stay in Dafin until you delete them.", nullptr, saved));
+    return saved;
+}
+
+bool OnlineAssets::deleteUserItem(const QVariantMap &map)
+{
+    const AssetItem item = AssetItem::fromVariant(map);
+    const UserLibrary::Collection *c = UserLibrary::collectionForProvider(item.providerId);
+    return c && m_userLibrary->remove(c->id, item.id);
+}
+
+int OnlineAssets::unsavedUserItems(const QString &collection) const
+{
+    return m_userLibrary->unsavedCount(collection);
+}
+
+int OnlineAssets::userItemCount(const QString &collection) const
+{
+    return int(m_userLibrary->entries(collection).size());
 }
 
 } // namespace dafin::assets
