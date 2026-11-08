@@ -133,4 +133,46 @@ SettingsPage {
             }
         }
     }
+
+    // Dafin: the free renderer that draws a .mogrt's After Effects animation (MogrtRenderer).
+    SettingsRow {
+        title: qsTr("MOGRT Converter")
+        searchId: "asset-providers-mogrt-converter"
+        description: MogrtRenderer.available
+                     ? qsTr("Found: %1. Titles made from .mogrt templates can be added with their animation.")
+                           .arg(MogrtRenderer.executable)
+                     : qsTr("Not installed. With the free MOGRT Converter, .mogrt templates in Titles can be added with their After Effects animation; without it they become editable Dafin titles.")
+        keywords: "mogrt motion graphics template after effects render animation converter titles"
+        query: page.query
+
+        Row {
+            spacing: Theme.spacingSm
+            ThemedButton {
+                variant: "secondary"
+                glyph: Theme.icons.externalLink
+                text: qsTr("Download")
+                visible: !MogrtRenderer.available
+                onClicked: Qt.openUrlExternally(MogrtRenderer.downloadUrl)
+            }
+            ThemedButton {
+                variant: "secondary"
+                glyph: Theme.icons.folderInput
+                text: qsTr("Choose…")
+                onClicked: {
+                    const url = FileDialogs.openFile(qsTr("Choose MOGRT Converter"),
+                                                     Qt.platform.os === "windows"
+                                                         ? [qsTr("Programs (*.exe)"), qsTr("All Files (*)")]
+                                                         : [qsTr("All Files (*)")])
+                    if (url && url.toString().length > 0 && !MogrtRenderer.useProgram(url.toString()))
+                        Toasts.error(qsTr("That file can't be run."))
+                }
+            }
+            ThemedButton {
+                variant: "ghost"
+                glyph: Theme.icons.refresh
+                text: qsTr("Check again")
+                onClicked: MogrtRenderer.refresh()
+            }
+        }
+    }
 }

@@ -34,7 +34,7 @@ ThemedContextMenu {
     }
 
     ThemedMenuItem {
-        visible: Updates.supported
+        visible: Updates.canCheck
         height: visible ? implicitHeight : 0
         text: qsTr("Check for updates…")
         icon.name: Theme.icons.refresh

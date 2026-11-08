@@ -855,8 +855,7 @@ void AppController::addClipFromAsset(int assetIndex)
     const QString thumbnailPath = m_assetLibrary->thumbnailAt(assetIndex);
     const QString filmstripPath = m_assetLibrary->filmstripAt(assetIndex);
 
-    drift::Track &track = m_project.tracks()[trackIndex];
-    if (!track.allowsClipType(clipType))
+    if (!m_project.tracks().at(trackIndex).allowsClipType(clipType))
         return;
 
     const drift::TimeUs duration = clipDurationForAssetIndex(assetIndex);
@@ -865,6 +864,15 @@ void AppController::addClipFromAsset(int assetIndex)
     // full duration, or a trimmed clip gets pushed out past a neighbour it would easily fit next
     // to.
     const drift::TimeUs placementDuration = trimmedClipDurationUs(asset, duration);
+    // Dafin: a busy playhead stacks the clip on another track instead of pushing it later.
+    {
+        const StackPlan plan = stackPlan(trackIndex, clipType, m_playheadUs, placementDuration);
+        if (plan.insertIndex >= 0)
+            trackIndex = drift::insertTrackAboveForClipType(m_project, plan.insertIndex, clipType);
+        else if (plan.track >= 0)
+            trackIndex = plan.track;
+    }
+    drift::Track &track = m_project.tracks()[trackIndex];
     const drift::TimeUs start = drift::resolveClipStart(m_project, track, -1, m_playheadUs,
                                                         placementDuration, m_snapEnabled, m_playheadUs);
 
@@ -1091,11 +1099,20 @@ void AppController::addClipFromAssetAt(int assetIndex, int trackIndex, double at
     // Snapshot before a non-const Track&. QList implicit sharing would otherwise let
     // the append below mutate `before` as well, and Ctrl+Z would be a no-op.
     const drift::Project before = m_project;
-    drift::Track &track = m_project.tracks()[trackIndex];
     const drift::TimeUs duration = clipDurationForAssetIndex(assetIndex);
     // See addClipFromAsset: placement must size against the trimmed length, not the asset's full
     // duration.
     const drift::TimeUs placementDuration = trimmedClipDurationUs(asset, duration);
+    // Dafin: dropped on a busy stretch, the clip stacks on another track (see stackPlan).
+    {
+        const StackPlan plan = stackPlan(trackIndex, clipType, drift::secondsToUs(qMax(0.0, atSeconds)),
+                                         placementDuration);
+        if (plan.insertIndex >= 0)
+            trackIndex = drift::insertTrackAboveForClipType(m_project, plan.insertIndex, clipType);
+        else if (plan.track >= 0)
+            trackIndex = plan.track;
+    }
+    drift::Track &track = m_project.tracks()[trackIndex];
     const drift::TimeUs start = drift::resolveClipStart(m_project, track, -1, drift::secondsToUs(atSeconds),
                                                         placementDuration, m_snapEnabled, m_playheadUs);
 
@@ -2662,7 +2679,8 @@ void AppController::moveClipToTrack(int trackIndex, int clipIndex, int newTrackI
         }
     }
 
-    const drift::Project before = m_project;
+    // Dafin: moveClipToNewTrack inserted the destination track first; undo goes back past it.
+    const drift::Project before = m_moveBaseline ? *m_moveBaseline : m_project;
     const drift::TimeUs desiredUs = drift::secondsToUs(newStart);
     const drift::TimeUs baseUs = m_project.tracks().at(trackIndex).clips.at(clipIndex).timelineStart;
     const drift::TimeUs timeDelta = desiredUs - baseUs;

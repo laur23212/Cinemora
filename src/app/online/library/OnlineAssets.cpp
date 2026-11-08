@@ -419,6 +419,22 @@ bool OnlineAssets::userCollectionAccepts(const QString &collection, const QVaria
     return false;
 }
 
+QVariantList OnlineAssets::urlsNotAcceptedBy(const QString &collection, const QVariantList &urls) const
+{
+    QVariantList rest;
+    for (const QVariant &v : urls) {
+        const QUrl url = v.canConvert<QUrl>() && v.toUrl().isValid() ? v.toUrl() : QUrl(v.toString());
+        if (url.isLocalFile()) {
+            const QFileInfo info(url.toLocalFile());
+            // A folder was searched for the collection's files; its other media is left alone.
+            if (info.isDir() || UserLibrary::fileSuffixes(collection).contains(info.suffix().toLower()))
+                continue;
+        }
+        rest.append(url);
+    }
+    return rest;
+}
+
 QVariantMap OnlineAssets::importUserFiles(const QString &collection, const QVariantList &urls)
 {
     if (!UserLibrary::collection(collection))
@@ -437,7 +453,7 @@ QVariantMap OnlineAssets::importUserFiles(const QString &collection, const QVari
     else if (!r.rejected.isEmpty()) {
         const QString kinds = collection == QLatin1String("lotties") ? tr("Lottie animations (.json, .lottie)")
                              : collection == QLatin1String("sounds")  ? tr("audio files")
-                                                                      : tr("Motion Graphics Templates (.mogrt)");
+                                                                      : tr("Motion Graphics Templates (.mogrt, or a .zip with one)");
         parts.append(tr("Skipped %n file(s): only %1 can go here.", nullptr, int(r.rejected.size())).arg(kinds));
     }
     const QString message = parts.join(QLatin1Char(' '));

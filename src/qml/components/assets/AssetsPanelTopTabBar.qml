@@ -16,6 +16,8 @@ Item {
     property var tabIcons: []
     property int activeTab: 0
     property var order: []
+    // Dafin: the button a file drag is resting on, lit like a hovered one; -1 for none.
+    property int dropHoverIndex: -1
 
     signal tabSelected(int index)
 
@@ -33,6 +35,16 @@ Item {
                 return i
         }
         return -1
+    }
+
+    // The tab model index of the category button at (x, y) in this bar's coordinates, or -1 (a
+    // divider, the margins). Used to aim a file drag at a tab by its button.
+    function tabIndexAt(x, y) {
+        const p = tabRow.mapFromItem(root, x, y)
+        const cell = tabRow.childAt(p.x, Math.max(0, Math.min(tabRow.height - 1, p.y)))
+        if (!cell || cell.isDivider === undefined || cell.isDivider)
+            return -1
+        return cell.tabIndex
     }
 
     // [{ index, divider }] built from `order` plus any tab it does not mention.
@@ -121,7 +133,8 @@ Item {
                     }
 
                     Rectangle {
-                        visible: !cell.isDivider && (hover.hovered || cell.selected)
+                        visible: !cell.isDivider && (hover.hovered || cell.selected
+                                                     || root.dropHoverIndex === cell.tabIndex)
                         anchors.fill: parent
                         anchors.margins: 3
                         radius: Theme.radiusSm

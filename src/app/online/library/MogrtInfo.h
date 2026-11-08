@@ -17,6 +17,7 @@ namespace dafin::assets::mogrt {
 
 struct TextField
 {
+    QString id;      // the control's id in definition.json (what a renderer is told to set)
     QString label;   // the control's name in the Essential Graphics panel ("Title", "Name")
     QString text;    // its default text
 };

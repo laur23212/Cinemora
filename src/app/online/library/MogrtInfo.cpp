@@ -223,7 +223,10 @@ void readDefinition(const QByteArray &json, Info &info)
         if (seen.contains(key))
             continue;
         seen.insert(key);
-        info.texts.append({label.trimmed(), text});
+        const QJsonValue idValue = control.value(QStringLiteral("id"));
+        const QString id = idValue.isString() ? idValue.toString()
+                           : idValue.isDouble() ? QString::number(idValue.toInteger()) : QString();
+        info.texts.append({id, label.trimmed(), text});
     }
     readTiming(root, info);
 }

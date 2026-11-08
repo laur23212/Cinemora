@@ -543,6 +543,12 @@ ApplicationWindow {
         function onDownloadStarted() {
             window.openMarketplace("downloads")
         }
+        // Dafin: first start after an update, or Settings > Updates > What's new.
+        function onWhatsNewReady() {
+            if (Qt.platform.os === "android")
+                return
+            window.openWhatsNew()
+        }
         function onQuitRequested() {
             window.close()
         }
@@ -582,6 +588,29 @@ ApplicationWindow {
         id: updateDialogLoader
         sourceComponent: Component {
             UpdateDialog { }
+        }
+    }
+
+    // Dafin: the first start after an update shows what is new, once the window has settled.
+    Timer {
+        interval: 2000
+        running: Updates.whatsNewPending
+        onTriggered: Updates.loadWhatsNew()
+    }
+
+    // Kept: a template render goes on after the dialog is closed and lands the clip when done.
+    LazyLoader {
+        id: mogrtTitleDialogLoader
+        keepLoaded: true
+        sourceComponent: Component {
+            MogrtTitleDialog { }
+        }
+    }
+
+    LazyLoader {
+        id: whatsNewDialogLoader
+        sourceComponent: Component {
+            WhatsNewDialog { }
         }
     }
 
@@ -948,7 +977,7 @@ ApplicationWindow {
         if (window.rejectIfProjectOpenPending())
             return
         editorHeader.confirmIfDirty(function () {
-            var url = FileDialogs.openFile(qsTr("Open Project"), editorHeader.projectFilter,
+            var url = FileDialogs.openFile(qsTr("Open Project"), editorHeader.openProjectFilter,
                                            editorHeader.projectMimeTypes)
             if (url == "")
                 return
@@ -1027,6 +1056,14 @@ ApplicationWindow {
         window.manualUpdateCheck = true
         Toasts.info(qsTr("Checking for updates…"))
         Updates.checkNow()
+    }
+
+    function openMogrtTitleDialog(item) {
+        mogrtTitleDialogLoader.ensure().openFor(item)
+    }
+
+    function openWhatsNew() {
+        whatsNewDialogLoader.ensure().open()
     }
 
     function openUpdateDialog() {

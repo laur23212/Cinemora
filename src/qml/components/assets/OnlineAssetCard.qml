@@ -16,7 +16,7 @@ import Drift
 //
 // Dafin: the user's own files (My Lotties, My sounds, imported .mogrt titles) carry Save and
 // Delete in the top-right corner; an unsaved one is marked and goes away when Dafin closes. A
-// .mogrt shows its poster, plays its embedded preview on hover and is added as an editable title.
+// .mogrt shows its poster, plays its preview on hover and opens MogrtTitleDialog when clicked.
 Item {
     id: root
 
@@ -69,9 +69,13 @@ Item {
             return
         OnlineAssets.download(item)
     }
-    // A Motion Graphics Template becomes an ordinary Dafin title: its text fields, a matching
-    // built-in style and its length. Its After Effects animation needs Adobe's renderer.
+    // A Motion Graphics Template: the dialog takes its text, then adds it animated (rendered by
+    // MOGRT Converter when that is installed) or as an ordinary editable Dafin title.
     function addTitle() {
+        if (ShellBridge.main && ShellBridge.main.openMogrtTitleDialog) {
+            ShellBridge.main.openMogrtTitleDialog(root.item)
+            return
+        }
         const extra = root.item.extra || {}
         EditorState.addTemplateTitle(extra.text || "", extra.preset || "title", extra.duration || 0, root.item.title || "")
         root.added()

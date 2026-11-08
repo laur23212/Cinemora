@@ -51,7 +51,25 @@ Item {
             const desired = Math.max(0, (rect.x - Theme.clipSelectionRingWidth) / area.panel.pxPerSecond)
             const pos = renderer.mapToItem(area.timelineColumn, rect.x + rect.width / 2,
                                              rect.y + rect.height / 2)
-            const targetTrack = area.panel.trackIndexAtY(pos.y)
+            // Dafin: a track edge, the space past the tracks or a busy stretch of another track
+            // means a new or another track; the ghost lane shows which.
+            const plan = area.stackedMoveTarget(clipIndex, info, pos.y, desired)
+            if (plan && plan.newTrack) {
+                area.lastPreviewTrack = -2
+                area.panel.clearLandingOutline()
+                area.panel.pendingDropKind = info.kind || ""
+                area.panel.dropNewTrackIndex = plan.insertIndex
+                area.panel.dropTrackIndex = -1
+                area.panel.dropStartSeconds = area.panel.snapClipStart(desired, info.duration, info.id).start
+                area.panel.dropDurationSeconds = info.duration
+                area.panel.dropCreatesNewTrack = true
+                return
+            }
+            if (area.panel.dropCreatesNewTrack) {
+                area.panel.dropCreatesNewTrack = false
+                area.panel.pendingDropKind = ""
+            }
+            const targetTrack = plan ? plan.track : area.panel.trackIndexAtY(pos.y)
             const effTrack = targetTrack >= 0 ? targetTrack : area.trackIndex
             if (Math.abs(desired - area.lastPreviewDesired) * area.panel.pxPerSecond >= 1
                     || effTrack !== area.lastPreviewTrack) {
@@ -63,6 +81,7 @@ Item {
         onMoveCanceled: {
             area.panel.clearMoveFollow()
             area.panel.clearLandingPreview()
+            area.panel.pendingDropKind = ""
             area.lastPreviewDesired = -1
             area.lastPreviewTrack = -1
         }
@@ -75,11 +94,29 @@ Item {
         }
     }
 
+    // Dafin: where a moved media clip goes when that is not simply the row under it.
+    // {newTrack: true, insertIndex} for a track edge or the space past the tracks; {newTrack:
+    // false, track} for another track, after stacking (a busy stretch hands it on to the track it
+    // stacks on); null for the usual rules (adjustments, transforms, the clip's own row).
+    function stackedMoveTarget(originClip, info, columnY, startSeconds) {
+        if (!info || info.kind === "adjustment" || info.adjustmentKind === "transform")
+            return null
+        if (typeof panel.dropTargetAtYForKind !== "function" || panel.tracks[area.trackIndex].isAdjustmentLane === true)
+            return null
+        const target = panel.dropTargetAtYForKind(info.kind, columnY)
+        if (target.newTrack)
+            return target
+        if (target.track === area.trackIndex || panel.tracks[target.track].isTransformLayer === true)
+            return null
+        return EditorState.stackTargetForClip(area.trackIndex, originClip, target.track, startSeconds)
+    }
+
     // Same decision tree the per-clip delegate ran on release, with the indices captured at press.
     function finishMove(originClip, rect) {
         const originTrack = area.trackIndex
         panel.clearMoveFollow()
         panel.clearLandingPreview()
+        panel.pendingDropKind = ""
         lastPreviewDesired = -1
         lastPreviewTrack = -1
 
@@ -92,6 +129,16 @@ Item {
         const target = typeof panel.dropTargetAtY === "function"
                      ? panel.dropTargetAtY(pos.y)
                      : { "track": panel.trackIndexAtY(pos.y), "lane": -1 }
+        const stacked = stackedMoveTarget(originClip, info, pos.y, newStart)
+        if (stacked) {
+            if (stacked.newTrack)
+                EditorState.moveClipToNewTrack(originTrack, originClip, stacked.insertIndex, newStart)
+            else if (stacked.track !== originTrack)
+                EditorState.moveClipToTrack(originTrack, originClip, stacked.track, newStart)
+            else
+                EditorState.moveClip(originTrack, originClip, newStart)
+            return
+        }
         const isAdjustment = info.kind === "adjustment"
         const wasInLane = panel.tracks[originTrack].isAdjustmentLane === true
         // Transform clips live on transform rows only, and nothing else lands on one; the C++

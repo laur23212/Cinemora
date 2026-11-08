@@ -650,6 +650,13 @@ add_library(driftcore STATIC
     src/core/project/Track.cpp
     src/core/project/Project.h
     src/core/project/Project.cpp
+    src/core/interchange/ImportedTimeline.h
+    src/core/interchange/ImportedTimelineProject.h
+    src/core/interchange/ImportedTimelineProject.cpp
+    src/core/interchange/premiere/PremiereProjectParser.h
+    src/core/interchange/premiere/PremiereProjectParser.cpp
+    src/core/interchange/filmora/FilmoraProjectParser.h
+    src/core/interchange/filmora/FilmoraProjectParser.cpp
     src/core/interchange/premiere/PrprojReader.h
     src/core/interchange/premiere/PrprojReader.cpp
     src/core/interchange/premiere/MogrtReader.h
@@ -1220,6 +1227,8 @@ target_sources(driftapp PRIVATE
     src/app/online/library/UserLibrary.cpp
     src/app/online/library/MogrtInfo.h
     src/app/online/library/MogrtInfo.cpp
+    src/app/online/library/MogrtRenderer.h
+    src/app/online/library/MogrtRenderer.cpp
     src/app/online/library/providers/UserLibraryProvider.h
     src/app/online/library/providers/UserLibraryProvider.cpp
     src/app/online/library/providers/PexelsProvider.h
@@ -2241,6 +2250,8 @@ qt_add_qml_module(drift
         src/qml/components/dialogs/AboutDialog.qml
         src/qml/components/dialogs/HelpDialog.qml
         src/qml/components/dialogs/UpdateDialog.qml
+        src/qml/components/dialogs/MogrtTitleDialog.qml
+        src/qml/components/dialogs/WhatsNewDialog.qml
         src/qml/components/dialogs/DebugInfoDialog.qml
         src/qml/components/dialogs/ThemeTrustDialog.qml
         src/qml/components/preview/PlaybackStatsOverlay.qml

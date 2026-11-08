@@ -34,6 +34,15 @@ Item {
         qsTr("JSON document (*.json)"),
         qsTr("All Files (*)")
     ]
+    // Dafin: Open also reads Premiere Pro and Filmora projects (as an untitled Dafin project).
+    readonly property var openProjectFilter: [
+        qsTr("All projects (*.drift *.prproj *.wfp)"),
+        qsTr("Drift project (*.drift)"),
+        qsTr("Premiere Pro project (*.prproj)"),
+        qsTr("Filmora project (*.wfp)"),
+        qsTr("JSON document (*.json)"),
+        qsTr("All Files (*)")
+    ]
     readonly property var projectMimeTypes: [
         "application/x-drift-project",
         "application/xml",

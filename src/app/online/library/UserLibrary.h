@@ -19,7 +19,8 @@ namespace dafin::assets {
 //
 //   lotties   "My Lotties" in Stickers   .json / .lottie animations
 //   sounds    "My sounds" in Audio       audio files
-//   titles    the Titles grid             Adobe Motion Graphics Templates (.mogrt)
+//   titles    the Titles grid             Adobe Motion Graphics Templates (.mogrt), or a .zip
+//                                         holding them with their preview video
 //
 // A file dropped on a panel is copied into this session's temporary folder and listed with a Save
 // button; it disappears when Dafin closes unless the user saves it. Saved files are copied into
@@ -121,8 +122,10 @@ private:
     bool contains(const QString &collection, const QString &id) const;
     // Copies `source` into `dir` and fills in what the panel shows. Empty with `error` when the
     // file is not usable for the collection.
+    // A template unpacked from a .zip bundle brings the preview video and poster that came with it.
     std::optional<Entry> makeEntry(const QString &collection, const QString &source, const QString &id,
-                                   const QString &dir, QString *error) const;
+                                   const QString &dir, QString *error, const QString &previewVideo = {},
+                                   const QString &posterImage = {}) const;
 
     QString m_root;
     QHash<QString, QList<Entry>> m_saved;

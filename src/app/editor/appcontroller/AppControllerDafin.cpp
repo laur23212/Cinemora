@@ -380,9 +380,17 @@ void AppController::addTemplateTitle(const QString &text, const QString &presetI
                                        : drift::kTextClipDurationUs;
 
     const drift::Project before = m_project;
-    const int trackIndex = drift::ensureTrackForClipType(m_project, drift::ClipType::Text, true);
+    int trackIndex = drift::ensureTrackForClipType(m_project, drift::ClipType::Text, true);
     if (trackIndex < 0)
         return;
+    // A second title at the same moment goes on a title track of its own, above the first.
+    {
+        const StackPlan plan = stackPlan(trackIndex, drift::ClipType::Text, m_playheadUs, duration);
+        if (plan.insertIndex >= 0)
+            trackIndex = drift::insertTrackAboveForClipType(m_project, plan.insertIndex, drift::ClipType::Text);
+        else if (plan.track >= 0)
+            trackIndex = plan.track;
+    }
     drift::Track &track = m_project.tracks()[trackIndex];
     const drift::TimeUs start =
         drift::resolveClipStart(m_project, track, -1, m_playheadUs, duration, m_snapEnabled, m_playheadUs);
@@ -650,4 +658,158 @@ void AppController::addChromaKey(const QString &clipId, double hue)
                        ? tr("Chroma key on, keyed on the frame's main colour. Change Key Colour in Effects if needed.")
                        : tr("Chroma key on. Pick the backdrop with Key Colour's eyedropper in Effects."));
     emit chromaKeyAdded();
+}
+
+// ---- Stacking (Dafin) -------------------------------------------------------------------------
+//
+// Drift places a clip that lands on a busy stretch of a track after whatever is there. That made
+// it impossible to put music under a voice-over or a sound effect over it: the second sound was
+// always pushed past the first. In Dafin a clip aimed at a busy stretch goes on the nearest track
+// that has room — below for sound, above for pictures, as Filmora numbers them — and a new track
+// is made right next to the one aimed at when none has. Overlapping only the edge of a neighbour
+// (less than a fifth of the clip, and under a second) still slides it to the gap, which is what a
+// slightly-off drop next to a clip means.
+
+namespace {
+
+bool spanBusy(const drift::Track &track, drift::TimeUs start, drift::TimeUs duration,
+              const QSet<QString> &ignore)
+{
+    const drift::TimeUs end = start + qMax<drift::TimeUs>(1, duration);
+    const drift::TimeUs graze = qMin<drift::TimeUs>(duration / 5, drift::secondsToUs(1.0));
+    for (const drift::Clip &c : track.clips) {
+        if (ignore.contains(c.id))
+            continue;
+        const drift::TimeUs overlap = qMin(end, c.timelineEnd()) - qMax(start, c.timelineStart);
+        if (overlap > graze)
+            return true;
+    }
+    return false;
+}
+
+bool stackableTrack(const drift::Track &track, drift::ClipType type)
+{
+    return !track.isAdjustment() && !track.locked && track.allowsClipType(type);
+}
+
+} // namespace
+
+AppController::StackPlan AppController::stackPlan(int trackIndex, drift::ClipType type, drift::TimeUs start,
+                                                  drift::TimeUs duration, const QSet<QString> &ignoreClipIds) const
+{
+    StackPlan plan;
+    plan.track = trackIndex;
+    const QList<drift::Track> &tracks = m_project.tracks();
+    if (trackIndex < 0 || trackIndex >= tracks.size() || m_allowClipOverlap)
+        return plan;
+    const drift::Track &target = tracks.at(trackIndex);
+    if (target.isAdjustment() || !target.allowsClipType(type))
+        return plan;
+    // Snapped the way the placement will snap it, so a drop that snaps to a clip's end counts as
+    // landing beside it.
+    const drift::TimeUs snapped = qMax<drift::TimeUs>(0, drift::snapTime(m_project, start, m_snapEnabled, m_playheadUs));
+    if (!spanBusy(target, snapped, duration, ignoreClipIds))
+        return plan;
+
+    const bool sound = type == drift::ClipType::Audio;
+    if (sound) {
+        for (int t = trackIndex + 1; t < tracks.size(); ++t) {
+            if (stackableTrack(tracks.at(t), type) && !spanBusy(tracks.at(t), snapped, duration, ignoreClipIds)) {
+                plan.track = t;
+                return plan;
+            }
+        }
+        plan.track = -1;
+        plan.insertIndex = trackIndex + 1;
+        return plan;
+    }
+    for (int t = trackIndex - 1; t >= 0; --t) {
+        const drift::Track &candidate = tracks.at(t);
+        if (candidate.isAdjustmentLane())
+            continue;
+        if (stackableTrack(candidate, type) && !spanBusy(candidate, snapped, duration, ignoreClipIds)) {
+            plan.track = t;
+            return plan;
+        }
+    }
+    plan.track = -1;
+    // Directly above the track aimed at, under the nested lanes that sit on top of it.
+    int at = trackIndex;
+    while (at > 0 && tracks.at(at - 1).isAdjustmentLane()
+           && tracks.at(at - 1).parentTrackId == target.id)
+        --at;
+    plan.insertIndex = at;
+    return plan;
+}
+
+QVariantMap AppController::stackTargetForKind(int trackIndex, const QString &mediaKind, double startSeconds,
+                                              double durationSeconds) const
+{
+    const StackPlan plan = stackPlan(trackIndex, drift::clipTypeFromString(mediaKind),
+                                     drift::secondsToUs(qMax(0.0, startSeconds)),
+                                     drift::secondsToUs(qMax(0.04, durationSeconds)));
+    if (plan.insertIndex >= 0)
+        return {{QStringLiteral("newTrack"), true}, {QStringLiteral("insertIndex"), plan.insertIndex}};
+    return {{QStringLiteral("newTrack"), false}, {QStringLiteral("track"), plan.track}};
+}
+
+QVariantMap AppController::stackTargetForClip(int fromTrack, int clipIndex, int targetTrack, double startSeconds) const
+{
+    if (!isValidClipIndex(fromTrack, clipIndex))
+        return {{QStringLiteral("newTrack"), false}, {QStringLiteral("track"), targetTrack}};
+    const drift::Clip &clip = m_project.tracks().at(fromTrack).clips.at(clipIndex);
+    // The clip and whatever moves with it are not in their own way.
+    QSet<QString> ignore{clip.id};
+    for (const QPair<int, int> &pair : m_selection) {
+        if (isValidClipIndex(pair.first, pair.second))
+            ignore.insert(m_project.tracks().at(pair.first).clips.at(pair.second).id);
+    }
+    for (const drift::ClipRef &ref : drift::linkedPartners(m_project, clip))
+        ignore.insert(m_project.tracks().at(ref.trackIndex).clips.at(ref.clipIndex).id);
+    const StackPlan plan = stackPlan(targetTrack, clip.type, drift::secondsToUs(qMax(0.0, startSeconds)),
+                                     clip.timelineDuration, ignore);
+    if (plan.insertIndex >= 0)
+        return {{QStringLiteral("newTrack"), true}, {QStringLiteral("insertIndex"), plan.insertIndex}};
+    return {{QStringLiteral("newTrack"), false}, {QStringLiteral("track"), plan.track}};
+}
+
+void AppController::moveClipToNewTrack(int trackIndex, int clipIndex, int insertIndex, double newStart)
+{
+    if (!isValidClipIndex(trackIndex, clipIndex) || m_moveBaseline)
+        return;
+    const drift::Clip clip = m_project.tracks().at(trackIndex).clips.at(clipIndex);
+    if (clip.type == drift::ClipType::Adjustment)
+        return;
+    const drift::Project before = m_project;
+    const int at = qBound(0, insertIndex, int(m_project.tracks().size()));
+    const int newTrack = drift::insertTrackAboveForClipType(m_project, at, clip.type);
+    if (!m_project.tracks().at(newTrack).acceptsClip(clip)) {
+        m_project = before;
+        return;
+    }
+    // Indices at and below the new track moved down one.
+    const auto shifted = [newTrack](int t) { return t >= newTrack ? t + 1 : t; };
+    for (QPair<int, int> &pair : m_selection)
+        pair.first = shifted(pair.first);
+    if (m_selectedTrack >= 0)
+        m_selectedTrack = shifted(m_selectedTrack);
+    m_moveBaseline = before;
+    moveClipToTrack(shifted(trackIndex), clipIndex, newTrack, newStart);
+    m_moveBaseline.reset();
+
+    int t = -1;
+    int c = -1;
+    if (!findClipById(m_project, clip.id, &t, &c) || m_project.tracks().at(newTrack).clips.isEmpty()) {
+        // The move was refused (a clip can't cover another completely, …): no empty track left behind.
+        if (m_project.tracks().size() > newTrack && m_project.tracks().at(newTrack).clips.isEmpty()
+            && m_project.tracks().size() == before.tracks().size() + 1) {
+            m_project.tracks().removeAt(newTrack);
+            for (QPair<int, int> &pair : m_selection)
+                if (pair.first > newTrack)
+                    --pair.first;
+            if (m_selectedTrack > newTrack)
+                --m_selectedTrack;
+            finishEdit(QString());
+        }
+    }
 }

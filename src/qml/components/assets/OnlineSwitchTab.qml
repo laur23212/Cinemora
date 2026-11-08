@@ -6,9 +6,10 @@ import Drift
 // per tab. `builtin` is the tab's original component, untouched.
 //
 // Dafin: files dragged onto the tab from the computer join the user's own library for it —
-// Lottie files go to My Lotties (Stickers), audio to My sounds (Audio), .mogrt templates to
-// Titles — and the view jumps to them. Other files fall through to the panel, which imports
-// them into Media as before.
+// Lottie files go to My Lotties (Stickers), audio to My sounds (Audio), .mogrt templates (or a
+// .zip with one and its preview) to Titles — and the view jumps to them. The assets panel's own
+// DropArea routes the drop (AssetsPanel.routeDroppedUrls) and calls setOnline/showUserFiles here;
+// other files are imported into Media as before.
 Item {
     id: root
 
@@ -108,7 +109,7 @@ Item {
         opacity: 0.85
         font.pixelSize: Theme.fontSizeXs
         text: root.userCollection === "titles"
-              ? qsTr("You can add new title effects by dragging .mogrt files into this tab and pressing Save.")
+              ? qsTr("You can add new title effects by dragging .mogrt files (or a .zip with a .mogrt and its preview) into this tab and pressing Save.")
               : root.userCollection === "sounds"
                 ? qsTr("You can add new sounds by dragging audio files into this tab and pressing Save. They stay in My sounds.")
                 : qsTr("You can add new Lotties by dragging .json or .lottie files into this tab and pressing Save. They stay in My Lotties.")
@@ -120,62 +121,6 @@ Item {
             kinds: root.onlineKinds
             allowLinks: root.allowLinks
             onAdded: root.added()
-        }
-    }
-
-    // Above the content, so it sees a drag before the panel-wide import area does. A drag with
-    // nothing this tab takes is refused here and reaches that area unchanged.
-    DropArea {
-        id: userDrop
-        anchors.fill: parent
-        enabled: root.userCollection.length > 0
-        keys: ["text/uri-list"]
-        onEntered: (drag) => {
-            drag.accepted = drag.hasUrls && OnlineAssets.userCollectionAccepts(root.userCollection, drag.urls)
-        }
-        onDropped: (drop) => {
-            if (!drop.hasUrls)
-                return
-            drop.accept(Qt.CopyAction)
-            const urls = drop.urls
-            // Online first, so the grid that lists them (and shows the result) exists.
-            if (!root.online)
-                root.setOnline(true)
-            const result = OnlineAssets.importUserFiles(root.userCollection, urls)
-            if (result.added > 0 || result.duplicates > 0)
-                root.showUserFiles()
-        }
-    }
-
-    Rectangle {
-        anchors.fill: parent
-        anchors.margins: 2
-        visible: userDrop.containsDrag
-        radius: Theme.radiusSm
-        color: Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.12)
-        border.width: 2
-        border.color: Theme.primary
-
-        Column {
-            anchors.centerIn: parent
-            width: parent.width - Theme.spacingLg * 2
-            spacing: Theme.spacingSm
-            IconGlyph {
-                anchors.horizontalCenter: parent.horizontalCenter
-                glyph: Theme.icons.download
-                iconSize: 28
-                iconColor: Theme.primary
-            }
-            Text {
-                width: parent.width
-                horizontalAlignment: Text.AlignHCenter
-                wrapMode: Text.WordWrap
-                text: root.userCollection === "titles" ? qsTr("Drop to add the templates to Titles")
-                                                       : qsTr("Drop to add to %1").arg(OnlineAssets.userCollectionName(root.userCollection))
-                color: Theme.panelForeground
-                font.pixelSize: Theme.fontSizeBase
-                font.weight: Font.DemiBold
-            }
         }
     }
 }

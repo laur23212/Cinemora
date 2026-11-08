@@ -143,6 +143,148 @@ QJsonObject entryToJson(const UserLibrary::Entry &e)
     return o;
 }
 
+
+// A template bundle as sites hand them out: a .zip with the .mogrt and, beside it, a preview video
+// (and often a poster image). Each .mogrt inside is copied out to `workDir` and paired with the
+// preview that fits it best — one named like it, else the only one, else one called "preview".
+struct BundledTemplate
+{
+    QString mogrtPath;
+    QString previewPath;
+    QString posterPath;
+    QString name;        // the .mogrt's file name inside the zip
+};
+
+bool ignoredZipPath(const QString &path)
+{
+    const QString name = QFileInfo(path).fileName();
+    return path.startsWith(QLatin1String("__MACOSX/")) || path.contains(QLatin1String("/__MACOSX/"))
+           || name.startsWith(QLatin1String("._")) || name.startsWith(QLatin1Char('.'));
+}
+
+bool isPreviewVideoName(const QString &suffix)
+{
+    return suffix == QLatin1String("mp4") || suffix == QLatin1String("mov") || suffix == QLatin1String("m4v")
+           || suffix == QLatin1String("webm");
+}
+
+bool isPosterImageName(const QString &suffix)
+{
+    return suffix == QLatin1String("jpg") || suffix == QLatin1String("jpeg") || suffix == QLatin1String("png")
+           || suffix == QLatin1String("webp") || suffix == QLatin1String("gif");
+}
+
+// Lower-case base name without separators, so "Title_01.mogrt" matches "title-01 preview.mp4".
+QString matchKey(const QString &path)
+{
+    QString key = QFileInfo(path).completeBaseName().toLower();
+    key.remove(QRegularExpression(QStringLiteral("[^\\p{L}\\p{N}]+")));
+    return key;
+}
+
+const drift::zip::Entry *bestCompanion(const QList<const drift::zip::Entry *> &candidates, const QString &mogrtPath,
+                                       int mogrtCount)
+{
+    if (candidates.isEmpty())
+        return nullptr;
+    const QString key = matchKey(mogrtPath);
+    const QString dir = QFileInfo(mogrtPath).path();
+    const drift::zip::Entry *best = nullptr;
+    int bestScore = -1;
+    for (const drift::zip::Entry *e : candidates) {
+        const QString other = matchKey(e->path);
+        int score = 0;
+        if (!key.isEmpty() && other == key)
+            score = 100;
+        else if (!key.isEmpty() && (other.startsWith(key) || key.startsWith(other)) && !other.isEmpty())
+            score = 60;
+        else if (other.contains(QLatin1String("preview")) || other.contains(QLatin1String("thumb"))
+                 || other.contains(QLatin1String("poster")))
+            score = 20;
+        else if (mogrtCount == 1)
+            score = 10;
+        if (QFileInfo(e->path).path() == dir)
+            score += 5;
+        if (score > bestScore) {
+            bestScore = score;
+            best = e;
+        }
+    }
+    // With several templates in one bundle, a preview that matches none of them by name is not
+    // given to any of them.
+    return bestScore >= (mogrtCount == 1 ? 0 : 20) ? best : nullptr;
+}
+
+QList<BundledTemplate> unpackTemplateBundle(const QString &zipPath, const QString &workDir, QString *error)
+{
+    QList<BundledTemplate> out;
+    QFile file(zipPath);
+    if (!file.open(QIODevice::ReadOnly)) {
+        *error = QObject::tr("Couldn't read %1.").arg(QFileInfo(zipPath).fileName());
+        return out;
+    }
+    QString zipError;
+    const QList<drift::zip::Entry> entries = drift::zip::readEntries(file, &zipError);
+    QList<const drift::zip::Entry *> mogrts;
+    QList<const drift::zip::Entry *> videos;
+    QList<const drift::zip::Entry *> images;
+    for (const drift::zip::Entry &e : entries) {
+        if (e.isDir || ignoredZipPath(e.path))
+            continue;
+        const QString suffix = QFileInfo(e.path).suffix().toLower();
+        if (suffix == QLatin1String("mogrt"))
+            mogrts.append(&e);
+        else if (isPreviewVideoName(suffix) && e.uncompressedSize > 0 && e.uncompressedSize <= 300u * 1024 * 1024)
+            videos.append(&e);
+        else if (isPosterImageName(suffix) && e.uncompressedSize > 0 && e.uncompressedSize <= 32u * 1024 * 1024)
+            images.append(&e);
+    }
+    if (mogrts.isEmpty()) {
+        *error = entries.isEmpty() && !zipError.isEmpty()
+                     ? QObject::tr("%1 is not a zip file Dafin can read.").arg(QFileInfo(zipPath).fileName())
+                     : QObject::tr("%1 has no .mogrt template inside.").arg(QFileInfo(zipPath).fileName());
+        return out;
+    }
+    QDir(workDir).removeRecursively();
+    QDir().mkpath(workDir);
+    const auto extractTo = [&file](const drift::zip::Entry *e, const QString &dest) {
+        QByteArray data;
+        if (!drift::zip::extractEntry(file, *e, data) || data.isEmpty())
+            return false;
+        QSaveFile f(dest);
+        if (!f.open(QIODevice::WriteOnly))
+            return false;
+        f.write(data);
+        return f.commit();
+    };
+    int n = 0;
+    for (const drift::zip::Entry *m : std::as_const(mogrts)) {
+        if (m->uncompressedSize == 0 || qint64(m->uncompressedSize) > kMaxFileBytes)
+            continue;
+        const QString slot = workDir + QStringLiteral("/%1").arg(n++);
+        QDir().mkpath(slot);
+        BundledTemplate t;
+        t.name = QFileInfo(m->path).fileName();
+        t.mogrtPath = slot + QLatin1Char('/') + storedFileName(m->path);
+        if (!extractTo(m, t.mogrtPath))
+            continue;
+        if (const drift::zip::Entry *v = bestCompanion(videos, m->path, int(mogrts.size()))) {
+            const QString dest = slot + QStringLiteral("/preview.") + QFileInfo(v->path).suffix().toLower();
+            if (extractTo(v, dest))
+                t.previewPath = dest;
+        }
+        if (const drift::zip::Entry *i = bestCompanion(images, m->path, int(mogrts.size()))) {
+            const QString dest = slot + QStringLiteral("/poster.") + QFileInfo(i->path).suffix().toLower();
+            if (extractTo(i, dest))
+                t.posterPath = dest;
+        }
+        out.append(t);
+    }
+    if (out.isEmpty())
+        *error = QObject::tr("Couldn't unpack the template in %1.").arg(QFileInfo(zipPath).fileName());
+    return out;
+}
+
 } // namespace
 
 // ─── collections ─────────────────────────────────────────────────────────────────────────────
@@ -197,7 +339,7 @@ QStringList UserLibrary::fileSuffixes(const QString &collection)
                 QStringLiteral("wma"), QStringLiteral("aif"), QStringLiteral("aiff"), QStringLiteral("caf"),
                 QStringLiteral("mka"), QStringLiteral("ac3"), QStringLiteral("amr")};
     if (collection == kTitles)
-        return {QStringLiteral("mogrt")};
+        return {QStringLiteral("mogrt"), QStringLiteral("zip")};
     return {};
 }
 
@@ -319,7 +461,8 @@ int UserLibrary::unsavedCount(const QString &collection) const
 
 std::optional<UserLibrary::Entry> UserLibrary::makeEntry(const QString &collection, const QString &source,
                                                          const QString &id, const QString &dir,
-                                                         QString *error) const
+                                                         QString *error, const QString &previewVideo,
+                                                         const QString &posterImage) const
 {
     const QFileInfo info(source);
     const QString name = info.fileName();
@@ -390,19 +533,32 @@ std::optional<UserLibrary::Entry> UserLibrary::makeEntry(const QString &collecti
             return fail(readError.isEmpty() ? tr("%1 is not a Motion Graphics Template.").arg(name) : readError);
         if (!tmpl->title.isEmpty())
             e.title = tmpl->title;
-        if (!tmpl->posterEntry.isEmpty()) {
+        // A preview and poster that came beside the template in its zip win over what the
+        // template carries: those are the renders the author made to show it off.
+        if (!previewVideo.isEmpty()) {
+            const QString preview = QStringLiteral("preview.") + QFileInfo(previewVideo).suffix().toLower();
+            if (copyFileTo(previewVideo, dir + QLatin1Char('/') + preview))
+                e.meta.insert(QStringLiteral("previewVideo"), preview);
+        }
+        if (!posterImage.isEmpty()) {
+            const QString poster = QStringLiteral("poster.") + QFileInfo(posterImage).suffix().toLower();
+            if (copyFileTo(posterImage, dir + QLatin1Char('/') + poster))
+                e.meta.insert(QStringLiteral("poster"), poster);
+        }
+        if (!tmpl->posterEntry.isEmpty() && !e.meta.contains(QStringLiteral("poster"))) {
             const QString poster = QStringLiteral("poster.") + QFileInfo(tmpl->posterEntry).suffix().toLower();
             if (mogrt::extract(e.filePath(), tmpl->posterEntry, dir + QLatin1Char('/') + poster, 32LL * 1024 * 1024))
                 e.meta.insert(QStringLiteral("poster"), poster);
         }
-        if (!tmpl->previewEntry.isEmpty()) {
+        if (!tmpl->previewEntry.isEmpty() && !e.meta.contains(QStringLiteral("previewVideo"))) {
             const QString preview = QStringLiteral("preview.") + QFileInfo(tmpl->previewEntry).suffix().toLower();
             if (mogrt::extract(e.filePath(), tmpl->previewEntry, dir + QLatin1Char('/') + preview))
                 e.meta.insert(QStringLiteral("previewVideo"), preview);
         }
         QVariantList texts;
         for (const mogrt::TextField &f : tmpl->texts)
-            texts.append(QVariantMap{{QStringLiteral("label"), f.label}, {QStringLiteral("text"), f.text}});
+            texts.append(QVariantMap{{QStringLiteral("id"), f.id}, {QStringLiteral("label"), f.label},
+                                     {QStringLiteral("text"), f.text}});
         e.meta.insert(QStringLiteral("texts"), texts);
         e.meta.insert(QStringLiteral("text"), mogrt::titleText(*tmpl));
         e.meta.insert(QStringLiteral("preset"), mogrt::titlePreset(*tmpl));
@@ -420,12 +576,42 @@ UserLibrary::ImportResult UserLibrary::importFiles(const QString &collection, co
     if (!this->collection(collection))
         return result;
     QList<Entry> added;
+    struct Source
+    {
+        QString path;
+        QString displayName;
+        QString previewVideo;
+        QString posterImage;
+    };
+    QList<Source> sources;
     for (const QString &path : paths) {
         const QFileInfo info(path);
         if (!accepts(collection, path)) {
             result.rejected.append(info.fileName());
             continue;
         }
+        if (collection == kTitles && info.suffix().compare(QLatin1String("zip"), Qt::CaseInsensitive) == 0) {
+            QString bundleError;
+            const QString work = sessionDir(collection) + QStringLiteral("/.bundles/")
+                                 + QString::fromLatin1(QCryptographicHash::hash(path.toUtf8(), QCryptographicHash::Sha1)
+                                                           .toHex()
+                                                           .left(12));
+            const QList<BundledTemplate> bundled = unpackTemplateBundle(path, work, &bundleError);
+            if (bundled.isEmpty()) {
+                result.rejected.append(info.fileName());
+                if (result.error.isEmpty())
+                    result.error = bundleError;
+                continue;
+            }
+            for (const BundledTemplate &t : bundled)
+                sources.append({t.mogrtPath, t.name, t.previewPath, t.posterPath});
+            continue;
+        }
+        sources.append({path, info.fileName(), QString(), QString()});
+    }
+    for (const Source &source : std::as_const(sources)) {
+        const QString &path = source.path;
+        const QFileInfo info(path);
         const QString id = contentId(path);
         if (id.isEmpty()) {
             if (result.error.isEmpty())
@@ -439,16 +625,22 @@ UserLibrary::ImportResult UserLibrary::importFiles(const QString &collection, co
             continue;
         }
         QString error;
-        const std::optional<Entry> e = makeEntry(collection, path, id, sessionDir(collection) + QLatin1Char('/') + id, &error);
+        std::optional<Entry> e = makeEntry(collection, path, id, sessionDir(collection) + QLatin1Char('/') + id, &error,
+                                           source.previewVideo, source.posterImage);
         if (!e) {
-            result.rejected.append(info.fileName());
+            result.rejected.append(source.displayName);
             if (result.error.isEmpty())
                 result.error = error;
             continue;
         }
+        if (source.displayName != info.fileName())
+            e->meta.insert(QStringLiteral("originalName"), source.displayName);
         added.append(*e);
         result.added.append(id);
     }
+    // Templates unpacked from bundles were copied into their entries; the scratch copies can go.
+    if (collection == kTitles)
+        QDir(sessionDir(collection) + QStringLiteral("/.bundles")).removeRecursively();
     if (!added.isEmpty()) {
         // Newest first, keeping the dropped order among themselves.
         QList<Entry> &session = m_session[collection];

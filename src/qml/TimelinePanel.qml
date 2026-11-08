@@ -776,18 +776,25 @@ PanelFrame {
     // the placement on release can never disagree — they used to hold two copies of this rule.
     // An empty project fills its existing track wherever you aim, rather than stacking a second
     // one on top of it.
-    function resolveDropTarget(mediaKind, dropY) {
+    //
+    // Dafin: given where and how long the clip is, a row that is busy there hands it on to the
+    // track it stacks on (EditorState.stackTargetForKind): music dropped on a voice-over lands on
+    // the audio track under it, a new one if need be, instead of being pushed after it.
+    function resolveDropTarget(mediaKind, dropY, startSeconds, durationSeconds) {
         if (!timelineHasClips()) {
             const firstIdx = firstCompatibleTrackIndexForKind(mediaKind)
             if (firstIdx >= 0)
                 return { "newTrack": false, "track": firstIdx }
         }
-        return dropTargetAtYForKind(mediaKind, dropY)
+        const target = dropTargetAtYForKind(mediaKind, dropY)
+        if (!target.newTrack && startSeconds !== undefined && durationSeconds > 0)
+            return EditorState.stackTargetForKind(target.track, mediaKind, startSeconds, durationSeconds)
+        return target
     }
 
     function updateDropPreviewForKind(mediaKind, duration, dropX, dropY) {
         const desired = Math.max(0, dropX / pxPerSecond)
-        const target = resolveDropTarget(mediaKind, dropY)
+        const target = resolveDropTarget(mediaKind, dropY, desired, duration)
 
         if (!target.newTrack) {
             dropCreatesNewTrack = false
@@ -846,8 +853,10 @@ PanelFrame {
             dropRouter.drop("maskMedia", String(assetIndex), "", dropX, dropY)
             return
         }
-        placeAssetAtTarget(assetIndex, Math.max(0, dropX / pxPerSecond),
-                           resolveDropTarget(assetKind(assetIndex), dropY))
+        const atSeconds = Math.max(0, dropX / pxPerSecond)
+        placeAssetAtTarget(assetIndex, atSeconds,
+                           resolveDropTarget(assetKind(assetIndex), dropY, atSeconds,
+                                             assetDurationSeconds(assetIndex)))
     }
 
     // File-manager drops ---------------------------------------------------------------------
@@ -1456,9 +1465,11 @@ PanelFrame {
                 // Was `height`, so once the tracks were taller than the panel the
                 // lower ones were silently truncated and could not be reached at
                 // all. totalTracksHeight() was already computed but never used.
+                // Dafin: an empty lane's worth below the last track, so there is always somewhere
+                // to drop or drag a clip onto a new track underneath (Audio 2, Audio 3 …).
                 contentHeight: Math.max(height,
                                         headerHeight + root.totalTracksHeightCached
-                                        + Theme.trackGap)
+                                        + Theme.trackGap + Theme.trackHeightAudio)
                 clip: true
                 boundsBehavior: Flickable.StopAtBounds
                 ScrollBar.horizontal: AppScrollBar { policy: ScrollBar.AlwaysOn }

@@ -621,6 +621,18 @@ public:
     // Same, but the new track goes at insertIndex rather than always on top, so
     // a timeline drop can create a lane below the tracks as well as above them.
     Q_INVOKABLE void addClipFromAssetOnNewTrackAt(int assetIndex, int insertIndex, double atSeconds);
+    // Dafin: stacking. Where a clip of `mediaKind` aimed at `trackIndex` over
+    // [startSeconds, startSeconds + durationSeconds) lands: that track while the span is free there,
+    // else the nearest free track that takes it (below for sound, above for pictures), else a new
+    // track right next to it — so background music goes under a voice-over instead of being pushed
+    // after it. {newTrack: false, track} or {newTrack: true, insertIndex}.
+    Q_INVOKABLE QVariantMap stackTargetForKind(int trackIndex, const QString &mediaKind, double startSeconds,
+                                               double durationSeconds) const;
+    // The same for a clip already on the timeline being moved onto `targetTrack`.
+    Q_INVOKABLE QVariantMap stackTargetForClip(int fromTrack, int clipIndex, int targetTrack, double startSeconds) const;
+    // Moves a clip (and what moves with it) onto a new track inserted at `insertIndex`, as one
+    // undo step: dragging a clip to a track edge or the empty space below the tracks.
+    Q_INVOKABLE void moveClipToNewTrack(int trackIndex, int clipIndex, int insertIndex, double newStart);
     Q_INVOKABLE int clipCountForAsset(int assetIndex) const;
     Q_INVOKABLE bool removeAsset(int assetIndex);
     // Multi-select bulk removal, one undo step for the whole batch. Like removeAsset, refuses
@@ -2163,6 +2175,16 @@ protected:
     bool m_rippleEnabled = false;
     drift::TimeUs m_snapThresholdUs = drift::kSnapThresholdUs;
     bool m_allowClipOverlap = false;
+    // Dafin: set while moveClipToNewTrack runs, so the move it hands to moveClipToTrack records
+    // the project from before the new track as its undo state.
+    std::optional<drift::Project> m_moveBaseline;
+    struct StackPlan
+    {
+        int track = -1;        // land here …
+        int insertIndex = -1;  // … or on a new track inserted at this index
+    };
+    StackPlan stackPlan(int trackIndex, drift::ClipType type, drift::TimeUs start, drift::TimeUs duration,
+                        const QSet<QString> &ignoreClipIds = {}) const;
     bool m_loopWorkAreaEnabled = false;
     QString m_mediaViewMode = QStringLiteral("grid");
     bool m_autoKeyEnabled = false;

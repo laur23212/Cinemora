@@ -98,6 +98,8 @@ public:
     Q_INVOKABLE QString userCollectionFilter(const QString &collection) const;
     // Whether any of these dropped URLs (files or folders) can go into the collection.
     Q_INVOKABLE bool userCollectionAccepts(const QString &collection, const QVariantList &urls) const;
+    // The dropped URLs the collection does not take (other media), for the Media import.
+    Q_INVOKABLE QVariantList urlsNotAcceptedBy(const QString &collection, const QVariantList &urls) const;
     // Copies the files in for this session. Returns {added, duplicates, rejected, message}; the
     // message is also sent as notice().
     Q_INVOKABLE QVariantMap importUserFiles(const QString &collection, const QVariantList &urls);

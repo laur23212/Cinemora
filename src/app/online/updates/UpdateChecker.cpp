@@ -46,6 +46,12 @@ namespace {
 // there is no reason to ask more often than releases happen.
 constexpr qint64 kCheckIntervalSeconds = 24 * 60 * 60;
 
+// Dafin: Settings > Updates chooses the interval; once a day stays the default. While Dafin runs
+// it looks again whenever the interval has passed, checked every half hour.
+constexpr int kDefaultIntervalHours = 24;
+constexpr int kMaxIntervalHours = 24 * 31;
+constexpr int kPeriodicCheckMs = 30 * 60 * 1000;
+
 // Long enough that the first frame, the project restore and the addon index refresh are all past
 // before a socket is opened. Nothing in the app waits on this.
 constexpr int kStartupDelayMs = 5000;
@@ -125,6 +131,8 @@ UpdateChecker::UpdateChecker(QObject *parent)
     QSettings settings;
     m_skippedVersion = settings.value(settingsKey("skippedVersion")).toString();
     m_announcedVersion = settings.value(settingsKey("announcedVersion")).toString();
+    // Before restorePending(), which forgets the release this version was installed from.
+    detectUpdatedVersion();
     restorePending();
 
     // The helper has to be started from aboutToQuit: the installer cannot replace a binary that
@@ -138,6 +146,15 @@ UpdateChecker::UpdateChecker(QObject *parent)
         connect(this, changed, this, &UpdateChecker::downloadJobChanged);
 
     scheduleStartup();
+
+    m_periodic = new QTimer(this);
+    m_periodic->setInterval(kPeriodicCheckMs);
+    connect(m_periodic, &QTimer::timeout, this, [this] {
+        if (canCheck() && enabled() && intervalHours() > 0 && checkDue())
+            check(false);
+    });
+    if (canCheck())
+        m_periodic->start();
 }
 
 UpdateChecker::~UpdateChecker()
@@ -192,6 +209,131 @@ void UpdateChecker::setEnabled(bool enabled)
         return;
     QSettings().setValue(settingsKey("enabled"), enabled);
     emit enabledChanged();
+}
+
+bool UpdateChecker::canCheck() const
+{
+#if defined(Q_OS_ANDROID)
+    return false;
+#else
+    return !kFeedUrl.isEmpty();
+#endif
+}
+
+int UpdateChecker::intervalHours() const
+{
+    bool ok = false;
+    const int hours = QSettings().value(settingsKey("intervalHours"), kDefaultIntervalHours).toInt(&ok);
+    return ok ? qBound(0, hours, kMaxIntervalHours) : kDefaultIntervalHours;
+}
+
+void UpdateChecker::setIntervalHours(int hours)
+{
+    hours = qBound(0, hours, kMaxIntervalHours);
+    if (hours == intervalHours())
+        return;
+    QSettings().setValue(settingsKey("intervalHours"), hours);
+    emit intervalChanged();
+}
+
+QDateTime UpdateChecker::lastChecked() const
+{
+    return QSettings().value(settingsKey("lastCheck")).toDateTime();
+}
+
+bool UpdateChecker::checkDue() const
+{
+    const int hours = intervalHours();
+    if (hours <= 0)
+        return true;
+    const QDateTime last = lastChecked();
+    return !last.isValid() || last.secsTo(QDateTime::currentDateTimeUtc()) >= qint64(hours) * 3600;
+}
+
+// ─── What's new (Dafin) ──────────────────────────────────────────────────────────────────────
+//
+// The version that ran last is remembered. When this one is newer, it was just updated: the notes
+// of its release are shown once. They come from the release the updater found (kept in the pending
+// settings until this start), or else from the release page on GitHub.
+
+void UpdateChecker::detectUpdatedVersion()
+{
+    QSettings settings;
+    const QString last = settings.value(settingsKey("lastRunVersion")).toString();
+    settings.setValue(settingsKey("lastRunVersion"), kCurrentVersion);
+    if (settings.value(settingsKey("pendingVersion")).toString() == kCurrentVersion)
+        m_keptNotes = settings.value(settingsKey("pendingNotes")).toString();
+    bool updated = false;
+    if (!last.isEmpty())
+        updated = drift::compareVersions(kCurrentVersion, last) > 0;
+    else
+        // Copies from before this was remembered: one that has checked for updates before ran an
+        // older version; a fresh install has never checked.
+        updated = settings.contains(settingsKey("lastCheck"));
+    if (!updated || kCurrentVersion.contains(QLatin1String("nightly")))
+        return;
+    if (settings.value(settingsKey("whatsNewSeen")).toString() == kCurrentVersion)
+        return;
+    m_whatsNewVersion = kCurrentVersion;
+    // Shown once the window is up and the startup prompts have had their turn (Main.qml).
+    m_whatsNewPending = true;
+}
+
+void UpdateChecker::loadWhatsNew()
+{
+    m_whatsNewVersion = kCurrentVersion;
+    if (!m_keptNotes.trimmed().isEmpty()) {
+        m_whatsNewNotes = m_keptNotes;
+        m_whatsNewLoading = false;
+        emit whatsNewChanged();
+        emit whatsNewReady();
+        return;
+    }
+    const QString pageUrl = drift::releasePageUrl(kFeedUrl, kCurrentVersion);
+    QString apiUrl = kFeedUrl;
+    if (apiUrl.endsWith(QLatin1String("/releases/latest")))
+        apiUrl.chop(int(qstrlen("latest")));
+    else
+        apiUrl.clear();
+    if (apiUrl.isEmpty() || kCurrentVersion.isEmpty()) {
+        m_whatsNewNotes.clear();
+        emit whatsNewChanged();
+        emit whatsNewReady();
+        return;
+    }
+    apiUrl += QStringLiteral("tags/v") + kCurrentVersion;
+    m_whatsNewLoading = true;
+    emit whatsNewChanged();
+
+    QNetworkRequest request{QUrl(apiUrl)};
+    request.setHeader(QNetworkRequest::UserAgentHeader, userAgent());
+    request.setRawHeader("Accept", "application/vnd.github+json");
+    request.setRawHeader("X-GitHub-Api-Version", "2022-11-28");
+    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
+    request.setTransferTimeout(kTransferTimeoutMs);
+    QNetworkReply *reply = m_network->get(request);
+    connect(reply, &QNetworkReply::finished, this, [this, reply, pageUrl] {
+        reply->deleteLater();
+        QString notes;
+        if (reply->error() == QNetworkReply::NoError)
+            notes = QJsonDocument::fromJson(reply->readAll()).object().value(QStringLiteral("body")).toString();
+        if (notes.trimmed().isEmpty() && !pageUrl.isEmpty())
+            notes = tr("Read about this version on its [release page](%1).").arg(pageUrl);
+        m_whatsNewNotes = notes;
+        m_keptNotes = notes;
+        m_whatsNewLoading = false;
+        emit whatsNewChanged();
+        emit whatsNewReady();
+    });
+}
+
+void UpdateChecker::dismissWhatsNew()
+{
+    QSettings().setValue(settingsKey("whatsNewSeen"), kCurrentVersion);
+    if (m_whatsNewPending) {
+        m_whatsNewPending = false;
+        emit whatsNewChanged();
+    }
 }
 
 bool UpdateChecker::checking() const
@@ -362,12 +504,12 @@ void UpdateChecker::setError(const QString &error)
 
 void UpdateChecker::scheduleStartup()
 {
-    if (!supported() || !enabled())
+    if (!canCheck() || !enabled())
         return;
 
-    const QDateTime last = QSettings().value(settingsKey("lastCheck")).toDateTime();
-    const bool due = !last.isValid()
-            || last.secsTo(QDateTime::currentDateTimeUtc()) >= kCheckIntervalSeconds;
+    // Dafin: the interval chosen in Settings (0: every start) instead of upstream's fixed day.
+    Q_UNUSED(kCheckIntervalSeconds);
+    const bool due = checkDue();
 
     QTimer::singleShot(kStartupDelayMs, this, [this, due] {
         if (due)
@@ -464,7 +606,7 @@ void UpdateChecker::markAnnounced()
 
 void UpdateChecker::check(bool manual)
 {
-    if (m_checking || m_downloading || m_preparing || !supported())
+    if (m_checking || m_downloading || m_preparing || !canCheck())
         return;
 
     setChecking(true);
@@ -493,6 +635,7 @@ void UpdateChecker::check(bool manual)
         // No release published yet: nothing newer than this build.
         if (httpStatus == 404) {
             QSettings().setValue(settingsKey("lastCheck"), QDateTime::currentDateTimeUtc());
+            emit lastCheckedChanged();
             clearRelease();
             if (manual)
                 setStatus(tr("Drift %1 is the latest version.").arg(kCurrentVersion));
@@ -524,6 +667,7 @@ void UpdateChecker::check(bool manual)
         }
 
         QSettings().setValue(settingsKey("lastCheck"), QDateTime::currentDateTimeUtc());
+        emit lastCheckedChanged();
         if (drift::compareVersions(kCurrentVersion, version) >= 0) {
             clearRelease();
             if (manual)
@@ -688,7 +832,8 @@ void UpdateChecker::clearPending()
 
 void UpdateChecker::announceIfNeeded()
 {
-    if (!installSupported() || !updateAvailable())
+    // Dafin: a portable copy is told as well; its dialog opens the release page.
+    if (!(installSupported() || (portable() && canCheck())) || !updateAvailable())
         return;
     if (m_latestVersion == m_announcedVersion)
         return;

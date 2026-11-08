@@ -51,6 +51,7 @@
 #include "ui/imageproviders/ShapePreviewImageProvider.h"
 #include "ui/imageproviders/LottieFramePreviewImageProvider.h"
 #include "app/online/library/AssetSearchService.h"
+#include "app/online/library/MogrtRenderer.h"
 #include "app/online/library/ThumbnailCache.h"
 #include "ui/imageproviders/TextStylePreviewImageProvider.h"
 #include "playback/stats/PerfLog.h"
@@ -823,6 +824,8 @@ int main(int argc, char *argv[])
     qmlRegisterSingletonInstance("Drift", 1, 0, "DriftAssets", &market.driftAssets);
     qmlRegisterSingletonInstance("Drift", 1, 0, "Sfx", &market.sfx);
     qmlRegisterSingletonInstance("Drift", 1, 0, "OnlineAssets", &market.onlineAssets);
+    static dafin::assets::MogrtRenderer mogrtRenderer;
+    qmlRegisterSingletonInstance("Drift", 1, 0, "MogrtRenderer", &mogrtRenderer);
     qmlRegisterType<dafin::assets::AssetSearchModel>("Drift", 1, 0, "AssetSearchModel");
     qmlRegisterSingletonInstance("Drift", 1, 0, "Marketplace", &market.manifest);
     qmlRegisterType<MarketSourceBrowser>("Drift", 1, 0, "MarketSourceBrowser");

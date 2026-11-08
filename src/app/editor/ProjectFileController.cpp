@@ -15,6 +15,10 @@
 #include "core/interchange/OtioReader.h"
 #include "core/interchange/premiere/PrprojReader.h"
 #include "core/interchange/ResolveReader.h"
+#include "core/interchange/ImportedTimelineProject.h"
+#include "core/interchange/filmora/FilmoraProjectParser.h"
+#include "core/interchange/premiere/PremiereProjectParser.h"
+#include "engine/decode/probe/MediaProbe.h"
 #include "engine/addons/AddonRegistry.h"
 #include "engine/platform/AndroidUri.h"
 #include "engine/encode/writers/AudioFileWriter.h"
@@ -31,6 +35,7 @@
 #include <QDateTime>
 #include <QDir>
 #include <QImage>
+#include <QImageReader>
 #include <QFile>
 #include <QFileInfo>
 #include <QFutureWatcher>
@@ -937,12 +942,147 @@ void ProjectFileController::loadProjectJson(const QUrl &url)
     });
 }
 
+// Dafin: Premiere Pro (.prproj) and Filmora (.wfp) projects. The readers take the edit out of the
+// file (core/interchange); here it becomes the open, untitled project, every visual clip fitted to
+// its media's shape the way adding it from the bin would.
+namespace {
+
+void fitImportedLayouts(drift::Project &project)
+{
+    QHash<QString, QSize> sizes;
+    const auto sizeOf = [&sizes](const drift::Clip &clip) {
+        const auto it = sizes.constFind(clip.path);
+        if (it != sizes.constEnd())
+            return *it;
+        QSize size;
+        if (QFileInfo(clip.path).isFile()) {
+            if (clip.type == drift::ClipType::Image) {
+                QImageReader reader(clip.path);
+                reader.setAutoTransform(true);
+                size = reader.size();
+                if (reader.transformation() & QImageIOHandler::TransformationRotate90)
+                    size.transpose();
+            }
+            if (!size.isValid()) {
+                const MediaInfo info = MediaProbe::probe(clip.path);
+                for (const StreamInfo &stream : info.streams) {
+                    if (stream.type == StreamInfo::Type::Video && !stream.attachedPicture && stream.width > 0) {
+                        size = QSize(stream.width, stream.height);
+                        if (stream.rotationDegrees == 90 || stream.rotationDegrees == 270)
+                            size.transpose();
+                        break;
+                    }
+                }
+            }
+        }
+        sizes.insert(clip.path, size);
+        return size;
+    };
+    const double canvasW = qMax(1, project.width());
+    const double canvasH = qMax(1, project.height());
+    for (drift::Track &track : project.tracks()) {
+        for (drift::Clip &clip : track.clips) {
+            if (clip.type != drift::ClipType::Video && clip.type != drift::ClipType::Image)
+                continue;
+            const QSize media = sizeOf(clip);
+            double x = 0, y = 0, w = canvasW, h = canvasH;
+            if (media.width() > 0 && media.height() > 0) {
+                const double scale = qMin(canvasW / media.width(), canvasH / media.height());
+                w = media.width() * scale;
+                h = media.height() * scale;
+                x = (canvasW - w) / 2.0;
+                y = (canvasH - h) / 2.0;
+            }
+            clip.transformX = {};
+            clip.transformY = {};
+            clip.transformW = {};
+            clip.transformH = {};
+            clip.transformX.setKeyframe(0, x);
+            clip.transformY.setKeyframe(0, y);
+            clip.transformW.setKeyframe(0, qMax(1.0, w));
+            clip.transformH.setKeyframe(0, qMax(1.0, h));
+        }
+    }
+}
+
+} // namespace
+
+void ProjectFileController::loadOtherEditorProject(const QUrl &url, const QString &format)
+{
+    const QString path = readTargetPath(url);
+    if (path.isEmpty()) {
+        m_app->setLastMessage(tr("That project location isn’t valid"), QStringLiteral("error"));
+        return;
+    }
+    const bool filmora = format == QLatin1String("filmora");
+    const QString appName = filmora ? QStringLiteral("Filmora") : QStringLiteral("Premiere Pro");
+
+    QString readError;
+    std::optional<drift::interchange::ImportedTimeline> timeline;
+    if (filmora) {
+        timeline = drift::interchange::filmora::parse(path, &readError);
+    } else {
+        QFile file(path);
+        if (!file.open(QIODevice::ReadOnly)) {
+            m_app->setLastMessage(tr("Can’t open %1").arg(QFileInfo(path).fileName()), QStringLiteral("error"));
+            return;
+        }
+        timeline = drift::interchange::premiere::parse(file.readAll(), &readError);
+    }
+    if (!timeline) {
+        m_app->setLastMessage(readError.isEmpty() ? tr("Failed to open the %1 project").arg(appName) : readError,
+                              QStringLiteral("error"));
+        return;
+    }
+
+    drift::interchange::ProjectBuildResult built = drift::interchange::toProject(*timeline, path);
+    fitImportedLayouts(built.project);
+
+    // Drop an in-flight bundle extract so it cannot land on top of this document.
+    ++m_loadGeneration;
+    const QByteArray data = QJsonDocument(built.project.toJson()).toJson(QJsonDocument::Compact);
+    QString error;
+    if (!m_app->applyProjectJson(data, &error)) {
+        m_app->setLastMessage(error, QStringLiteral("error"));
+        return;
+    }
+    m_embeddedSources.clear();
+    // Untitled: Save writes a Dafin project, never over the file it came from.
+    setCurrentProjectPath(QString());
+    setDirty(true);
+    deleteRecoveryFile();
+    m_app->setProjectLayoutChosen(true);
+    m_app->setLastMessage(drift::interchange::summary(*timeline, built, appName),
+                          built.missingMedia.isEmpty() && timeline->skippedClips == 0 ? QStringLiteral("success")
+                                                                                      : QStringLiteral("warning"));
+}
+
+void ProjectFileController::loadFilmoraProject(const QUrl &url)
+{
+    loadOtherEditorProject(url, QStringLiteral("filmora"));
+}
+
 void ProjectFileController::loadPremiereProject(const QUrl &url)
 {
     const QString path = readTargetPath(url);
     if (path.isEmpty()) {
         m_app->setLastMessage(tr("That project location isn’t valid"), QStringLiteral("error"));
         return;
+    }
+
+    // A real .prproj (Premiere's object graph) goes through the Dafin reader; Final Cut XML still
+    // takes the older path below.
+    {
+        QFile file(path);
+        if (file.open(QIODevice::ReadOnly)) {
+            const QByteArray head = drift::interchange::premiere::gunzip(file.read(4 << 20)).left(4096);
+            if (drift::interchange::premiere::looksLikePremiereXml(head)
+                || path.endsWith(QLatin1String(".prproj"), Qt::CaseInsensitive)) {
+                file.close();
+                loadOtherEditorProject(url, QStringLiteral("premiere"));
+                return;
+            }
+        }
     }
 
     QString readError;
@@ -1363,6 +1503,19 @@ void ProjectFileController::cancelCollectMedia()
 
 void ProjectFileController::loadProject(const QUrl &url)
 {
+    // Dafin: projects from Premiere Pro and Filmora open as an untitled Dafin project. They are
+    // read here on the GUI thread; the edit itself is small next to a .drift bundle's media.
+    {
+        const QString local = url.isLocalFile() ? url.toLocalFile() : url.toString();
+        if (local.endsWith(QLatin1String(".prproj"), Qt::CaseInsensitive)) {
+            loadPremiereProject(url);
+            return;
+        }
+        if (local.endsWith(QLatin1String(".wfp"), Qt::CaseInsensitive)) {
+            loadFilmoraProject(url);
+            return;
+        }
+    }
     if (!beginProjectLoad()) {
         m_app->setLastMessage(tr("Still opening a project — try again in a moment."),
                        QStringLiteral("warning"));

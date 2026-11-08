@@ -898,19 +898,116 @@ PanelFrame {
         easing.type: Theme.easing
     }
 
+    // Dafin: the tabs that keep the user's own files. Titles takes .mogrt templates (or a .zip
+    // holding one and its preview video), Stickers Lottie animations, Audio sound files.
+    function userCollectionForTab(tabId) {
+        if (tabId === "text") return "titles"
+        if (tabId === "stickers") return "lotties"
+        if (tabId === "sounds") return "sounds"
+        return ""
+    }
+
+    // The tab a drag at (x, y) in panel coordinates is aimed at: the category button under the
+    // pointer in the top bar, else the open tab.
+    function dropTabAt(x, y) {
+        if (root.topTabs && topTabBar.visible) {
+            const p = topTabBar.mapFromItem(root, x, y)
+            if (p.y >= 0 && p.y < topTabBar.height) {
+                const index = topTabBar.tabIndexAt(p.x, p.y)
+                if (index >= 0)
+                    return tabsModel.get(index).tabId
+            }
+        }
+        return root.currentTabId
+    }
+
+    readonly property var userTabLoaders: ({ "text": titlesLoader, "stickers": stickersLoader, "sounds": soundsLoader })
+
+    // Files dropped on Titles, Stickers or Audio join the user's library for that tab and the tab
+    // shows them; anything the tab does not take is imported into Media as before.
+    //
+    // One DropArea decides this, at drop time. The tabs used to carry DropAreas of their own that
+    // refused a drag in onEntered when it held nothing for them; on Windows that check never let a
+    // drag through, so Lotties fell through to the Media import and templates were refused
+    // outright. The URLs are always readable once the drop has happened, so the choice is made then.
+    function routeDroppedUrls(urls, tabId) {
+        const collection = root.userCollectionForTab(tabId)
+        if (collection.length === 0 || !OnlineAssets.userCollectionAccepts(collection, urls)) {
+            root.importUrlsReporting(urls, true)
+            return
+        }
+        if (!root.locked && root.currentTabId !== tabId)
+            root.showTab(tabId)
+        // The online side is where My Lotties, My sounds and the imported templates are listed.
+        LayoutMemory.setLayoutString("assets/" + tabId + "/mode", "online")
+        const loader = root.userTabLoaders[tabId]
+        if (loader && loader.item && loader.item.setOnline)
+            loader.item.setOnline(true)
+        const result = OnlineAssets.importUserFiles(collection, urls)
+        if (result.added > 0 || result.duplicates > 0) {
+            Qt.callLater(function () {
+                if (loader && loader.item && loader.item.showUserFiles)
+                    loader.item.showUserFiles()
+            })
+        }
+        // Media files in the same drop still go where they always went.
+        const rest = OnlineAssets.urlsNotAcceptedBy(collection, urls)
+        if (rest.length > 0)
+            root.importUrlsReporting(rest, true)
+    }
+
+    // Tab the current drag is aimed at, for the overlay text. A drag that rests on a category
+    // button opens that tab, as Filmora does.
+    property string dragTabId: ""
+    Timer {
+        id: dragTabSwitch
+        interval: 550
+        onTriggered: {
+            if (assetDropArea.containsDrag && root.dragTabId.length > 0 && root.dragTabId !== root.currentTabId)
+                root.showTab(root.dragTabId)
+        }
+    }
+
     DropArea {
         id: assetDropArea
         anchors.fill: parent
         enabled: !root.locked || root.kindsForTab(root.currentTabId).length > 0
+                 || root.userCollectionForTab(root.currentTabId).length > 0
         keys: ["text/uri-list"]
+        function track(drag) {
+            const tabId = root.dropTabAt(drag.x, drag.y)
+            if (tabId !== root.dragTabId) {
+                root.dragTabId = tabId
+                if (tabId !== root.currentTabId)
+                    dragTabSwitch.restart()
+                else
+                    dragTabSwitch.stop()
+            }
+        }
+        onEntered: (drag) => {
+            drag.accept(Qt.CopyAction)
+            track(drag)
+        }
+        onPositionChanged: (drag) => track(drag)
+        onExited: {
+            dragTabSwitch.stop()
+            root.dragTabId = ""
+        }
         onDropped: (drop) => {
-            if (drop.hasUrls)
-                root.importUrlsReporting(drop.urls, true)
+            dragTabSwitch.stop()
+            const tabId = root.dropTabAt(drop.x, drop.y)
+            root.dragTabId = ""
+            if (!drop.hasUrls)
+                return
+            drop.accept(Qt.CopyAction)
+            root.routeDroppedUrls(drop.urls, tabId)
         }
     }
 
     AssetsPanelDropOverlay {
         active: assetDropArea.containsDrag
+        collection: root.userCollectionForTab(root.dragTabId.length > 0 ? root.dragTabId : root.currentTabId)
+        collectionName: collection.length > 0 ? OnlineAssets.userCollectionName(collection) : ""
     }
 
     AssetsPanelImportOverlay {
@@ -930,6 +1027,8 @@ PanelFrame {
         tabIcons: root.tabIcons
         activeTab: root.activeTab
         order: root.topTabOrder
+        dropHoverIndex: assetDropArea.containsDrag && root.dragTabId.length > 0
+                        && root.dragTabId !== root.currentTabId ? root.tabIndexOf(root.dragTabId) : -1
         onTabSelected: (index) => root.activeTab = index
     }
 
@@ -1019,6 +1118,7 @@ PanelFrame {
             // Only the open tab is instantiated; what should outlive a switch is kept in
             // tabState below. Scroll position is not kept.
             Loader {
+                id: titlesLoader
                 active: root.currentTabId === "text"
                 visible: active
                 width: parent.width
@@ -1091,6 +1191,7 @@ PanelFrame {
             }
 
             Loader {
+                id: soundsLoader
                 active: root.currentTabId === "sounds"
                 visible: active
                 width: parent.width
@@ -1116,6 +1217,7 @@ PanelFrame {
             }
 
             Loader {
+                id: stickersLoader
                 active: root.currentTabId === "stickers"
                 visible: active
                 width: parent.width

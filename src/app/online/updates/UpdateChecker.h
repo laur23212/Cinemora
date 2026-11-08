@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QDateTime>
 #include <QObject>
 #include <QString>
 #include <QElapsedTimer>
@@ -9,6 +10,7 @@
 #include <functional>
 
 class QFile;
+class QTimer;
 class QNetworkAccessManager;
 class QNetworkReply;
 class QCryptographicHash;
@@ -45,6 +47,22 @@ class UpdateChecker : public QObject
     // update themselves. The dialog uses this to open on its own the first time a version is found.
     Q_PROPERTY(bool installSupported READ installSupported CONSTANT)
     Q_PROPERTY(bool enabled READ enabled WRITE setEnabled NOTIFY enabledChanged)
+    // Dafin: whether this copy can ask GitHub for the newest release at all. True for installed
+    // and portable Windows copies alike (a portable copy is told about a new version and pointed
+    // at the releases page; only installing it is left to the user).
+    Q_PROPERTY(bool canCheck READ canCheck CONSTANT)
+    // How often the automatic check runs, in hours; 0 means every time Dafin starts. Settings >
+    // Updates has a slider for it.
+    Q_PROPERTY(int intervalHours READ intervalHours WRITE setIntervalHours NOTIFY intervalChanged)
+    // When the feed last answered (invalid until it has).
+    Q_PROPERTY(QDateTime lastChecked READ lastChecked NOTIFY lastCheckedChanged)
+    // Dafin: the first start after an update shows what is new in this version.
+    Q_PROPERTY(QString whatsNewVersion READ whatsNewVersion NOTIFY whatsNewChanged)
+    Q_PROPERTY(QString whatsNewNotes READ whatsNewNotes NOTIFY whatsNewChanged)
+    Q_PROPERTY(bool whatsNewLoading READ whatsNewLoading NOTIFY whatsNewChanged)
+    // This start is the first after an update and its notes have not been shown yet; the window
+    // calls loadWhatsNew() once it is up.
+    Q_PROPERTY(bool whatsNewPending READ whatsNewPending NOTIFY whatsNewChanged)
     Q_PROPERTY(bool checking READ checking NOTIFY activityChanged)
     Q_PROPERTY(bool downloading READ downloading NOTIFY activityChanged)
     Q_PROPERTY(bool preparing READ preparing NOTIFY activityChanged)
@@ -81,6 +99,14 @@ public:
     bool installSupported() const;
     bool enabled() const;
     void setEnabled(bool enabled);
+    bool canCheck() const;
+    int intervalHours() const;
+    void setIntervalHours(int hours);
+    QDateTime lastChecked() const;
+    QString whatsNewVersion() const { return m_whatsNewVersion; }
+    QString whatsNewNotes() const { return m_whatsNewNotes; }
+    bool whatsNewLoading() const { return m_whatsNewLoading; }
+    bool whatsNewPending() const { return m_whatsNewPending; }
     bool checking() const;
     bool downloading() const;
     bool preparing() const;
@@ -124,8 +150,19 @@ public:
     // Remember that this version's dialog has been shown, so the next launch does not open it again.
     Q_INVOKABLE void markAnnounced();
 
+    // The notes of the version running now, fetched from its release when they were not kept
+    // from the update itself; whatsNewReady() fires once they are there (or could not be had).
+    Q_INVOKABLE void loadWhatsNew();
+    // The What's new pop-up was closed: it does not come back for this version.
+    Q_INVOKABLE void dismissWhatsNew();
+
 signals:
     void enabledChanged();
+    void intervalChanged();
+    void lastCheckedChanged();
+    void whatsNewChanged();
+    // The first start after an update: show what is new.
+    void whatsNewReady();
     void activityChanged();
     void progressChanged();
     void resultChanged();
@@ -142,6 +179,8 @@ signals:
 
 private:
     void scheduleStartup();
+    bool checkDue() const;
+    void detectUpdatedVersion();
     void check(bool manual);
     void publishFromVersion(const QString &version, bool manual);
     bool applyRelease(const QByteArray &json, bool manual, const QString &expectedVersion);
@@ -209,4 +248,11 @@ private:
     QFile *m_downloadFile = nullptr;
     QCryptographicHash *m_hasher = nullptr;
     QString m_partialPath;
+    QTimer *m_periodic = nullptr;
+    QString m_whatsNewVersion;
+    QString m_whatsNewNotes;
+    bool m_whatsNewLoading = false;
+    bool m_whatsNewPending = false;
+    // Notes the update brought along for the version now running, kept from before it installed.
+    QString m_keptNotes;
 };

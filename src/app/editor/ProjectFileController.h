@@ -114,6 +114,8 @@ public:
     // Imports an Adobe Premiere Pro project (.prproj) or Final Cut Pro XML (.xml),
     // mapping sequences, video/audio tracks, clips, in/out trimming, and media assets.
     Q_INVOKABLE void loadPremiereProject(const QUrl &url);
+    // Dafin: a Filmora project (.wfp), opened as an untitled Dafin project.
+    Q_INVOKABLE void loadFilmoraProject(const QUrl &url);
     // Unpacks and imports a Motion Graphics Template (.mogrt), extracting assets and mapping
     // editable text, colors, and media overlays onto the timeline and media library.
     Q_INVOKABLE void importMogrt(const QUrl &url);
@@ -228,6 +230,9 @@ private:
     // the flag — the caller must bail out without touching m_projectLoadPending itself,
     // so a second, unrelated request can never clear the first one's pending state.
     bool beginProjectLoad();
+    // Premiere Pro (.prproj) and Filmora (.wfp) projects through core/interchange; format is
+    // "premiere" or "filmora".
+    void loadOtherEditorProject(const QUrl &url, const QString &format);
     void finishProjectLoad(bool ok, const QString &message);
     // What the load worker hands back to the GUI thread. Defined in the .cpp: it holds an
     // AppController::ParsedProject, and this header only forward-declares AppController.
