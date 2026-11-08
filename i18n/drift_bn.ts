@@ -17176,30 +17176,6 @@ If playback stutters, try another.</source>
         <translation>আপডেট</translation>
     </message>
     <message>
-        <source>Check for updates on startup</source>
-        <translation>স্টার্টআপে আপডেটের জন্য পরীক্ষা করুন</translation>
-    </message>
-    <message>
-        <source>Once a day, check whether a newer Drift has been released.</source>
-        <translation>দিনে একবার পরীক্ষা করুন যে Drift-এর কোনো নতুন সংস্করণ প্রকাশিত হয়েছে কিনা।</translation>
-    </message>
-    <message>
-        <source>Check for updates</source>
-        <translation>আপডেটের জন্য পরীক্ষা করুন</translation>
-    </message>
-    <message>
-        <source>Checking…</source>
-        <translation>পরীক্ষা করা হচ্ছে…</translation>
-    </message>
-    <message>
-        <source>Downloading…</source>
-        <translation>ডাউনলোড করা হচ্ছে…</translation>
-    </message>
-    <message>
-        <source>Check now</source>
-        <translation>এখনই চেক করুন</translation>
-    </message>
-    <message>
         <source>Help</source>
         <translation>সহায়তা</translation>
     </message>

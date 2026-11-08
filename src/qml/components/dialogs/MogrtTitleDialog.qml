@@ -3,39 +3,30 @@ import QtQuick.Controls.Basic
 import QtMultimedia
 import Drift
 
-// Dafin: adding a .mogrt template from the Titles panel. The template's text fields can be filled
-// in first, then either:
-//   • Add animated — MOGRT Converter (a separate free program, see MogrtRenderer) renders the
-//     template with its After Effects animation into a transparent video, which goes on the
-//     timeline above the video like a title. Templates made in Premiere Pro it cannot render.
-//   • Add as editable title — the text as an ordinary Dafin title in a matching style, no
-//     animation. Always available.
-// A render keeps going if the dialog is closed; the clip still lands when it is done.
+// Dafin: opened from the Titles grid for a .mogrt that can't be added as an animated template
+// title here: made in Premiere Pro, MOGRT Converter not installed, or the converter failed on it
+// (EditorState.mogrt.templateStatus says which). It says why and offers what is possible: an
+// ordinary editable Dafin title with the template's text, getting the converter, or trying again.
+// Templates that do render never come here; they go straight to the timeline, editable.
 ThemedDialog {
     id: root
 
     property var item: ({})
     readonly property var extra: item && item.extra ? item.extra : ({})
     readonly property string mogrtPath: item && item.downloadUrl ? MogrtRenderer.pathFor(item.downloadUrl) : ""
-    readonly property bool premiereMade: (extra.authorApp || "") === "ppro"
-    readonly property bool canAnimate: MogrtRenderer.available && !premiereMade && mogrtPath.length > 0
+    readonly property var status: mogrtPath.length > 0
+                                  ? (EditorState.mogrt.revision, EditorState.mogrt.templateStatus(item.id || "", mogrtPath))
+                                  : ({})
+    readonly property string mogrtState: status.state || ""
+    readonly property bool animates: ["checking", "ok", "warnings"].indexOf(mogrtState) >= 0
     property var fields: []
-    property string jobKey: ""
-    readonly property string jobState: MogrtRenderer.revision >= 0 && jobKey.length > 0 ? MogrtRenderer.state(jobKey) : ""
-    readonly property bool rendering: jobState === "rendering"
 
     title: item && item.title ? item.title : qsTr("Title template")
     preferredWidth: Theme.dialogWidthMd
     showFooter: false
     acceptOnReturn: false
-    closePolicy: rendering ? Popup.CloseOnEscape : (Popup.CloseOnEscape | Popup.CloseOnPressOutside)
 
     function openFor(templateItem) {
-        if (root.rendering) {
-            Toasts.info(qsTr("Still rendering %1…").arg(root.title))
-            root.open()
-            return
-        }
         root.item = templateItem
         const texts = (templateItem.extra && templateItem.extra.texts) || []
         const list = []
@@ -45,7 +36,6 @@ ThemedDialog {
             list.push({ id: "", label: qsTr("Text"), text: (templateItem.extra && templateItem.extra.text) || templateItem.title || "" })
         root.fields = list
         lengthField.value = Math.max(0.5, Number((templateItem.extra && templateItem.extra.duration) || 5))
-        root.jobKey = ""
         MogrtRenderer.refresh()
         root.open()
     }
@@ -65,34 +55,10 @@ ThemedDialog {
         root.close()
     }
 
-    function addAnimated() {
-        root.jobKey = MogrtRenderer.render(root.mogrtPath, root.fields, lengthField.value, root.item.title || "")
-    }
-
-    Connections {
-        target: MogrtRenderer
-        function onRendered(key, outputPath, name, warnings) {
-            if (key !== root.jobKey)
-                return
-            const url = MogrtRenderer.urlFor(outputPath)
-            MediaImport.importUrls([url], false, function (added) {
-                if (added <= 0) {
-                    Toasts.error(qsTr("The rendered template could not be opened."))
-                    return
-                }
-                EditorState.addClipFromAsset(AssetLibrary.count - added)
-                if (warnings.length > 0)
-                    Toasts.info(qsTr("%1 added. MOGRT Converter skipped %n part(s) it can't draw yet.", "", warnings.length).arg(name))
-                else
-                    Toasts.success(qsTr("%1 added with its animation.").arg(name))
-            })
-            root.jobKey = ""
+    function addTemplate() {
+        const result = EditorState.mogrt.addTemplate(root.mogrtPath, -1, -1, root.item.title || "")
+        if (result && result.ok)
             root.close()
-        }
-        function onFailed(key, message) {
-            if (key === root.jobKey && !root.visible)
-                Toasts.error(message)
-        }
     }
 
     contentItem: Column {
@@ -146,7 +112,6 @@ ThemedDialog {
                 }
                 ThemedTextArea {
                     width: parent.width
-                    enabled: !root.rendering
                     wrapMode: TextEdit.Wrap
                     text: root.fields[index].text
                     onTextChanged: root.fields[index].text = text
@@ -163,7 +128,6 @@ ThemedDialog {
             ThemedNumberField {
                 id: lengthField
                 width: 110
-                enabled: !root.rendering
                 from: 0.5
                 to: 300
                 step: 0.5
@@ -176,17 +140,21 @@ ThemedDialog {
             width: parent.width
             size: "sm"
             wrapMode: Text.WordWrap
-            text: root.premiereMade
-                  ? qsTr("This template was made in Premiere Pro. Its animation can't be drawn outside Adobe's apps, so it is added as an editable Dafin title with your text.")
-                  : MogrtRenderer.available
-                    ? qsTr("Add animated renders the template's After Effects animation with MOGRT Converter into a transparent clip. Effects it can't draw yet are left out. To change the text later, add it again.")
-                    : qsTr("To get the template's animation, install the free MOGRT Converter and press Check again. Without it, Dafin adds an editable title with your text.")
+            text: root.animates
+                  ? qsTr("MOGRT Converter can animate this template now. Add it as a template title to keep its animation, with the text and other controls editable in Properties › Template.")
+                  : root.mogrtState === "unsupported"
+                    ? qsTr("This template was made in Premiere Pro. MOGRT Converter only animates templates made in After Effects, so Dafin can add it as an editable title with your text, without the animation.")
+                    : root.mogrtState === "needsConverter"
+                      ? qsTr("Dafin animates templates with MOGRT Converter, a free program installed separately. Without it, the template can be added as an editable title with your text, without the animation.")
+                      : (root.status.message ? qsTr("MOGRT Converter couldn't render this template: %1").arg(root.status.message)
+                                             : qsTr("This template can't be rendered."))
         }
 
         Row {
-            visible: !MogrtRenderer.available && !root.premiereMade
+            visible: root.mogrtState === "needsConverter" || root.mogrtState === "failed"
             spacing: Theme.spacingSm
             ThemedButton {
+                visible: root.mogrtState === "needsConverter"
                 variant: "secondary"
                 glyph: Theme.icons.externalLink
                 text: qsTr("Get MOGRT Converter")
@@ -204,39 +172,16 @@ ThemedDialog {
             }
         }
 
-        Column {
-            width: parent.width
-            spacing: Theme.spacingXs
-            visible: root.jobKey.length > 0 && root.jobState !== ""
-            ThemedProgressBar {
-                width: parent.width
-                visible: root.rendering
-                value: MogrtRenderer.revision >= 0 ? MogrtRenderer.progress(root.jobKey) : 0
-            }
-            ThemedLabel {
-                width: parent.width
-                size: "sm"
-                wrapMode: Text.WordWrap
-                text: MogrtRenderer.revision >= 0 && root.jobKey.length > 0 ? MogrtRenderer.message(root.jobKey) : ""
-            }
-        }
-
         Item {
             width: parent.width
-            height: animateButton.height
+            height: closeButton.height
 
             ThemedButton {
+                id: closeButton
                 anchors.left: parent.left
                 variant: "ghost"
-                text: root.rendering ? qsTr("Cancel") : qsTr("Close")
-                onClicked: {
-                    if (root.rendering) {
-                        MogrtRenderer.cancel(root.jobKey)
-                        root.jobKey = ""
-                    } else {
-                        root.close()
-                    }
-                }
+                text: qsTr("Close")
+                onClicked: root.close()
             }
 
             Row {
@@ -244,22 +189,18 @@ ThemedDialog {
                 spacing: Theme.spacingLg
 
                 ThemedButton {
-                    variant: root.canAnimate ? "secondary" : "primary"
-                    enabled: !root.rendering
-                    text: qsTr("Add as editable title")
+                    variant: root.animates ? "secondary" : "primary"
+                    text: qsTr("Add as plain title")
+                    tooltip: qsTr("An ordinary Dafin title with the text above, in a matching style. No animation.")
                     onClicked: root.addEditable()
                 }
 
                 ThemedButton {
-                    id: animateButton
                     variant: "primary"
-                    visible: !root.premiereMade
-                    enabled: root.canAnimate && !root.rendering
+                    visible: root.animates
                     glyph: Theme.icons.wand
-                    text: root.rendering ? qsTr("Rendering…") : qsTr("Add animated")
-                    tooltip: MogrtRenderer.available ? qsTr("Renders the animation with %1").arg(MogrtRenderer.executable)
-                                                     : qsTr("Needs MOGRT Converter")
-                    onClicked: root.addAnimated()
+                    text: qsTr("Add template title")
+                    onClicked: root.addTemplate()
                 }
             }
         }

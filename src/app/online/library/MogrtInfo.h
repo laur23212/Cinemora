@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QJsonArray>
 #include <QList>
 #include <QPair>
 #include <QString>
@@ -30,6 +31,11 @@ struct Info
     int width = 0;
     int height = 0;
     QString authorApp;           // "aefx" (After Effects) or "ppro" (Premiere Pro) when known
+    double fps = 0;              // 0 when the template does not say
+    // Every control of the Essential Graphics panel, read the way MOGRT Converter reads them
+    // (mogrt.py, _parse_control): [{id, type, label, default, min, max}], type one of text,
+    // slider, angle, checkbox, color, point, point3d, scale, dropdown, group, section, media.
+    QJsonArray controls;
     QString posterEntry;         // archive path of the poster image, if any
     QString previewEntry;        // archive path of an embedded preview video, if any
 };

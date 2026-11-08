@@ -17099,30 +17099,6 @@ If playback stutters, try another.</source>
         <translation>업데이트</translation>
     </message>
     <message>
-        <source>Check for updates on startup</source>
-        <translation>시작할 때 업데이트 확인</translation>
-    </message>
-    <message>
-        <source>Once a day, check whether a newer Drift has been released.</source>
-        <translation>하루에 한 번 새 Drift 버전이 출시되었는지 확인합니다.</translation>
-    </message>
-    <message>
-        <source>Check for updates</source>
-        <translation>업데이트 확인</translation>
-    </message>
-    <message>
-        <source>Checking…</source>
-        <translation>확인 중…</translation>
-    </message>
-    <message>
-        <source>Downloading…</source>
-        <translation>다운로드 중…</translation>
-    </message>
-    <message>
-        <source>Check now</source>
-        <translation>지금 확인</translation>
-    </message>
-    <message>
         <source>Help</source>
         <translation>도움말</translation>
     </message>

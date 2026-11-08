@@ -920,6 +920,26 @@ PanelFrame {
             return
         }
 
+        // Dafin: .mogrt files from the file manager become template titles where they land; the
+        // rest of the drop is imported as usual.
+        const templates = []
+        const rest = []
+        for (let i = 0; i < urls.length; ++i)
+            (String(urls[i]).toLowerCase().endsWith(".mogrt") ? templates : rest).push(urls[i])
+        if (templates.length > 0) {
+            const at = Math.max(0, dropX / pxPerSecond)
+            const target = resolveDropTarget("video", dropY)
+            const track = target && !target.newTrack ? target.track : -1
+            for (let i = 0; i < templates.length; ++i)
+                EditorState.mogrt.addTemplate(String(templates[i]), at, track, "")
+            if (rest.length === 0) {
+                clearUrlDropState()
+                clearLandingPreview()
+                return
+            }
+            urls = rest
+        }
+
         const kind = urlDropKind(urls)
         if (kind.length === 0) {
             clearUrlDropState()

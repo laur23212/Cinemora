@@ -45,6 +45,7 @@ class CurveEditorController;
 class KeyframeController;
 class MaskingController;
 class SubtitleController;
+class MogrtTitleController;
 class ColorController;
 class DenoiseController;
 class AudioAlignController;
@@ -99,6 +100,7 @@ class AppController : public QObject
     friend class MaskingController;
     friend class MaskEditSession;
     friend class SubtitleController;
+    friend class MogrtTitleController;
     friend class RestoreController;
     friend class FaceTrackingController;
     friend class StabilizeController;
@@ -118,6 +120,7 @@ class AppController : public QObject
     Q_MOC_INCLUDE("app/editor/sessions/KeyframeController.h")
     Q_MOC_INCLUDE("app/editor/sessions/MaskingController.h")
     Q_MOC_INCLUDE("app/editor/sessions/SubtitleController.h")
+    Q_MOC_INCLUDE("app/editor/sessions/MogrtTitleController.h")
     Q_MOC_INCLUDE("app/color/ColorController.h")
     Q_MOC_INCLUDE("app/jobs/audio/DenoiseController.h")
     Q_MOC_INCLUDE("app/jobs/audio/AudioAlignController.h")
@@ -172,6 +175,8 @@ class AppController : public QObject
     // "Use as mask" on bin assets and timeline clips. QML: EditorState.masking.
     Q_PROPERTY(MaskingController *masking READ masking CONSTANT)
     Q_PROPERTY(SubtitleController *subtitles READ subtitles CONSTANT)
+    // Dafin: .mogrt titles (MogrtTitleController).
+    Q_PROPERTY(MogrtTitleController *mogrt READ mogrt CONSTANT)
     // Video restore and enhance (decompression, upscaling). QML: EditorState.restore.
     Q_PROPERTY(RestoreController *restore READ restore CONSTANT)
     // Face landmark tracking and Face Swap source ingest. QML: EditorState.faces.
@@ -383,6 +388,7 @@ public:
     KeyframeController *keyframes() const { return m_keyframes; }
     MaskingController *masking() const { return m_masking; }
     SubtitleController *subtitles() const { return m_subtitles; }
+    MogrtTitleController *mogrt() const { return m_mogrt; }
     RestoreController *restore() const { return m_restore; }
     FaceTrackingController *faces() const { return m_faces; }
     StabilizeController *stabilize() const { return m_stabilize; }
@@ -2197,6 +2203,8 @@ protected:
     bool m_subtitleEditing = false;
     int m_selectedSubtitleCue = -1;
     bool m_exportInProgress = false;
+    // Dafin: set while exportWithSettings runs again after the template titles' final renders.
+    bool m_mogrtExportReady = false;
     bool m_exportByAgent = false;
     bool m_exportRequestedByAgent = false;
     double m_exportProgress = 0.0;
@@ -2288,6 +2296,7 @@ protected:
     KeyframeController *m_keyframes = nullptr;
     MaskingController *m_masking = nullptr;
     SubtitleController *m_subtitles = nullptr;
+    MogrtTitleController *m_mogrt = nullptr;
     RestoreController *m_restore = nullptr;
     FaceTrackingController *m_faces = nullptr;
     StabilizeController *m_stabilize = nullptr;

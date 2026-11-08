@@ -797,6 +797,8 @@ int main(int argc, char *argv[])
 
     step(StartupSplash::tr("Starting the playback and audio engines…"), 0.12);
     static AssetLibrary assetLibrary;
+    // Before the editor: its .mogrt titles render through it (MogrtTitleController).
+    static dafin::assets::MogrtRenderer mogrtRenderer;
     static EditorState editorState(&assetLibrary);
     step(StartupSplash::tr("Loading add-ons and themes…"), 0.36);
     static FileDialogs fileDialogs;
@@ -824,7 +826,6 @@ int main(int argc, char *argv[])
     qmlRegisterSingletonInstance("Drift", 1, 0, "DriftAssets", &market.driftAssets);
     qmlRegisterSingletonInstance("Drift", 1, 0, "Sfx", &market.sfx);
     qmlRegisterSingletonInstance("Drift", 1, 0, "OnlineAssets", &market.onlineAssets);
-    static dafin::assets::MogrtRenderer mogrtRenderer;
     qmlRegisterSingletonInstance("Drift", 1, 0, "MogrtRenderer", &mogrtRenderer);
     qmlRegisterType<dafin::assets::AssetSearchModel>("Drift", 1, 0, "AssetSearchModel");
     qmlRegisterSingletonInstance("Drift", 1, 0, "Marketplace", &market.manifest);

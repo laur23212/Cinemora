@@ -17176,30 +17176,6 @@ Se la riproduzione va a scatti, prova un&apos;altra opzione.</translation>
         <translation>Aggiornamenti</translation>
     </message>
     <message>
-        <source>Check for updates on startup</source>
-        <translation>Verifica aggiornamenti all&apos;avvio</translation>
-    </message>
-    <message>
-        <source>Once a day, check whether a newer Drift has been released.</source>
-        <translation>Verifica una volta al giorno la disponibilità di una versione più recente di Drift.</translation>
-    </message>
-    <message>
-        <source>Check for updates</source>
-        <translation>Verifica aggiornamenti</translation>
-    </message>
-    <message>
-        <source>Checking…</source>
-        <translation>Verifica in corso…</translation>
-    </message>
-    <message>
-        <source>Downloading…</source>
-        <translation>Download in corso…</translation>
-    </message>
-    <message>
-        <source>Check now</source>
-        <translation>Controlla ora</translation>
-    </message>
-    <message>
         <source>Help</source>
         <translation>Aiuto</translation>
     </message>

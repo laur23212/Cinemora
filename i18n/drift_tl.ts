@@ -17177,30 +17177,6 @@ Kung nag-i-stutter ang playback, subukan ang isa pa.</translation>
         <translation>Mga Update</translation>
     </message>
     <message>
-        <source>Check for updates on startup</source>
-        <translation>Maghanap ng mga update sa pag-startup</translation>
-    </message>
-    <message>
-        <source>Once a day, check whether a newer Drift has been released.</source>
-        <translation>Minsan sa isang araw, suriin kung may mas bagong Drift na inilabas.</translation>
-    </message>
-    <message>
-        <source>Check for updates</source>
-        <translation>Maghanap ng mga update</translation>
-    </message>
-    <message>
-        <source>Checking…</source>
-        <translation>Naghahanap…</translation>
-    </message>
-    <message>
-        <source>Downloading…</source>
-        <translation>Nagda-download…</translation>
-    </message>
-    <message>
-        <source>Check now</source>
-        <translation>Suriin ngayon</translation>
-    </message>
-    <message>
         <source>Help</source>
         <translation>Tulong</translation>
     </message>

@@ -17107,30 +17107,6 @@ Nếu phát lại bị giật, hãy thử cách khác.</translation>
         <translation>Cập nhật</translation>
     </message>
     <message>
-        <source>Check for updates on startup</source>
-        <translation>Kiểm tra bản cập nhật khi khởi động</translation>
-    </message>
-    <message>
-        <source>Once a day, check whether a newer Drift has been released.</source>
-        <translation>Kiểm tra mỗi ngày một lần xem phiên bản Drift mới hơn đã được phát hành chưa.</translation>
-    </message>
-    <message>
-        <source>Check for updates</source>
-        <translation>Kiểm tra bản cập nhật</translation>
-    </message>
-    <message>
-        <source>Checking…</source>
-        <translation>Đang kiểm tra…</translation>
-    </message>
-    <message>
-        <source>Downloading…</source>
-        <translation>Đang tải xuống…</translation>
-    </message>
-    <message>
-        <source>Check now</source>
-        <translation>Kiểm tra ngay</translation>
-    </message>
-    <message>
         <source>Help</source>
         <translation>Trợ giúp</translation>
     </message>

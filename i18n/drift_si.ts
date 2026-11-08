@@ -17176,30 +17176,6 @@ If playback stutters, try another.</source>
         <translation>යාවත්කාලීන</translation>
     </message>
     <message>
-        <source>Check for updates on startup</source>
-        <translation>ආරම්භයේදීම යාවත්කාලීන පරීක්ෂා කරන්න</translation>
-    </message>
-    <message>
-        <source>Once a day, check whether a newer Drift has been released.</source>
-        <translation>දිනකට වරක්, නව Drift අනුවාදයක් නිකුත් කර ඇත්දැයි පරීක්ෂා කරන්න.</translation>
-    </message>
-    <message>
-        <source>Check for updates</source>
-        <translation>යාවත්කාලීන පරීක්ෂා කරන්න</translation>
-    </message>
-    <message>
-        <source>Checking…</source>
-        <translation>පරීක්ෂා කරමින්…</translation>
-    </message>
-    <message>
-        <source>Downloading…</source>
-        <translation>බාගත වෙමින්…</translation>
-    </message>
-    <message>
-        <source>Check now</source>
-        <translation>දැන් පරීක්ෂා කරන්න</translation>
-    </message>
-    <message>
         <source>Help</source>
         <translation>උදවු</translation>
     </message>

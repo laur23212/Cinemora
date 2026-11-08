@@ -14,6 +14,7 @@
 #include "core/base/Time.h"
 #include "core/tracking/MotionTracker.h"
 #include "core/project/sources/Model3dSource.h"
+#include "core/project/sources/MogrtSource.h"
 #include "core/project/sources/PdfSource.h"
 #include "core/project/sources/VectorSource.h"
 
@@ -92,6 +93,9 @@ struct Clip
     VectorSource vector;   // only meaningful when type == Vector
     Model3dSource model3d; // only meaningful when type == Model3d
     PdfSource pdf;         // only meaningful when type == Pdf
+    // Dafin: set on a video clip that plays a rendered Motion Graphics Template; the template and
+    // its editable values. Empty on every other clip.
+    MogrtSource mogrt;
     // Nested timeline this clip plays: set on a Composite clip and on the Audio companion that
     // "Separate audio" splits off it.
     QString sequenceId;

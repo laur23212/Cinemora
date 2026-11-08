@@ -168,6 +168,8 @@ void readTiming(const QJsonObject &root, Info &info)
             if (info.durationSeconds <= 0 && fps > 0 && o.value(QStringLiteral("durationFrames")).isDouble())
                 info.durationSeconds = o.value(QStringLiteral("durationFrames")).toDouble() / fps;
         }
+        if (info.fps <= 0 && fps > 0)
+            info.fps = fps;
         if (info.width <= 0 && o.value(QStringLiteral("width")).isDouble()) {
             info.width = o.value(QStringLiteral("width")).toInt();
             info.height = o.value(QStringLiteral("height")).toInt();
@@ -175,6 +177,88 @@ void readTiming(const QJsonObject &root, Info &info)
     }
     if (info.durationSeconds > 0)
         info.durationSeconds = std::clamp(info.durationSeconds, 0.5, 300.0);
+}
+
+// clientControls[].type in definition.json, as MOGRT Converter names them.
+QString controlTypeName(const QJsonValue &type)
+{
+    switch (type.toInt(-1)) {
+    case 1: return QStringLiteral("checkbox");
+    case 2: return QStringLiteral("slider");
+    case 3: return QStringLiteral("angle");
+    case 4: return QStringLiteral("color");
+    case 5: return QStringLiteral("point");
+    case 6: return QStringLiteral("text");
+    case 7: return QStringLiteral("dropdown");
+    case 8: return QStringLiteral("group");
+    case 9: return QStringLiteral("scale");
+    case 10: return QStringLiteral("section");
+    case 13: return QStringLiteral("media");
+    default: break;
+    }
+    return type.isString() ? type.toString().toLower() : QStringLiteral("unknown");
+}
+
+QJsonArray readControls(const QJsonArray &clientControls)
+{
+    QJsonArray out;
+    for (const QJsonValue &v : clientControls) {
+        const QJsonObject c = v.toObject();
+        const QString id = c.value(QStringLiteral("id")).isString()
+                               ? c.value(QStringLiteral("id")).toString()
+                               : QString::number(c.value(QStringLiteral("id")).toInteger());
+        if (id.isEmpty() || id == QLatin1String("0"))
+            continue;
+        const QString type = controlTypeName(c.value(QStringLiteral("type")));
+        const QJsonValue value = c.value(QStringLiteral("value"));
+        QJsonValue def;
+        if (type == QLatin1String("text") || type == QLatin1String("group")) {
+            QString text = localized(value);
+            text.replace(QLatin1Char('\r'), QLatin1Char('\n'));
+            while (type == QLatin1String("text") && text.endsWith(QLatin1Char('\n')))
+                text.chop(1);
+            def = text;
+        } else if (type == QLatin1String("checkbox")) {
+            def = value.toBool(value.toDouble() != 0);
+        } else if (type == QLatin1String("point") && value.isObject()) {
+            const QJsonObject p = value.toObject();
+            QJsonArray a{p.value(QStringLiteral("x")).toDouble(), p.value(QStringLiteral("y")).toDouble()};
+            if (p.contains(QStringLiteral("z")))
+                a.append(p.value(QStringLiteral("z")).toDouble());
+            def = a;
+        } else if (type == QLatin1String("scale") && value.isArray()) {
+            const int dims = qMax(1, c.value(QStringLiteral("dimensions")).toInt(2));
+            QJsonArray a;
+            for (const QJsonValue &x : value.toArray()) {
+                if (a.size() >= dims)
+                    break;
+                a.append(x.toDouble());
+            }
+            def = a;
+        } else if (type == QLatin1String("color") && value.isArray()) {
+            QJsonArray a;
+            for (const QJsonValue &x : value.toArray()) {
+                if (a.size() >= 4)
+                    break;
+                a.append(x.toDouble());
+            }
+            def = a;
+        } else if (type == QLatin1String("section")) {
+            def = value.isArray() ? value : QJsonArray();
+        } else {
+            def = value;
+        }
+        QJsonObject control{{QStringLiteral("id"), id},
+                            {QStringLiteral("type"), type},
+                            {QStringLiteral("label"), localized(c.value(QStringLiteral("uiName"))).trimmed()},
+                            {QStringLiteral("default"), def}};
+        if (c.value(QStringLiteral("min")).isDouble())
+            control.insert(QStringLiteral("min"), c.value(QStringLiteral("min")));
+        if (c.value(QStringLiteral("max")).isDouble())
+            control.insert(QStringLiteral("max"), c.value(QStringLiteral("max")));
+        out.append(control);
+    }
+    return out;
 }
 
 void readDefinition(const QByteArray &json, Info &info)
@@ -204,6 +288,7 @@ void readDefinition(const QByteArray &json, Info &info)
     info.authorApp = root.value(QStringLiteral("authorApp")).toString();
 
     QJsonArray controls = findArray(root, QStringLiteral("clientControls"));
+    info.controls = readControls(controls);
     if (controls.isEmpty())
         controls = findArray(root, QStringLiteral("controls"));
     if (controls.isEmpty())

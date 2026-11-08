@@ -115,6 +115,14 @@ QStringList inspectorCaps(const drift::Clip &clip, drift::TrackType trackType)
     if (trackAllowsTransitions(trackType))
         caps << QStringLiteral("transitionable");
 
+    // Dafin: a .mogrt title plays a render of its template; its length and speed belong to the
+    // template, so it has no Speed, Stabilize or Audio tab, and a Template tab for its controls.
+    if (!clip.mogrt.isEmpty()) {
+        caps << QStringLiteral("transformable") << QStringLiteral("blendable") << QStringLiteral("animatable")
+             << QStringLiteral("mogrt");
+        return caps;
+    }
+
     switch (clip.type) {
     case ClipType::Video:
         caps << QStringLiteral("transformable") << QStringLiteral("blendable") << QStringLiteral("animatable")
@@ -985,6 +993,8 @@ QVariantMap AppController::clipToMap(const drift::Clip &clip, const drift::Clip 
         map.insert(QStringLiteral("model3d"), model3dSourceToMap(clip.model3d, clip.timelineStart));
     if (clip.type == drift::ClipType::Pdf)
         map.insert(QStringLiteral("pdf"), pdfSourceToMap(clip.pdf, clip.timelineStart));
+    // Dafin: true for a .mogrt title; its controls and render state come from EditorState.mogrt.
+    map.insert(QStringLiteral("mogrt"), !clip.mogrt.isEmpty());
     return map;
 }
 

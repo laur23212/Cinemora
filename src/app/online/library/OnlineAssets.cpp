@@ -448,6 +448,10 @@ QVariantMap OnlineAssets::importUserFiles(const QString &collection, const QVari
     }
     if (r.duplicates > 0)
         parts.append(tr("%n file(s) already in %1.", nullptr, r.duplicates).arg(where));
+    if (!r.unpairedPreviews.isEmpty()) {
+        parts.append(tr("The zip's preview videos don't say which template they show, so %1 got none and uses its poster.")
+                         .arg(r.unpairedPreviews.join(QStringLiteral(", "))));
+    }
     if (!r.error.isEmpty())
         parts.append(r.error);
     else if (!r.rejected.isEmpty()) {

@@ -640,6 +640,8 @@ add_library(driftcore STATIC
     src/core/project/sources/VectorSource.cpp
     src/core/project/sources/Model3dSource.h
     src/core/project/sources/Model3dSource.cpp
+    src/core/project/sources/MogrtSource.h
+    src/core/project/sources/MogrtSource.cpp
     src/core/project/sources/PdfSource.h
     src/core/project/sources/PdfSource.cpp
     src/core/base/ZipArchive.h
@@ -1300,6 +1302,8 @@ target_sources(driftapp PRIVATE
     src/app/editor/sessions/MaskingController.cpp
     src/app/editor/sessions/SubtitleController.h
     src/app/editor/sessions/SubtitleController.cpp
+    src/app/editor/sessions/MogrtTitleController.h
+    src/app/editor/sessions/MogrtTitleController.cpp
     src/app/editor/sessions/SubtitleCueModel.h
     src/app/editor/sessions/SubtitleCueModel.cpp
     src/app/editor/sessions/SubtitleCueFilterModel.h
@@ -1806,6 +1810,7 @@ qt_add_qml_module(drift
         src/qml/components/properties/Model3DLighting.qml
         src/qml/components/properties/Transform3dInspector.qml
         src/qml/components/properties/PdfInspector.qml
+        src/qml/components/properties/MogrtInspector.qml
         src/qml/components/properties/MasksInspector.qml
         src/qml/components/properties/EffectsInspector.qml
         src/qml/components/properties/FacePropPicker.qml

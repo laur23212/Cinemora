@@ -17178,30 +17178,6 @@ En cas de saccades à la lecture, essayez un autre mode.</translation>
         <translation>Mises à jour</translation>
     </message>
     <message>
-        <source>Check for updates on startup</source>
-        <translation>Rechercher des mises à jour au démarrage</translation>
-    </message>
-    <message>
-        <source>Once a day, check whether a newer Drift has been released.</source>
-        <translation>Vérifier une fois par jour si une nouvelle version de Drift a été publiée.</translation>
-    </message>
-    <message>
-        <source>Check for updates</source>
-        <translation>Rechercher des mises à jour</translation>
-    </message>
-    <message>
-        <source>Checking…</source>
-        <translation>Vérification…</translation>
-    </message>
-    <message>
-        <source>Downloading…</source>
-        <translation>Téléchargement en cours…</translation>
-    </message>
-    <message>
-        <source>Check now</source>
-        <translation>Vérifier maintenant</translation>
-    </message>
-    <message>
         <source>Help</source>
         <translation>Aide</translation>
     </message>

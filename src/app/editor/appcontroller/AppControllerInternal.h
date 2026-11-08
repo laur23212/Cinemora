@@ -188,6 +188,9 @@ drift::Mask maskFromMap(const QVariantMap &m);
 QVariantMap transitionToMap(const drift::Project &project, const drift::Track &track, const drift::Transition &t);
 
 bool isSyntheticTimelineClip(drift::ClipType type);
+// Dafin: a title rendered from a template trims and stretches like one Dafin draws itself — its
+// render is remade at the new length rather than cut.
+bool isSyntheticTimelineClip(const drift::Clip &clip);
 
 drift::TimeUs syntheticClipMaxDurationUs();
 

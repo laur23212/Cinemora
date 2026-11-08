@@ -1,4 +1,5 @@
 #include "app/editor/appcontroller/AppControllerInternal.h"
+#include "app/editor/sessions/MogrtTitleController.h"
 #include "engine/packages/effects/EffectCatalog.h"
 #include "app/editor/sessions/MaskingController.h"
 #include "app/mcp/McpController.h"
@@ -925,6 +926,9 @@ std::optional<drift::ClipType> placeableClipType(const QString &kind)
         return drift::ClipType::Text;
     if (kind == QLatin1String("adjustment"))
         return drift::ClipType::Adjustment;
+    // Dafin: a .mogrt from the Titles grid becomes a template title, a video clip of its render.
+    if (kind == QLatin1String("mogrt"))
+        return drift::ClipType::Video;
     return std::nullopt;
 }
 
@@ -1023,9 +1027,11 @@ QVariantMap AppController::planAssetDrop(const QString &kind, const QString &pay
     const bool onTrack = trackIndex >= 0 && trackIndex < trackCount;
 
     if (const std::optional<drift::ClipType> type = placeableClipType(kind)) {
-        const double duration = drift::usToSeconds(*type == drift::ClipType::Text
-                                                       ? drift::kTextClipDurationUs
-                                                       : drift::imageClipDurationUs());
+        const double duration = kind == QLatin1String("mogrt")
+                                    ? m_mogrt->templateDurationSeconds(payload)
+                                    : drift::usToSeconds(*type == drift::ClipType::Text
+                                                             ? drift::kTextClipDurationUs
+                                                             : drift::imageClipDurationUs());
         QVariantMap plan{{QStringLiteral("accepted"), true},
                          {QStringLiteral("landingStart"), at},
                          {QStringLiteral("landingDuration"), duration},
@@ -1127,6 +1133,8 @@ QVariantMap AppController::dropAsset(const QString &kind, const QString &payload
             addTextClip(QString(), at, payload, target);
         else if (kind == QLatin1String("adjustment"))
             addAdjustmentClipAt(target, at);
+        else if (kind == QLatin1String("mogrt"))
+            m_mogrt->addTemplate(payload, at, target, label);
         if (newTrack)
             m_mcpController->endBatch(tr("Add to new track"), true);
         return plan;

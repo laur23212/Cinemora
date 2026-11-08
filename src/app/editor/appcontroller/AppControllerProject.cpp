@@ -1,6 +1,7 @@
 #include "app/platform/FileDialogs.h"
 #include "engine/platform/AndroidUri.h"
 #include "app/editor/appcontroller/AppControllerInternal.h"
+#include "app/editor/sessions/MogrtTitleController.h"
 #include "app/editor/sessions/CurveEditorController.h"
 #include "app/jobs/vision/FaceTrackingController.h"
 #include "app/jobs/vision/SegmentationController.h"
@@ -540,6 +541,31 @@ void AppController::exportWithSettings(const QUrl &outputUrl, const QVariantMap 
 
     if (m_exportInProgress) {
         setLastMessage(tr("Export already in progress"), QStringLiteral("warning"));
+        return;
+    }
+
+    // Dafin: template titles play half-size previews while editing; the export waits for their
+    // full-quality renders, then comes back here.
+    if (!m_mogrtExportReady) {
+        if (m_mogrt->finalizing()) {
+            setLastMessage(tr("Template titles are still rendering for the export"), QStringLiteral("warning"));
+            return;
+        }
+        QPointer<AppController> self(this);
+        m_mogrt->finalizeForExport(
+            [self, outputUrl, settings, rememberChoice] {
+                if (!self)
+                    return;
+                self->m_mogrtExportReady = true;
+                self->exportWithSettings(outputUrl, settings, rememberChoice);
+                self->m_mogrtExportReady = false;
+            },
+            [self](const QString &message) {
+                if (!self)
+                    return;
+                self->setLastMessage(message, QStringLiteral("error"));
+                emit self->exportFinished(false);
+            });
         return;
     }
 

@@ -153,6 +153,7 @@ struct BundledTemplate
     QString previewPath;
     QString posterPath;
     QString name;        // the .mogrt's file name inside the zip
+    bool previewUnclear = false;  // the zip has videos, but none clearly shows this template
 };
 
 bool ignoredZipPath(const QString &path)
@@ -182,15 +183,20 @@ QString matchKey(const QString &path)
     return key;
 }
 
+// `ambiguous` is set when files were there but none says which template it belongs to (two equally
+// good candidates, or a bundle of several templates whose videos match none by name): those are
+// left unpaired and reported, rather than guessed.
 const drift::zip::Entry *bestCompanion(const QList<const drift::zip::Entry *> &candidates, const QString &mogrtPath,
-                                       int mogrtCount)
+                                       int mogrtCount, bool *ambiguous)
 {
+    *ambiguous = false;
     if (candidates.isEmpty())
         return nullptr;
     const QString key = matchKey(mogrtPath);
     const QString dir = QFileInfo(mogrtPath).path();
     const drift::zip::Entry *best = nullptr;
     int bestScore = -1;
+    bool tied = false;
     for (const drift::zip::Entry *e : candidates) {
         const QString other = matchKey(e->path);
         int score = 0;
@@ -208,11 +214,22 @@ const drift::zip::Entry *bestCompanion(const QList<const drift::zip::Entry *> &c
         if (score > bestScore) {
             bestScore = score;
             best = e;
+            tied = false;
+        } else if (score == bestScore) {
+            tied = true;
         }
+    }
+    if (tied) {
+        *ambiguous = true;
+        return nullptr;
     }
     // With several templates in one bundle, a preview that matches none of them by name is not
     // given to any of them.
-    return bestScore >= (mogrtCount == 1 ? 0 : 20) ? best : nullptr;
+    if (bestScore < (mogrtCount == 1 ? 0 : 20)) {
+        *ambiguous = true;
+        return nullptr;
+    }
+    return best;
 }
 
 QList<BundledTemplate> unpackTemplateBundle(const QString &zipPath, const QString &workDir, QString *error)
@@ -268,16 +285,19 @@ QList<BundledTemplate> unpackTemplateBundle(const QString &zipPath, const QStrin
         t.mogrtPath = slot + QLatin1Char('/') + storedFileName(m->path);
         if (!extractTo(m, t.mogrtPath))
             continue;
-        if (const drift::zip::Entry *v = bestCompanion(videos, m->path, int(mogrts.size()))) {
+        bool unclearVideo = false;
+        bool unclearImage = false;
+        if (const drift::zip::Entry *v = bestCompanion(videos, m->path, int(mogrts.size()), &unclearVideo)) {
             const QString dest = slot + QStringLiteral("/preview.") + QFileInfo(v->path).suffix().toLower();
             if (extractTo(v, dest))
                 t.previewPath = dest;
         }
-        if (const drift::zip::Entry *i = bestCompanion(images, m->path, int(mogrts.size()))) {
+        if (const drift::zip::Entry *i = bestCompanion(images, m->path, int(mogrts.size()), &unclearImage)) {
             const QString dest = slot + QStringLiteral("/poster.") + QFileInfo(i->path).suffix().toLower();
             if (extractTo(i, dest))
                 t.posterPath = dest;
         }
+        t.previewUnclear = unclearVideo && t.previewPath.isEmpty();
         out.append(t);
     }
     if (out.isEmpty())
@@ -603,8 +623,11 @@ UserLibrary::ImportResult UserLibrary::importFiles(const QString &collection, co
                     result.error = bundleError;
                 continue;
             }
-            for (const BundledTemplate &t : bundled)
+            for (const BundledTemplate &t : bundled) {
                 sources.append({t.mogrtPath, t.name, t.previewPath, t.posterPath});
+                if (t.previewUnclear)
+                    result.unpairedPreviews.append(t.name);
+            }
             continue;
         }
         sources.append({path, info.fileName(), QString(), QString()});

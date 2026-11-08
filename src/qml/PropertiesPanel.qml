@@ -142,6 +142,8 @@ PanelFrame {
     readonly property var tabs: [
         { id: "general", label: qsTr("General"), icon: Theme.icons.info, group: 0, needs: [] },
         { id: "text", label: qsTr("Text"), icon: Theme.icons.type, group: 0, needs: ["textStyled"], keyframes: true },
+        // Dafin: a .mogrt title's own controls (MogrtInspector).
+        { id: "template", label: qsTr("Template"), icon: Theme.icons.type, group: 0, needs: ["mogrt"] },
         { id: "shape", label: qsTr("Shape"), icon: Theme.icons.shapes, group: 0, needs: ["shape"], keyframes: true },
         { id: "vector", label: qsTr("Motion"), icon: Theme.icons.layers, group: 0, needs: ["vector"], keyframes: true },
         { id: "model3d", label: qsTr("3D Model"), icon: Theme.icons.box, group: 0, needs: ["model3d"], keyframes: true },
@@ -220,7 +222,8 @@ PanelFrame {
         if (root.locked)
             return
         if (root.hasSelection && !root.tabVisible(root.currentTabId))
-            root.activeTab = 0
+            // Dafin: a template title opens on its own controls.
+            root.activeTab = root.tabVisible("template") ? Math.max(0, root.tabIndexOf("template")) : 0
     }
 
     // Tell the timeline to show its subtitle-cue lane only while the Subtitles tab is open.
@@ -581,6 +584,12 @@ PanelFrame {
                     active: root.currentTabId === "pdf"
                     visible: active
                     sourceComponent: Component { PdfInspector { width: tabColumn.width } }
+                }
+
+                Loader {
+                    active: root.currentTabId === "template"
+                    visible: active
+                    sourceComponent: Component { MogrtInspector { width: tabColumn.width } }
                 }
 
                 Loader {

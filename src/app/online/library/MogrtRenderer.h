@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QHash>
+#include <QJsonObject>
 #include <QObject>
 #include <QPointer>
 #include <QString>
@@ -20,7 +21,8 @@ namespace dafin::assets {
 // file with alpha, which Drift's decoder plays with its transparency, and the clip goes on the
 // timeline above the video like a title.
 //
-// What the converter can do is its own business and is reported back as it says: it renders
+// Every run goes through submit(); MogrtTitleController turns template values into runs and keeps
+// the results. What the converter can do is its own business and is reported back as it says: it renders
 // templates made in After Effects (not Premiere Pro), skips effects it does not know with a
 // warning, and does not recreate third-party plugins or true 3D.
 class MogrtRenderer : public QObject
@@ -55,46 +57,69 @@ public:
     // A file URL or path the user picked; true when it is a program that can be run.
     Q_INVOKABLE bool useProgram(const QString &pathOrUrl);
 
-    // Starts rendering `mogrtPath`. `fields` is the template's text fields as the Titles panel
-    // lists them ([{id, label, text}]); `durationSeconds` 0 keeps the template's own length.
-    // Returns the job key, empty when it could not start (the reason goes out as failed()).
-    Q_INVOKABLE QString render(const QString &mogrtPath, const QVariantList &fields, double durationSeconds,
-                               const QString &title);
+    // One run of the converter. `verb` is "info", "still" or "render". `values` holds the controls'
+    // values by control id, typed as the converter reads them (text, number, bool, [r,g,b,a] 0..1,
+    // [x,y]); controls left out keep the template's default. A still or render is written to a
+    // temporary name beside `output` and renamed onto it only once complete, so a reader never sees
+    // half a file. `durationSeconds` 0 keeps the template's own length.
+    struct Request
+    {
+        QString verb;
+        QString templatePath;
+        QJsonObject values;
+        QString output;
+        double durationSeconds = 0;
+        double timeSeconds = -1;  // still: -1 for the middle
+        double scale = 1.0;
+        int priority = 0;         // higher starts first
+    };
+    // Queues a run and returns its key. At most two runs at a time: each is a Python process
+    // drawing every frame on the CPU.
+    QString submit(const Request &request);
+    // Stops a queued or running job; it ends with jobFinished(…, false, …, "Cancelled.").
     Q_INVOKABLE void cancel(const QString &key);
-    // "rendering", "done", "failed" or "" for a key it does not know.
-    Q_INVOKABLE QString state(const QString &key) const;
+    bool isActive(const QString &key) const;
     // 0..1 from the converter's frame count.
     Q_INVOKABLE double progress(const QString &key) const;
-    Q_INVOKABLE QString message(const QString &key) const;
+    // Identifies the converter build in use (path, size, date), empty without one.
+    QString signature() const;
+
+    static MogrtRenderer *instance();
 
 signals:
     void availabilityChanged();
     void jobsChanged();
-    // The video is written; `warnings` are the converter's own notes (effects it skipped …).
-    void rendered(const QString &key, const QString &outputPath, const QString &title, const QStringList &warnings);
-    void failed(const QString &key, const QString &message);
+    // `result` is the converter's own JSON answer (info: name, width, height, fps, duration,
+    // fonts, controls; still/render: output, duration, warnings). `error` is set when !ok.
+    void jobFinished(const QString &key, bool ok, const QJsonObject &result, const QString &error);
 
 private:
     struct Job
     {
+        Request request;
         QPointer<QProcess> process;
-        QString state;
-        QString message;
-        QString output;
-        QString title;
+        QString partial;     // the file the converter writes, renamed onto request.output
+        QString valuesFile;  // --values JSON
         QByteArray stdoutData;
         QByteArray stderrTail;
         double progress = 0;
+        qint64 order = 0;
     };
 
     QString findExecutable() const;
+    void pump();
+    void start(const QString &key);
     void finish(const QString &key, int exitCode, bool crashed);
+    void fail(const QString &key, const QString &message);
+    void cleanup(Job &job);
     void bump();
 
     QString m_executable;
-    QHash<QString, Job> m_jobs;
+    QHash<QString, Job> m_queued;
+    QHash<QString, Job> m_running;
+    QHash<QString, double> m_progress;
     int m_revision = 0;
-    int m_counter = 0;
+    qint64 m_counter = 0;
 };
 
 } // namespace dafin::assets

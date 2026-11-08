@@ -17107,30 +17107,6 @@ If playback stutters, try another.</source>
         <translation>更新</translation>
     </message>
     <message>
-        <source>Check for updates on startup</source>
-        <translation>啟動時檢查更新</translation>
-    </message>
-    <message>
-        <source>Once a day, check whether a newer Drift has been released.</source>
-        <translation>每天檢查一次是否有新版本的 Drift 發佈</translation>
-    </message>
-    <message>
-        <source>Check for updates</source>
-        <translation>檢查更新</translation>
-    </message>
-    <message>
-        <source>Checking…</source>
-        <translation>正在檢查…</translation>
-    </message>
-    <message>
-        <source>Downloading…</source>
-        <translation>正在下載…</translation>
-    </message>
-    <message>
-        <source>Check now</source>
-        <translation>立即檢查</translation>
-    </message>
-    <message>
         <source>Help</source>
         <translation>說明</translation>
     </message>

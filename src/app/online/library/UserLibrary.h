@@ -73,6 +73,9 @@ public:
         int duplicates = 0;     // already in the library
         QStringList rejected;   // names of files that are not this collection's type
         QString error;          // the first problem worth telling the user about
+        // Templates from a .zip whose preview video could not be told apart from the others' (or
+        // matched none by name): they are listed with their own poster instead.
+        QStringList unpairedPreviews;
     };
     ImportResult importFiles(const QString &collection, const QStringList &paths);
     // A file Dafin fetched for the user (a pasted Lottie link). Kept as a saved entry.

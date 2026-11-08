@@ -2044,7 +2044,7 @@ AppController::TrimComputation AppController::computeTrimLeft(int trackIndex, in
     if (delta == 0)
         return out;
 
-    if (isSyntheticTimelineClip(clip.type)) {
+    if (isSyntheticTimelineClip(clip)) {
         if (delta > 0) {
             if (clip.timelineDuration - delta < drift::minClipDurationUs(m_project.fps())) {
                 out.outcome = TrimBlocked;
@@ -2169,7 +2169,7 @@ AppController::TrimComputation AppController::computeTrimRight(int trackIndex, i
     const drift::TimeUs oldDuration = clip.timelineDuration;
     drift::TimeUs newDuration = snappedEnd - clip.timelineStart;
 
-    const bool syntheticVisual = isSyntheticTimelineClip(clip.type);
+    const bool syntheticVisual = isSyntheticTimelineClip(clip);
     const drift::TimeUs maxSource = sourceDurationForClip(clip);
     const drift::TimeUs maxSourceSpan =
         clip.reverse ? clip.srcOut : (maxSource > clip.srcIn ? maxSource - clip.srcIn : 0);
@@ -2392,7 +2392,7 @@ void AppController::setClipTrim(int trackIndex, int clipIndex, double inPoint, d
         return;
 
     drift::Clip &clip = track.clips[clipIndex];
-    const bool syntheticVisual = isSyntheticTimelineClip(clip.type);
+    const bool syntheticVisual = isSyntheticTimelineClip(clip);
     const drift::TimeUs sourceDuration = syntheticVisual ? syntheticClipMaxDurationUs() : sourceDurationForClip(clip);
     const drift::TimeUs clampedIn = qBound<drift::TimeUs>(0, drift::secondsToUs(inPoint),
                                                           sourceDuration - drift::minClipDurationUs(m_project.fps()));

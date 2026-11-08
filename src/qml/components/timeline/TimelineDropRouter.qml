@@ -13,7 +13,7 @@ QtObject {
 
     readonly property var placeableClipType: ({
         "shape": "shape", "sticker": "image", "emoji": "image",
-        "textStyle": "text", "adjustment": "adjustment"
+        "textStyle": "text", "adjustment": "adjustment", "mogrt": "video"
     })
 
     // Placeable kinds pick a track the way a media drop does: a row that takes the kind, or the

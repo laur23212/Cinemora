@@ -139,9 +139,9 @@ SettingsPage {
         title: qsTr("MOGRT Converter")
         searchId: "asset-providers-mogrt-converter"
         description: MogrtRenderer.available
-                     ? qsTr("Found: %1. Titles made from .mogrt templates can be added with their animation.")
+                     ? qsTr("Found: %1. Templates in Titles are added as template titles with their animation, and stay editable.")
                            .arg(MogrtRenderer.executable)
-                     : qsTr("Not installed. With the free MOGRT Converter, .mogrt templates in Titles can be added with their After Effects animation; without it they become editable Dafin titles.")
+                     : qsTr("Not installed. With the free MOGRT Converter (installed separately, AGPL), .mogrt templates in Titles keep their After Effects animation and stay editable; without it they become ordinary Dafin titles.")
         keywords: "mogrt motion graphics template after effects render animation converter titles"
         query: page.query
 
@@ -172,6 +172,29 @@ SettingsPage {
                 glyph: Theme.icons.refresh
                 text: qsTr("Check again")
                 onClicked: MogrtRenderer.refresh()
+            }
+        }
+    }
+
+    // Dafin: renders of template titles (MogrtTitleController). Saved projects keep their own copy.
+    SettingsRow {
+        id: mogrtCacheRow
+        property real megabytes: EditorState.mogrt.cacheMegabytes()
+        title: qsTr("Rendered template titles")
+        searchId: "asset-providers-mogrt-cache"
+        description: qsTr("%1 MB of renders. Renders the open project doesn't use can be cleared; they are made again if needed, and saved projects carry their own copy. Renders unused for 45 days are cleared on their own.")
+                         .arg(Math.round(megabytes))
+        keywords: "mogrt cache renders disk space clear template titles"
+        query: page.query
+
+        ThemedButton {
+            variant: "secondary"
+            glyph: Theme.icons.trash
+            text: qsTr("Clear unused")
+            onClicked: {
+                const removed = EditorState.mogrt.clearUnusedRenders()
+                mogrtCacheRow.megabytes = EditorState.mogrt.cacheMegabytes()
+                Toasts.info(qsTr("%n render(s) removed.", "", removed))
             }
         }
     }

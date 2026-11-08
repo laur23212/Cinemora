@@ -575,7 +575,7 @@ void AppController::setClipDuration(int trackIndex, int clipIndex, double durati
     const drift::Project before = m_project;
     drift::Clip &clip = track.clips[clipIndex];
     const drift::TimeUs maxSource = sourceDurationForClip(clip);
-    const bool syntheticVisual = isSyntheticTimelineClip(clip.type);
+    const bool syntheticVisual = isSyntheticTimelineClip(clip);
     const drift::TimeUs maxSourceSpan =
         syntheticVisual ? syntheticClipMaxDurationUs()
                         : (clip.reverse ? clip.srcOut : (maxSource > clip.srcIn ? maxSource - clip.srcIn : 0));

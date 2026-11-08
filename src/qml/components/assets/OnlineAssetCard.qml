@@ -16,7 +16,8 @@ import Drift
 //
 // Dafin: the user's own files (My Lotties, My sounds, imported .mogrt titles) carry Save and
 // Delete in the top-right corner; an unsaved one is marked and goes away when Dafin closes. A
-// .mogrt shows its poster, plays its preview on hover and opens MogrtTitleDialog when clicked.
+// .mogrt shows its poster, plays its preview on hover, says how well MOGRT Converter renders it, and
+// is added (click or drag) as an editable template title; MogrtTitleDialog only when it can't be.
 Item {
     id: root
 
@@ -35,6 +36,12 @@ Item {
     readonly property bool saved: userItem && !!item.extra.saved
     readonly property bool isMogrt: userItem && item.extra.format === "mogrt"
     readonly property bool isLottie: (kind === "sticker" || kind === "title") && !isMogrt
+    // Dafin: a template's file, and what MOGRT Converter makes of it (MogrtTitleController.templateStatus).
+    readonly property string mogrtPath: isMogrt && item.downloadUrl ? MogrtRenderer.pathFor(item.downloadUrl) : ""
+    readonly property var mogrtStatus: isMogrt && mogrtPath.length > 0
+                                       ? (EditorState.mogrt.revision, EditorState.mogrt.templateStatus(item.id || "", mogrtPath))
+                                       : ({})
+    readonly property bool mogrtAnimates: ["checking", "ok", "warnings"].indexOf(mogrtStatus.state || "") >= 0
     readonly property real aspect: kind === "sticker" ? 1.0 : isAudio ? 0.42 : 9 / 16
     readonly property string dlState: OnlineAssets.downloadsRevision >= 0 ? OnlineAssets.downloadState(key) : "none"
     readonly property real dlProgress: OnlineAssets.downloadsRevision >= 0 ? OnlineAssets.downloadProgress(key) : 0
@@ -69,16 +76,16 @@ Item {
             return
         OnlineAssets.download(item)
     }
-    // A Motion Graphics Template: the dialog takes its text, then adds it animated (rendered by
-    // MOGRT Converter when that is installed) or as an ordinary editable Dafin title.
+    // A Motion Graphics Template: added as an editable template title, animated by MOGRT Converter.
+    // When it can't be animated here the dialog says why and offers an ordinary Dafin title.
     function addTitle() {
-        if (ShellBridge.main && ShellBridge.main.openMogrtTitleDialog) {
+        if (!root.mogrtAnimates && ShellBridge.main && ShellBridge.main.openMogrtTitleDialog) {
             ShellBridge.main.openMogrtTitleDialog(root.item)
             return
         }
-        const extra = root.item.extra || {}
-        EditorState.addTemplateTitle(extra.text || "", extra.preset || "title", extra.duration || 0, root.item.title || "")
-        root.added()
+        const result = EditorState.mogrt.addTemplate(root.mogrtPath, -1, -1, root.item.title || "")
+        if (result && result.ok)
+            root.added()
     }
     function deleteItem() {
         if (root.saved)
@@ -232,6 +239,61 @@ Item {
             iconColor: Theme.mutedForeground
         }
 
+        // ── a template drags onto the timeline like any title; a click adds it at the playhead ──
+        AssetDragSource {
+            anchors.fill: parent
+            visible: root.isMogrt
+            enabled: root.isMogrt && root.mogrtAnimates
+            kind: "mogrt"
+            payload: root.mogrtPath
+            label: root.item.title || ""
+            thumbnail: root.item.thumbnailUrl || ""
+            onTapped: root.addTitle()
+        }
+        // Templates that can't be animated still open the dialog on a click.
+        TapHandler {
+            enabled: root.isMogrt && !root.mogrtAnimates
+            onTapped: root.addTitle()
+        }
+
+        // ── how well the template renders here (top-left) ──
+        Rectangle {
+            visible: root.isMogrt && (root.mogrtStatus.state || "") !== "ok" && (root.mogrtStatus.state || "") !== ""
+            // Under "Not saved" when both show.
+            anchors.left: parent.left
+            anchors.top: parent.top
+            anchors.leftMargin: 5
+            anchors.topMargin: root.userItem && !root.saved ? 25 : 5
+            radius: 3
+            color: root.mogrtStatus.state === "warnings" ? "#c08a1c" : root.mogrtStatus.state === "checking" ? "#b0000000" : "#b03a2b"
+            width: statusText.implicitWidth + 8
+            height: statusText.implicitHeight + 2
+            Text {
+                id: statusText
+                anchors.centerIn: parent
+                color: "white"
+                font.pixelSize: Theme.fontSizeXs
+                text: root.mogrtStatus.state === "checking" ? qsTr("Testing template…")
+                    : root.mogrtStatus.state === "warnings" ? qsTr("Partly supported")
+                    : root.mogrtStatus.state === "unsupported" ? qsTr("Not supported")
+                    : root.mogrtStatus.state === "needsConverter" ? qsTr("Needs MOGRT Converter")
+                    : qsTr("Can't render")
+            }
+            HoverHandler { id: statusHover }
+            ThemedToolTip {
+                visible: statusHover.hovered
+                text: {
+                    const st = root.mogrtStatus
+                    const warnings = st.warnings || []
+                    if (st.state === "warnings")
+                        return qsTr("MOGRT Converter draws this template, but not all of it:") + "\n• " + warnings.join("\n• ")
+                    if (st.state === "checking")
+                        return qsTr("MOGRT Converter is drawing a test frame to see how much of this template it supports.")
+                    return st.message || ""
+                }
+            }
+        }
+
         // ── badges: resolution + duration (top-left / bottom-left) ──
         Row {
             anchors.left: parent.left
@@ -303,6 +365,8 @@ Item {
             }
             HoverHandler { id: dlHover; cursorShape: root.item.downloadable ? Qt.PointingHandCursor : Qt.ArrowCursor }
             TapHandler {
+                // A template's whole card is the button (its drag source takes the click).
+                enabled: !root.isMogrt
                 onTapped: {
                     if (!root.isMogrt && (root.dlState === "downloading" || root.dlState === "queued"))
                         OnlineAssets.cancelDownload(root.key)
@@ -312,7 +376,8 @@ Item {
             }
             ThemedToolTip {
                 visible: dlHover.hovered
-                text: root.isMogrt ? qsTr("Add as a title at the playhead. Dafin uses the template's text with one of its own title styles; the After Effects animation inside a .mogrt plays only in Adobe apps.")
+                text: root.isMogrt ? (root.mogrtAnimates ? qsTr("Add at the playhead, or drag onto the timeline. Its text and other controls stay editable in Properties › Template.")
+                                                        : qsTr("This template can't be animated here. Click for the options."))
                     : !root.item.downloadable ? (root.item.downloadBlockedReason || qsTr("Download not allowed"))
                     : root.dlState === "done" ? (root.userItem ? qsTr("Added. Click to add it to Media again.")
                                                                : qsTr("Downloaded. Click to add it to Media again."))

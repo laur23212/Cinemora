@@ -226,10 +226,14 @@ QList<MediaEntry> collectMedia(const Project &project, bool embedSource)
             if (!clip.emoji.isEmpty() || isUnder(clip.path, emojiDir))
                 continue;
             // Clips carry their own copy of the asset path; a text or shape clip has none.
+            // Dafin: a template title's render and the template itself always travel with the
+            // project — the render so it plays without the renderer, the template so it can be
+            // edited and rendered again on another computer.
             append(clip.path, MediaRole::Source,
-                   embedSource || isUnder(clip.path, denoiseDir)
+                   embedSource || !clip.mogrt.isEmpty() || isUnder(clip.path, denoiseDir)
                        || isUnder(clip.path, stabilizationDir)
                        || isUnder(clip.path, projectMediaDir));
+            append(clip.mogrt.templatePath, MediaRole::Source, true);
         }
     }
 

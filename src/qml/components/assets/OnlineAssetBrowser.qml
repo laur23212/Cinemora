@@ -366,7 +366,7 @@ Item {
                 color: Theme.mutedForeground
                 font.pixelSize: Theme.fontSizeXs
                 text: root.userCollection === "titles"
-                      ? qsTr("A .mogrt is added as an editable Dafin title; its After Effects animation plays only in Adobe apps. Unsaved templates are removed when Dafin closes.")
+                      ? qsTr("Click a template or drag it onto the timeline; its text and other controls stay editable in Properties › Template. The animation needs the free MOGRT Converter. Unsaved templates leave this list when Dafin closes; titles already on the timeline keep working.")
                       : qsTr("Files you don't save are removed when Dafin closes.")
             }
 

@@ -1,8 +1,7 @@
 #include "app/online/library/MogrtRenderer.h"
 
-#include "app/online/library/SessionFiles.h"
-
 #include <QCoreApplication>
+#include <QDateTime>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -58,21 +57,32 @@ QStringList standardLocations()
 
 } // namespace
 
+static MogrtRenderer *g_instance = nullptr;
+
 MogrtRenderer::MogrtRenderer(QObject *parent)
     : QObject(parent)
 {
     m_executable = findExecutable();
+    g_instance = this;
 }
 
 MogrtRenderer::~MogrtRenderer()
 {
-    for (Job &job : m_jobs) {
+    if (g_instance == this)
+        g_instance = nullptr;
+    for (Job &job : m_running) {
         if (job.process) {
             job.process->disconnect(this);
             job.process->kill();
             job.process->waitForFinished(2000);
         }
+        cleanup(job);
     }
+}
+
+MogrtRenderer *MogrtRenderer::instance()
+{
+    return g_instance;
 }
 
 QString MogrtRenderer::customPath() const
@@ -151,78 +161,119 @@ void MogrtRenderer::bump()
     emit jobsChanged();
 }
 
-QString MogrtRenderer::render(const QString &mogrtPath, const QVariantList &fields, double durationSeconds,
-                              const QString &title)
+QString MogrtRenderer::signature() const
+{
+    if (m_executable.isEmpty())
+        return {};
+    const QFileInfo info(m_executable);
+    return QStringLiteral("%1|%2|%3").arg(info.absoluteFilePath()).arg(info.size()).arg(
+        info.lastModified().toSecsSinceEpoch());
+}
+
+QString MogrtRenderer::submit(const Request &request)
 {
     const QString key = QStringLiteral("mogrt-%1").arg(++m_counter);
+    Job job;
+    job.request = request;
+    job.order = m_counter;
+    m_queued.insert(key, job);
+    m_progress.insert(key, 0);
+    bump();
+    // Answered on the next turn of the event loop, never from inside submit(): the caller records
+    // the key first.
+    QMetaObject::invokeMethod(this, &MogrtRenderer::pump, Qt::QueuedConnection);
+    return key;
+}
+
+void MogrtRenderer::pump()
+{
+    constexpr int kMaxRunning = 2;
+    while (m_running.size() < kMaxRunning && !m_queued.isEmpty()) {
+        QString next;
+        for (auto it = m_queued.cbegin(); it != m_queued.cend(); ++it) {
+            if (next.isEmpty()) {
+                next = it.key();
+                continue;
+            }
+            const Job &best = m_queued.value(next);
+            if (it->request.priority > best.request.priority
+                || (it->request.priority == best.request.priority && it->order < best.order))
+                next = it.key();
+        }
+        start(next);
+    }
+}
+
+void MogrtRenderer::start(const QString &key)
+{
+    Job job = m_queued.take(key);
+    const Request &r = job.request;
     if (m_executable.isEmpty()) {
-        m_jobs.insert(key, Job{nullptr, QStringLiteral("failed"), tr("MOGRT Converter is not installed."), {}, title, {}, {}, 0});
-        bump();
-        emit failed(key, m_jobs.value(key).message);
-        return key;
+        m_running.insert(key, job);
+        fail(key, tr("MOGRT Converter is not installed."));
+        return;
     }
-    if (!QFileInfo::exists(mogrtPath)) {
-        m_jobs.insert(key, Job{nullptr, QStringLiteral("failed"), tr("The template file is missing."), {}, title, {}, {}, 0});
-        bump();
-        emit failed(key, m_jobs.value(key).message);
-        return key;
+    if (!QFileInfo::exists(r.templatePath)) {
+        m_running.insert(key, job);
+        fail(key, tr("The template file is missing."));
+        return;
     }
 
-    // In the session folder like other downloads: deleted when Dafin closes, and embedded in a
-    // saved project that uses it, so the project keeps it.
-    const QString dir = session::root() + QStringLiteral("/mogrt-renders");
-    QDir().mkpath(dir);
-    QString base = QFileInfo(mogrtPath).completeBaseName();
-    base.replace(QRegularExpression(QStringLiteral("[\\\\/:*?\"<>|\\x00-\\x1f]+")), QStringLiteral("_"));
-    base = base.simplified().left(60);
-    if (base.isEmpty())
-        base = QStringLiteral("title");
-    const QString output = dir + QLatin1Char('/') + base + QLatin1Char('-')
-                           + QUuid::createUuid().toString(QUuid::Id128).left(8) + QStringLiteral(".mov");
-
-    QStringList args{QStringLiteral("render"), mogrtPath, QStringLiteral("--json"), QStringLiteral("-f"),
-                     QStringLiteral("prores4444"), QStringLiteral("-o"), output};
-    if (durationSeconds >= 0.5)
-        args << QStringLiteral("-d") << QString::number(durationSeconds, 'f', 3);
-    for (const QVariant &v : fields) {
-        const QVariantMap field = v.toMap();
-        QString id = field.value(QStringLiteral("id")).toString().trimmed();
-        if (id.isEmpty())
-            id = field.value(QStringLiteral("label")).toString().trimmed();
-        if (id.isEmpty() || id.contains(QLatin1Char('=')))
-            continue;
-        // The converter reads "\n" in a value as a line break.
-        QString text = field.value(QStringLiteral("text")).toString();
-        text.replace(QLatin1String("\r\n"), QLatin1String("\n"));
-        text.replace(QLatin1Char('\n'), QLatin1String("\\n"));
-        args << QStringLiteral("--set") << id + QLatin1Char('=') + text;
+    QStringList args{r.verb, r.templatePath, QStringLiteral("--json")};
+    QString workDir = QDir::tempPath();
+    if (r.verb != QLatin1String("info")) {
+        const QFileInfo out(r.output);
+        QDir().mkpath(out.absolutePath());
+        workDir = out.absolutePath();
+        // Same folder, so the final rename never crosses drives.
+        const QString tag = QUuid::createUuid().toString(QUuid::Id128).left(10);
+        job.partial = out.absolutePath() + QLatin1Char('/') + out.completeBaseName() + QStringLiteral(".part-")
+                      + tag + QLatin1Char('.') + out.suffix();
+        args << QStringLiteral("-o") << job.partial;
+        if (!r.values.isEmpty()) {
+            job.valuesFile = out.absolutePath() + QStringLiteral("/values-") + tag + QStringLiteral(".json");
+            QFile file(job.valuesFile);
+            if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)
+                || file.write(QJsonDocument(r.values).toJson(QJsonDocument::Compact)) < 0) {
+                m_running.insert(key, job);
+                fail(key, tr("Could not write the template values (%1).").arg(QDir::toNativeSeparators(job.valuesFile)));
+                return;
+            }
+            file.close();
+            args << QStringLiteral("--values") << job.valuesFile;
+        }
+        if (r.scale > 0 && qAbs(r.scale - 1.0) > 1e-3)
+            args << QStringLiteral("--scale") << QString::number(r.scale, 'f', 3);
+        if (r.durationSeconds >= 0.1)
+            args << QStringLiteral("-d") << QString::number(r.durationSeconds, 'f', 3);
+        if (r.verb == QLatin1String("still")) {
+            if (r.timeSeconds >= 0)
+                args << QStringLiteral("-t") << QString::number(r.timeSeconds, 'f', 3);
+        } else {
+            // Titles carry no sound in Dafin, and ProRes 4444 keeps the transparency.
+            args << QStringLiteral("-f") << QStringLiteral("prores4444") << QStringLiteral("--no-audio");
+        }
     }
 
     auto *process = new QProcess(this);
     process->setProgram(m_executable);
     process->setArguments(args);
-    process->setWorkingDirectory(dir);
+    process->setWorkingDirectory(workDir);
     QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
     env.insert(QStringLiteral("PYTHONIOENCODING"), QStringLiteral("utf-8"));
     env.insert(QStringLiteral("PYTHONUTF8"), QStringLiteral("1"));
     process->setProcessEnvironment(env);
-
-    Job job;
     job.process = process;
-    job.state = QStringLiteral("rendering");
-    job.message = tr("Starting MOGRT Converter…");
-    job.output = output;
-    job.title = title;
-    m_jobs.insert(key, job);
+    m_running.insert(key, job);
 
     connect(process, &QProcess::readyReadStandardOutput, this, [this, key, process] {
-        auto it = m_jobs.find(key);
-        if (it != m_jobs.end())
+        auto it = m_running.find(key);
+        if (it != m_running.end())
             it->stdoutData += process->readAllStandardOutput();
     });
     connect(process, &QProcess::readyReadStandardError, this, [this, key, process] {
-        auto it = m_jobs.find(key);
-        if (it == m_jobs.end())
+        auto it = m_running.find(key);
+        if (it == m_running.end())
             return;
         const QByteArray chunk = process->readAllStandardError();
         it->stderrTail = (it->stderrTail + chunk).right(8192);
@@ -232,13 +283,9 @@ QString MogrtRenderer::render(const QString &mogrtPath, const QVariantList &fiel
         QRegularExpressionMatch last;
         while (m.hasNext())
             last = m.next();
-        if (last.hasMatch()) {
-            const double n = last.captured(2).toDouble();
-            if (n > 0) {
-                it->progress = qBound(0.0, last.captured(1).toDouble() / n, 1.0);
-                it->message = tr("Rendering frame %1 of %2…").arg(last.captured(1), last.captured(2));
-                bump();
-            }
+        if (last.hasMatch() && last.captured(2).toDouble() > 0) {
+            m_progress.insert(key, qBound(0.0, last.captured(1).toDouble() / last.captured(2).toDouble(), 1.0));
+            bump();
         }
     });
     connect(process, &QProcess::finished, this, [this, key](int exitCode, QProcess::ExitStatus status) {
@@ -250,20 +297,40 @@ QString MogrtRenderer::render(const QString &mogrtPath, const QVariantList &fiel
     });
     process->start();
     bump();
-    return key;
+}
+
+void MogrtRenderer::cleanup(Job &job)
+{
+    if (!job.partial.isEmpty())
+        QFile::remove(job.partial);
+    if (!job.valuesFile.isEmpty())
+        QFile::remove(job.valuesFile);
+    job.partial.clear();
+    job.valuesFile.clear();
+}
+
+void MogrtRenderer::fail(const QString &key, const QString &message)
+{
+    Job job = m_running.take(key);
+    if (job.process) {
+        job.process->disconnect(this);
+        job.process->deleteLater();
+    }
+    cleanup(job);
+    m_progress.remove(key);
+    bump();
+    emit jobFinished(key, false, {}, message);
+    QMetaObject::invokeMethod(this, &MogrtRenderer::pump, Qt::QueuedConnection);
 }
 
 void MogrtRenderer::finish(const QString &key, int exitCode, bool crashed)
 {
-    auto it = m_jobs.find(key);
-    if (it == m_jobs.end() || it->state != QLatin1String("rendering"))
+    auto it = m_running.find(key);
+    if (it == m_running.end())
         return;
     QProcess *process = it->process;
-    if (process) {
+    if (process)
         it->stdoutData += process->readAllStandardOutput();
-        process->deleteLater();
-    }
-    it->process = nullptr;
 
     // With --json the converter ends with one JSON object on stdout, errors included.
     QJsonObject result;
@@ -272,18 +339,30 @@ void MogrtRenderer::finish(const QString &key, int exitCode, bool crashed)
     if (brace >= 0)
         result = QJsonDocument::fromJson(out.mid(brace)).object();
 
-    QStringList warnings;
-    for (const QJsonValue &w : result.value(QStringLiteral("warnings")).toArray())
-        warnings << w.toString();
-    const QString output = result.value(QStringLiteral("output")).toString(it->output);
-
-    if (!crashed && exitCode == 0 && result.value(QStringLiteral("ok")).toBool(true) && QFileInfo::exists(output)) {
-        it->state = QStringLiteral("done");
-        it->progress = 1;
-        it->output = output;
-        it->message = tr("Rendered.");
+    const bool fileVerb = it->request.verb != QLatin1String("info");
+    const bool ok = !crashed && exitCode == 0 && result.value(QStringLiteral("ok")).toBool(true)
+                    && !result.isEmpty();
+    if (ok && fileVerb) {
+        const QString written = result.value(QStringLiteral("output")).toString(it->partial);
+        const QString target = it->request.output;
+        QFile::remove(target);
+        if (!QFileInfo::exists(written) || !QFile::rename(written, target)) {
+            fail(key, tr("MOGRT Converter finished, but its file could not be put in place (%1).")
+                          .arg(QDir::toNativeSeparators(target)));
+            return;
+        }
+        result.insert(QStringLiteral("output"), target);
+    }
+    if (ok) {
+        Job job = m_running.take(key);
+        if (job.process)
+            job.process->deleteLater();
+        job.partial.clear();
+        cleanup(job);
+        m_progress.remove(key);
         bump();
-        emit rendered(key, output, it->title, warnings);
+        emit jobFinished(key, true, result, {});
+        QMetaObject::invokeMethod(this, &MogrtRenderer::pump, Qt::QueuedConnection);
         return;
     }
 
@@ -296,7 +375,7 @@ void MogrtRenderer::finish(const QString &key, int exitCode, bool crashed)
                                                                          Qt::SkipEmptyParts);
         for (auto line = lines.crbegin(); line != lines.crend(); ++line) {
             const QString l = line->trimmed();
-            if (!l.isEmpty() && !l.startsWith(QLatin1String("Frame "))) {
+            if (!l.isEmpty() && !l.startsWith(QLatin1String("Frame ")) && !l.startsWith(QLatin1String("WARNUNG"))) {
                 message = l;
                 break;
             }
@@ -306,45 +385,38 @@ void MogrtRenderer::finish(const QString &key, int exitCode, bool crashed)
         message = tr("MOGRT Converter stopped without rendering the template.");
     else if (message.contains(QLatin1String("After-Effects-MOGRTs")) || message.contains(QLatin1String("ppro")))
         message = tr("This template was made in Premiere Pro. MOGRT Converter only renders templates made in After Effects.");
-    it->state = QStringLiteral("failed");
-    it->message = message;
-    QFile::remove(it->output);
-    bump();
-    emit failed(key, message);
+    fail(key, message);
 }
 
 void MogrtRenderer::cancel(const QString &key)
 {
-    auto it = m_jobs.find(key);
-    if (it == m_jobs.end() || it->state != QLatin1String("rendering"))
+    if (m_queued.contains(key)) {
+        m_queued.remove(key);
+        m_progress.remove(key);
+        bump();
+        emit jobFinished(key, false, {}, tr("Cancelled."));
+        return;
+    }
+    auto it = m_running.find(key);
+    if (it == m_running.end())
         return;
     QProcess *process = it->process;
-    it->state = QStringLiteral("failed");
-    it->message = tr("Cancelled.");
-    it->process = nullptr;
     if (process) {
         process->disconnect(this);
         process->kill();
         process->waitForFinished(2000);
-        process->deleteLater();
     }
-    QFile::remove(it->output);
-    bump();
+    fail(key, tr("Cancelled."));
 }
 
-QString MogrtRenderer::state(const QString &key) const
+bool MogrtRenderer::isActive(const QString &key) const
 {
-    return m_jobs.value(key).state;
+    return m_queued.contains(key) || m_running.contains(key);
 }
 
 double MogrtRenderer::progress(const QString &key) const
 {
-    return m_jobs.value(key).progress;
-}
-
-QString MogrtRenderer::message(const QString &key) const
-{
-    return m_jobs.value(key).message;
+    return m_progress.value(key);
 }
 
 } // namespace dafin::assets

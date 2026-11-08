@@ -850,6 +850,11 @@ bool isSyntheticTimelineClip(drift::ClipType type)
            || type == drift::ClipType::Adjustment;
 }
 
+bool isSyntheticTimelineClip(const drift::Clip &clip)
+{
+    return isSyntheticTimelineClip(clip.type) || !clip.mogrt.isEmpty();
+}
+
 drift::TimeUs syntheticClipMaxDurationUs()
 {
     return drift::secondsToUs(86400.0);

@@ -1301,6 +1301,9 @@ TimeUs sourceDurationForClip(const Project &project, const Clip &clip)
     // A composite's source is its nested timeline, which grows as content is added inside it.
     if (!clip.sequenceId.isEmpty())
         return project.sequenceDurationUs(clip.sequenceId);
+    // Dafin: a title rendered from a template is rendered again at whatever length it is given.
+    if (!clip.mogrt.isEmpty())
+        return secondsToUs(86400.0);
 
     if (!clip.assetId.isEmpty()) {
         if (const MediaAsset *asset = project.asset(clip.assetId)) {

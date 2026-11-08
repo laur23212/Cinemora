@@ -1792,6 +1792,7 @@ void ProjectFileController::remapPaths(drift::Project &project, const QHash<QStr
                 repoint(clip.faceTrackPath);
                 repoint(clip.depthPath);
                 repoint(clip.legacyStabilizePath);
+                repoint(clip.mogrt.templatePath);
                 for (drift::VectorSlotValue &slot : clip.vector.slotValues) {
                     if (slot.type == drift::VectorSlotValue::Type::Image)
                         repoint(slot.image);

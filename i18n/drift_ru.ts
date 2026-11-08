@@ -17246,30 +17246,6 @@ If playback stutters, try another.</source>
         <translation>Обновления</translation>
     </message>
     <message>
-        <source>Check for updates on startup</source>
-        <translation>Проверять обновления при запуске</translation>
-    </message>
-    <message>
-        <source>Once a day, check whether a newer Drift has been released.</source>
-        <translation>Раз в день проверять, не вышла ли более новая версия Drift.</translation>
-    </message>
-    <message>
-        <source>Check for updates</source>
-        <translation>Проверить обновления</translation>
-    </message>
-    <message>
-        <source>Checking…</source>
-        <translation>Проверка…</translation>
-    </message>
-    <message>
-        <source>Downloading…</source>
-        <translation>Загрузка…</translation>
-    </message>
-    <message>
-        <source>Check now</source>
-        <translation>Проверить сейчас</translation>
-    </message>
-    <message>
         <source>Help</source>
         <translation>Справка</translation>
     </message>

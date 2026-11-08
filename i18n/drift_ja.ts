@@ -17107,30 +17107,6 @@ If playback stutters, try another.</source>
         <translation>アップデート</translation>
     </message>
     <message>
-        <source>Check for updates on startup</source>
-        <translation>起動時にアップデートを確認</translation>
-    </message>
-    <message>
-        <source>Once a day, check whether a newer Drift has been released.</source>
-        <translation>1日に1回、Drift の新しいバージョンがリリースされているか確認します。</translation>
-    </message>
-    <message>
-        <source>Check for updates</source>
-        <translation>アップデートを確認</translation>
-    </message>
-    <message>
-        <source>Checking…</source>
-        <translation>確認中…</translation>
-    </message>
-    <message>
-        <source>Downloading…</source>
-        <translation>ダウンロード中…</translation>
-    </message>
-    <message>
-        <source>Check now</source>
-        <translation>今すぐ確認</translation>
-    </message>
-    <message>
         <source>Help</source>
         <translation>ヘルプ</translation>
     </message>
