@@ -417,6 +417,11 @@ jobs:
       # but emits it as DT_RUNPATH, and the loader applies RUNPATH only to the binary's own NEEDED
       # entries — never to a dependency's. libavfilter carries no RUNPATH of its own, so nothing
       # found libpostproc.
+      # Dafin fork: as on Windows, regenerate i18n/*.ts with this job's own lupdate before
+      # testing, so new UI strings do not fail the Translations check.
+      - name: Regenerate translation catalogs
+        run: cmake --build build --target update_translations
+
       # The ONNX and sticker tests skip without these two; the workspace paths are where the
       # fetch and checkout steps above put the files. The pinned FFmpeg's bin/ffmpeg goes on PATH
       # for the tests that synthesize their clips through it; the runner image has none.
