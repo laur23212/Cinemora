@@ -183,9 +183,12 @@ Item {
         previewStopTimer.stop()
         EditorState.playing = false
     }
+    // Dafin: Save as New Template — name, description and category; never overwrites anything.
     function openSaveStyle() {
-        saveStyleDialog.openWith(qsTr("Save text style"),
-                                 qsTr("My style %1").arg(EditorState.userTextPresets().length + 1))
+        const info = EditorState.textTemplateInfo(EditorState.selectedTrack, EditorState.selectedClip) || {}
+        const base = info.label && info.missing !== true ? qsTr("My %1").arg(info.label)
+                                                          : qsTr("My template %1").arg(EditorState.userTextPresets().length + 1)
+        saveTemplateDialog.openForSave(base, info.isUser === true ? info.category : "")
     }
     function openVoiceover() {
         voiceoverDialog.openFor(EditorState.selectedTrack, EditorState.selectedClip)
@@ -358,6 +361,14 @@ Item {
         width: root.width
         spacing: Theme.spacingMd
 
+        // Dafin: the clip's title template — quick controls and Save as new template — on top,
+        // so a colour or font change never needs the full editor below.
+        TextInspectorTemplateSection {
+            width: parent.width
+            visible: root.mode === "" && root.hasTextStyle
+            inspector: root
+        }
+
         TextInspectorTabBar {
             width: parent.width
             visible: root.mode === ""
@@ -384,10 +395,8 @@ Item {
         }
     }
 
-    NameDialog {
-        id: saveStyleDialog
-        onSubmitted: name => EditorState.saveTextStyleAsPreset(EditorState.selectedTrack,
-                                                               EditorState.selectedClip, name)
+    SaveTemplateDialog {
+        id: saveTemplateDialog
     }
 
     VoiceoverDialog {

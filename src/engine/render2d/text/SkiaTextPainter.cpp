@@ -613,7 +613,8 @@ private:
 
     void drawUnderline(SkCanvas &canvas) const
     {
-        if (m_bend.active || !m_style.underlineEnabled || m_style.underlineWidth <= 0.0)
+        if (m_bend.active || !m_style.underlineEnabled || m_style.underlineWidth <= 0.0
+            || m_style.underlineReveal <= 0.0)
             return;
         QHash<int, QRectF> perLine;
         for (int i = 0; i < m_pieces.size(); ++i) {
@@ -633,8 +634,11 @@ private:
         fill.setAntiAlias(true);
         fill.setColor(toSkColor(m_style.underlineColor));
         const float r = float(m_style.underlineWidth * m_scale * 0.5);
-        for (const QRectF &rule : std::as_const(perLine))
+        const double reveal = qBound(0.0, m_style.underlineReveal, 1.0);
+        for (QRectF rule : std::as_const(perLine)) {
+            rule.setWidth(rule.width() * reveal); // draw-on from the left of each line
             canvas.drawRoundRect(toSkRect(rule), r, r, fill);
+        }
     }
 
     // Through the middle of the x-height, in the fill colour; a bent block has no straight line to

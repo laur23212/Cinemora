@@ -29,6 +29,7 @@
 #include "core/text/TextShading.h"
 #include "core/effects/EffectStackStore.h"
 #include "core/text/TextPresetStore.h"
+#include "core/text/TextTemplate.h"
 #include "core/project/sources/Model3dSource.h"
 #include "core/project/sources/VectorSource.h"
 #include "core/project/sources/DotLottie.h"
@@ -130,6 +131,17 @@ private slots:
     void animatorCompositionOrder();
     void trackingLineAdjust();
     void caretTiming();
+    void textTimingFitsShortWindows();
+    void textTimingCapsTimeToRead();
+    void textTimingTinyWindowsStayReadable();
+    void textTimingHandlesDelayReverseAndLines();
+    void textTimingRoundTripsInJson();
+    void textTimingEveryPresetIsReadableInTime();
+    void titleTemplatesBundledAreValid();
+    void titleTemplateControlsDriveTheirProperty();
+    void titleTemplateValidatorExplainsMistakes();
+    void titleTemplateUserStoreKeepsEverything();
+    void textAnimationParamsAcceptPlainValues();
     void animationBoundsCoverTheEnvelope();
     void textStyleMigratesFromV6();
     void textStyleV7RoundTrip();
@@ -6053,7 +6065,10 @@ void CoreTest::animatorCompositionOrder()
     pop.props.opacity = 0.0;
     pop.props.hasOpacity = true;
     resolved.in = {pop};
-    frame = evaluateTextAnimation(TextAnimationSet{}, resolved, charFragments(1), charDomains(1), contextAt(800'000));
+    // The authored 1 s In over a 1 s window would be fitted to half of it; this checks the ease.
+    TextAnimationSet unfitted;
+    unfitted.timing.fitToWindow = false;
+    frame = evaluateTextAnimation(unfitted, resolved, charFragments(1), charDomains(1), contextAt(800'000));
     QVERIFY2(frame.props[0].scaleX > 1.0 && frame.props[0].scaleX < 1.1, qPrintable(QString::number(frame.props[0].scaleX)));
     QCOMPARE(frame.props[0].opacity, 1.0);
 
@@ -6157,6 +6172,7 @@ void CoreTest::caretTiming()
     TextAnimationSet set;
     set.caret.enabled = true;
     set.in.delayUs = 200'000; // the caret's lead: it blinks alone before the first character
+    set.timing.fitToWindow = false; // authored timing; fitting has its own tests
     TextAnimator type;
     type.selectors = {stagger(67'000, 0)};
     type.props.opacity = 0.0;
@@ -6189,6 +6205,651 @@ void CoreTest::caretTiming()
     frame = evaluateTextAnimation(set, resolved, frags, domains, contextAt(1'000'000));
     QVERIFY(frame.caret.visible);
     QCOMPARE(frame.caret.afterFragment, 7);
+}
+
+namespace {
+
+// Every fragment at its resting pose: what "readable" means for the timing rules.
+bool allAtRest(const drift::textanim::Frame &frame, QString *why = nullptr)
+{
+    const auto near = [](double a, double b) { return std::abs(a - b) < 1e-3; };
+    if (!near(frame.block.opacity, 1.0) || !near(frame.block.dx, 0.0) || !near(frame.block.dy, 0.0)
+        || !near(frame.block.scale, 1.0) || frame.block.blurPx > 1e-3) {
+        if (why)
+            *why = QStringLiteral("block not at rest");
+        return false;
+    }
+    for (int i = 0; i < frame.props.size(); ++i) {
+        const drift::textanim::FragmentProps &p = frame.props[i];
+        const bool rest = near(p.opacity, 1.0) && near(p.fillOpacity, 1.0) && near(p.dx, 0.0) && near(p.tracking, 0.0)
+                          && near(p.dy, 0.0) && near(p.scaleX, 1.0) && near(p.scaleY, 1.0) && near(p.rotation, 0.0)
+                          && near(p.skew, 0.0) && p.blurPx < 1e-3 && !p.hidden
+                          && (p.wipeProgress < 0.0 || near(p.wipeProgress, 1.0));
+        if (!rest) {
+            if (why)
+                *why = QStringLiteral("fragment %1: opacity %2 dx %3 dy %4 scale %5 blur %6")
+                           .arg(i).arg(p.opacity).arg(p.dx).arg(p.dy).arg(p.scaleX).arg(p.blurPx);
+            return false;
+        }
+    }
+    return true;
+}
+
+// Three lines of four one-letter words.
+QList<drift::textanim::FragmentInfo> lineFragments(drift::textanim::Domains *domains)
+{
+    QList<drift::textanim::FragmentInfo> out;
+    for (int i = 0; i < 12; ++i) {
+        drift::textanim::FragmentInfo f;
+        f.charIndex = i * 2;
+        f.nonSpaceIndex = i;
+        f.wordIndex = i;
+        f.lineIndex = i / 4;
+        f.advance = 20.0;
+        f.ascent = 16.0;
+        f.textStart = i * 2;
+        f.textLength = 1;
+        out.append(f);
+    }
+    domains->chars = 23;
+    domains->nonSpaceChars = 12;
+    domains->words = 12;
+    domains->lines = 3;
+    return out;
+}
+
+drift::textanim::EvalContext windowAt(drift::TimeUs t, drift::TimeUs windowUs, int fps)
+{
+    drift::textanim::EvalContext c = contextAt(t, windowUs);
+    c.fps = fps;
+    return c;
+}
+
+} // namespace
+
+void CoreTest::textTimingFitsShortWindows()
+{
+    TextAnimator pop;
+    pop.selectors = {stagger(0, 350'000, TextEaseKind::Linear)};
+    pop.props.opacity = 0.0;
+    pop.props.hasOpacity = true;
+    ResolvedSlots resolved;
+    resolved.in = {pop};
+    resolved.out = {pop};
+    const TextAnimationSet set;
+    const QList<FragmentInfo> frags = charFragments(4);
+    const Domains domains = charDomains(4);
+
+    // A 0.6 s clip at 30 fps: 350 + 350 ms would leave no hold. Both shrink to share half the
+    // window (150 ms each), snapped down to 4 frames.
+    FittedTiming fit = fittedTiming(set, resolved, domains, 600'000, 30);
+    QVERIFY(fit.fitted);
+    QCOMPARE(fit.inNaturalUs, TimeUs(350'000));
+    QCOMPARE(fit.inUs, TimeUs(133'333));
+    QCOMPARE(fit.outUs, TimeUs(133'333));
+    QCOMPARE(fit.readableAtUs, fit.inUs);
+    QVERIFY(fit.inUs + fit.outUs <= 300'000);
+    QVERIFY(allAtRest(evaluateTextAnimation(set, resolved, frags, domains, windowAt(fit.readableAtUs, 600'000, 30))));
+    // Mid-entrance it is still moving, and the exit leaves the middle alone.
+    QVERIFY(!allAtRest(evaluateTextAnimation(set, resolved, frags, domains, windowAt(66'667, 600'000, 30))));
+    QVERIFY(allAtRest(evaluateTextAnimation(set, resolved, frags, domains, windowAt(600'000 - fit.outUs, 600'000, 30))));
+    QVERIFY(!allAtRest(evaluateTextAnimation(set, resolved, frags, domains, windowAt(600'000 - 33'333, 600'000, 30))));
+
+    // A long clip plays the authored timing, untouched.
+    fit = fittedTiming(set, resolved, domains, 5'000'000, 30);
+    QVERIFY(!fit.fitted);
+    QCOMPARE(fit.inUs, TimeUs(350'000));
+    QCOMPARE(fit.readableAtUs, TimeUs(350'000));
+
+    // Opting out keeps the authored timing even when it overlaps.
+    TextAnimationSet raw;
+    raw.timing.fitToWindow = false;
+    fit = fittedTiming(raw, resolved, domains, 600'000, 30);
+    QVERIFY(!fit.fitted);
+    QCOMPARE(fit.inUs, TimeUs(350'000));
+
+    // No In slot: readable from the first frame.
+    ResolvedSlots outOnly;
+    outOnly.out = {pop};
+    fit = fittedTiming(set, outOnly, domains, 2'000'000, 30);
+    QCOMPARE(fit.readableAtUs, TimeUs(0));
+    QVERIFY(allAtRest(evaluateTextAnimation(set, outOnly, frags, domains, windowAt(0, 2'000'000, 30))));
+}
+
+void CoreTest::textTimingCapsTimeToRead()
+{
+    // Typewriter defaults: 60 ms per character, so a 42-character caption takes 2.46 s to appear.
+    TextAnimator type;
+    type.selectors = {stagger(60'000, 0)};
+    type.props.opacity = 0.0;
+    type.props.hasOpacity = true;
+    ResolvedSlots resolved;
+    resolved.in = {type};
+    const QList<FragmentInfo> frags = charFragments(42);
+    const Domains domains = charDomains(42);
+
+    TextAnimationSet set;
+    FittedTiming fit = fittedTiming(set, resolved, domains, 10'000'000, 30);
+    QCOMPARE(fit.readableAtUs, TimeUs(41 * 60'000));
+    QVERIFY(!fit.fitted);
+    // On a 3 s cue the window rule alone already halves it.
+    fit = fittedTiming(set, resolved, domains, 3'000'000, 30);
+    QVERIFY(fit.fitted);
+    QVERIFY(fit.readableAtUs <= 1'500'000);
+
+    // A caption cap of 300 ms compresses the whole reveal into it.
+    set.timing.maxReadUs = 300'000;
+    fit = fittedTiming(set, resolved, domains, 3'000'000, 30);
+    QVERIFY(fit.fitted);
+    QCOMPARE(fit.readableAtUs, TimeUs(300'000));
+    QVERIFY(allAtRest(evaluateTextAnimation(set, resolved, frags, domains, windowAt(fit.readableAtUs, 3'000'000, 30))));
+    // It is still a typewriter: halfway through the cap, about half the line is showing.
+    const Frame half = evaluateTextAnimation(set, resolved, frags, domains, windowAt(150'000, 3'000'000, 30));
+    int shown = 0;
+    for (const FragmentProps &p : half.props)
+        shown += p.hidden ? 0 : 1;
+    QVERIFY2(shown >= 18 && shown <= 24, qPrintable(QString::number(shown)));
+    // A cap longer than the reveal changes nothing.
+    set.timing.maxReadUs = 5'000'000;
+    fit = fittedTiming(set, resolved, domains, 10'000'000, 30);
+    QVERIFY(!fit.fitted);
+}
+
+void CoreTest::textTimingTinyWindowsStayReadable()
+{
+    TextAnimator pop;
+    pop.selectors = {stagger(0, 350'000, TextEaseKind::Back)};
+    pop.props.opacity = 0.0;
+    pop.props.hasOpacity = true;
+    pop.props.scaleX = 60.0;
+    ResolvedSlots resolved;
+    resolved.in = {pop};
+    resolved.out = {pop};
+    const TextAnimationSet set;
+    const QList<FragmentInfo> frags = charFragments(3);
+    const Domains domains = charDomains(3);
+
+    // Two frames at 30 fps: no room for either animation. The In becomes instant and the Out is
+    // dropped, so both frames show the whole text.
+    const TimeUs window = 66'667;
+    const FittedTiming fit = fittedTiming(set, resolved, domains, window, 30);
+    QCOMPARE(fit.inUs, TimeUs(0));
+    QCOMPARE(fit.outUs, TimeUs(0));
+    QCOMPARE(fit.readableAtUs, TimeUs(0));
+    QVERIFY(allAtRest(evaluateTextAnimation(set, resolved, frags, domains, windowAt(0, window, 30))));
+    QVERIFY(allAtRest(evaluateTextAnimation(set, resolved, frags, domains, windowAt(33'333, window, 30))));
+
+    // Every common frame rate snaps to whole frames.
+    for (int fps : {24, 25, 30, 50, 60}) {
+        const FittedTiming f = fittedTiming(set, resolved, domains, 500'000, fps);
+        const double frames = static_cast<double>(f.inUs) * fps / 1e6;
+        QVERIFY2(std::abs(frames - std::round(frames)) < 1e-3, qPrintable(QString::number(fps)));
+        QVERIFY(f.inUs + f.outUs <= 250'000);
+        QVERIFY(allAtRest(evaluateTextAnimation(set, resolved, frags, domains, windowAt(f.readableAtUs, 500'000, fps))));
+    }
+}
+
+void CoreTest::textTimingHandlesDelayReverseAndLines()
+{
+    Domains domains;
+    const QList<FragmentInfo> frags = lineFragments(&domains);
+    for (TextSelectorDomain domain : {TextSelectorDomain::Words, TextSelectorDomain::Lines,
+                                      TextSelectorDomain::CharsExcludingSpaces}) {
+        for (TextAnimOrder order : {TextAnimOrder::Forward, TextAnimOrder::Backward, TextAnimOrder::CenterOut,
+                                    TextAnimOrder::Random}) {
+            TextAnimator rise;
+            rise.selectors = {stagger(80'000, 200'000, TextEaseKind::Linear, domain)};
+            rise.selectors[0].order = order;
+            rise.props.opacity = 0.0;
+            rise.props.hasOpacity = true;
+            rise.props.position.y = 0.5;
+            rise.props.position.unit = TextLengthUnit::Em;
+            ResolvedSlots resolved;
+            resolved.in = {rise};
+            TextAnimationSet set;
+            set.in.delayUs = 100'000;
+            const QString label = QStringLiteral("domain %1 order %2").arg(int(domain)).arg(int(order));
+
+            // Authored: the estimate holds, and for a fixed order it is tight: the frame before it
+            // is still moving. A random order rarely puts a unit in the very last slot, so there
+            // the estimate is an upper bound.
+            FittedTiming fit = fittedTiming(set, resolved, domains, 20'000'000, 30);
+            QVERIFY2(!fit.fitted, qPrintable(label));
+            QString why;
+            QVERIFY2(allAtRest(evaluateTextAnimation(set, resolved, frags, domains,
+                                                     windowAt(fit.readableAtUs, 20'000'000, 30)), &why),
+                     qPrintable(label + QLatin1String(": ") + why));
+            if (order != TextAnimOrder::Random)
+                QVERIFY2(!allAtRest(evaluateTextAnimation(set, resolved, frags, domains,
+                                                          windowAt(fit.readableAtUs - 20'000, 20'000'000, 30))),
+                         qPrintable(label));
+
+            // Capped to 250 ms, delay included.
+            set.timing.maxReadUs = 250'000;
+            fit = fittedTiming(set, resolved, domains, 20'000'000, 30);
+            QVERIFY2(fit.fitted && fit.readableAtUs <= 250'000, qPrintable(label));
+            QVERIFY2(allAtRest(evaluateTextAnimation(set, resolved, frags, domains,
+                                                     windowAt(fit.readableAtUs, 20'000'000, 30)), &why),
+                     qPrintable(label + QLatin1String(": ") + why));
+            // Nothing shows during the (compressed) delay.
+            const Frame first = evaluateTextAnimation(set, resolved, frags, domains, windowAt(0, 20'000'000, 30));
+            for (const FragmentProps &p : first.props)
+                QVERIFY2(p.hidden, qPrintable(label));
+        }
+    }
+}
+
+void CoreTest::textTimingRoundTripsInJson()
+{
+    TextAnimationSet set;
+    QVERIFY(!textAnimationSetToJson(set).contains(QStringLiteral("timing")));
+    set.timing.fitToWindow = false;
+    set.timing.maxReadUs = 300'000;
+    const QJsonObject json = textAnimationSetToJson(set);
+    QCOMPARE(json.value(QStringLiteral("timing")).toObject().value(QStringLiteral("maxReadMs")).toDouble(), 300.0);
+    QCOMPARE(json.value(QStringLiteral("timing")).toObject().value(QStringLiteral("fit")).toBool(true), false);
+    const TextAnimationSet back = textAnimationSetFromJson(json);
+    QVERIFY(back.timing == set.timing);
+    // Different timing, different resolve-cache key.
+    QVERIFY(textAnimationSetHash(back) != textAnimationSetHash(TextAnimationSet{}));
+    // Missing block: the defaults.
+    QVERIFY(textAnimationSetFromJson(QJsonObject{}).timing.isDefault());
+}
+
+void CoreTest::textTimingEveryPresetIsReadableInTime()
+{
+    // Every built-in entrance, with the same preset as the exit where it has one, on short and
+    // long clips at common frame rates: at the fitted readable time every fragment is at rest,
+    // and that time is never later than half the clip.
+    Domains domains;
+    const QList<FragmentInfo> frags = lineFragments(&domains);
+    int checked = 0;
+    for (const TextAnimationPreset &preset : TextAnimationPresetCatalog::instance().presetsFor(TextAnimSlotKind::In)) {
+        if (isUserTextAnimationPresetId(preset.id))
+            continue;
+        TextAnimationSet authored;
+        authored.in.presetId = preset.id;
+        if (preset.supportsSlot(TextAnimSlotKind::Out))
+            authored.out.presetId = preset.id;
+        const ResolvedTextAnimation anim = resolveTextAnimation(authored);
+        for (TimeUs window : {TimeUs(300'000), TimeUs(1'000'000), TimeUs(5'000'000)}) {
+            for (int fps : {24, 30, 60}) {
+                const FittedTiming fit = fittedTiming(anim.set, anim.resolved, domains, window, fps);
+                const QString label = QStringLiteral("%1 window %2 fps %3").arg(preset.id).arg(window).arg(fps);
+                QVERIFY2(fit.readableAtUs <= window / 2, qPrintable(label));
+                QString why;
+                const Frame frame = evaluateTextAnimation(anim.set, anim.resolved, frags, domains,
+                                                          windowAt(fit.readableAtUs, window, fps));
+                QVERIFY2(allAtRest(frame, &why), qPrintable(label + QLatin1String(": ") + why));
+                ++checked;
+            }
+        }
+    }
+    QVERIFY2(checked >= 25 * 9, qPrintable(QString::number(checked)));
+}
+
+void CoreTest::titleTemplatesBundledAreValid()
+{
+    TitleTemplateCatalog::instance().reload();
+    QVERIFY2(TitleTemplateCatalog::instance().loadErrors().isEmpty(),
+             qPrintable(TitleTemplateCatalog::instance().loadErrors().join(QLatin1Char('\n'))));
+    const QList<TextPreset> templates = TitleTemplateCatalog::instance().templates();
+    QSet<QString> ids;
+    for (const TextPreset &t : templates)
+        ids.insert(t.id);
+    for (const char *id : {"dafin.fast-pop", "dafin.instant-underline", "dafin.fast-reveal-sparks", "dafin.static-title",
+                           "dafin.readable-caption"})
+        QVERIFY2(ids.contains(QLatin1String(id)), id);
+
+    for (const TextPreset &t : templates) {
+        QCOMPARE(t.origin, QStringLiteral("builtin"));
+        // Resolvable through the shared entry point every apply path uses, and never shadowing a pack.
+        QVERIFY(textPresetForId(t.id).has_value());
+        for (const TextPreset &pack : textPresets())
+            QVERIFY2(pack.id != t.id, qPrintable(t.id));
+        // Valid as written, and still valid after a write → read round trip.
+        QFile file(t.sourcePath);
+        QVERIFY(file.open(QIODevice::ReadOnly));
+        const QJsonObject json = QJsonDocument::fromJson(file.readAll()).object();
+        QList<TemplateIssue> issues = validateTitleTemplate(json, TemplateEnvironment{});
+        for (const TemplateIssue &i : issues)
+            QVERIFY2(i.severity != TemplateIssue::Severity::Error, qPrintable(t.id + QLatin1String(": ") + templateIssueToText(i)));
+        const QJsonObject again = titleTemplateToJson(titleTemplateFromJson(json));
+        QVERIFY2(!hasTemplateErrors(validateTitleTemplate(again, TemplateEnvironment{})), qPrintable(t.id));
+        QVERIFY(titleTemplateToJson(titleTemplateFromJson(again)) == again);
+
+        // The fast templates are readable within 200 ms on a 2 s clip, captions within their cap.
+        Domains domains;
+        const QList<FragmentInfo> frags = lineFragments(&domains);
+        const ResolvedTextAnimation anim = resolveTextAnimation(t.style.animation);
+        const FittedTiming fit = fittedTiming(anim.set, anim.resolved, domains, 2'000'000, 30);
+        const TimeUs limit = t.kind == QLatin1String("caption") ? 250'000 : 200'000;
+        QVERIFY2(fit.readableAtUs <= limit, qPrintable(t.id + QLatin1String(" readable at ") + QString::number(fit.readableAtUs)));
+        // Loop motion is decoration over readable text, so "at rest" is checked without it.
+        ResolvedSlots entranceOnly = anim.resolved;
+        entranceOnly.loop.clear();
+        QVERIFY2(allAtRest(evaluateTextAnimation(anim.set, entranceOnly, frags, domains, windowAt(fit.readableAtUs, 2'000'000, 30))),
+                 qPrintable(t.id));
+    }
+
+    // The sparks template carries its effect under a stable key and reserves room for it.
+    const TextPreset sparks = *textPresetForId(QStringLiteral("dafin.fast-reveal-sparks"));
+    QCOMPARE(sparks.effects.size(), 1);
+    QCOMPARE(sparks.effects.first().templateKey, QStringLiteral("sparks"));
+    QCOMPARE(sparks.effects.first().catalogId, QStringLiteral("bling_sparkle"));
+    QVERIFY(sparks.style.effectPadding > 0.0);
+    // The underline template keeps its draw-on keyframes.
+    const TextPreset underline = *textPresetForId(QStringLiteral("dafin.instant-underline"));
+    QVERIFY(underline.style.keyframes.contains(QStringLiteral("underlineReveal")));
+    QVERIFY(qFuzzyIsNull(underline.style.resolvedAt(0).underlineReveal));
+    QVERIFY(qFuzzyCompare(underline.style.resolvedAt(400'000).underlineReveal, 1.0));
+    QVERIFY(!underline.style.animation.in.isActive()); // readable from the first frame
+}
+
+void CoreTest::titleTemplateControlsDriveTheirProperty()
+{
+    // Every control of every bundled template: the binding resolves to the control's type, its
+    // current value reads back, and writing a different value changes the template — the text,
+    // the style or the effects — so no control is disconnected.
+    for (const TextPreset &t : TitleTemplateCatalog::instance().templates()) {
+        for (const TemplateControl &c : t.controls) {
+            const QString label = t.id + QLatin1String(" / ") + c.id;
+            QString why;
+            QStringList values;
+            QCOMPARE(templateBindingType(c.bind, t.style, t.effects, TemplateEnvironment{}, &why, &values), c.type);
+            const QString content = QStringLiteral("Sample");
+            const QVariant before = readTemplateBinding(c.bind, t.style, t.effects, content);
+            QVERIFY2(before.isValid(), qPrintable(label));
+
+            QVariant next;
+            if (c.type == QLatin1String("scalar"))
+                next = qFuzzyCompare(before.toDouble() + 1.0, c.max + 1.0) ? c.min : c.max;
+            else if (c.type == QLatin1String("bool"))
+                next = !before.toBool();
+            else if (c.type == QLatin1String("color"))
+                next = before.toString() == QLatin1String("#123456") ? QStringLiteral("#654321") : QStringLiteral("#123456");
+            else if (c.type == QLatin1String("font"))
+                next = QStringLiteral("Some Other Font");
+            else if (c.type == QLatin1String("text"))
+                next = QStringLiteral("Changed");
+            else if (c.type == QLatin1String("enum"))
+                next = c.options.value(c.options.indexOf(before.toString()) == 0 ? 1 : 0);
+
+            TextStyle style = t.style;
+            QList<Effect> effects = t.effects;
+            QString text = content;
+            QVERIFY2(writeTemplateBinding(c.bind, next, &style, &effects, &text), qPrintable(label));
+            const bool changed = text != content || textStyleToJson(style) != textStyleToJson(t.style)
+                                 || effectsToJson(effects) != effectsToJson(t.effects);
+            QVERIFY2(changed, qPrintable(label));
+            const QVariant after = readTemplateBinding(c.bind, style, effects, text);
+            if (c.type == QLatin1String("scalar"))
+                QVERIFY2(std::abs(after.toDouble() - next.toDouble()) < 1e-6 || c.bind == QLatin1String("font.weight"),
+                         qPrintable(label));
+            else if (c.type == QLatin1String("color"))
+                QCOMPARE(QColor(after.toString()), QColor(next.toString()));
+            else
+                QCOMPARE(after.toString(), next.toString());
+            // And the edit survives the project file.
+            const TextStyle reloaded = textStyleFromJson(textStyleToJson(style));
+            const QVariant persisted = readTemplateBinding(c.bind, reloaded, effectsFromJson(effectsToJson(effects)), text);
+            QCOMPARE(persisted.toString(), after.toString());
+        }
+    }
+    // Effects are addressed by key: putting another effect in front does not re-target a control.
+    const TextPreset sparks = *textPresetForId(QStringLiteral("dafin.fast-reveal-sparks"));
+    QList<Effect> effects = sparks.effects;
+    Effect mine;
+    mine.catalogId = QStringLiteral("gaussian_blur");
+    mine.parameters.insert(QStringLiteral("intensity"), 0.1);
+    effects.prepend(mine);
+    TextStyle style = sparks.style;
+    QVERIFY(writeTemplateBinding(QStringLiteral("effect.sparks.intensity"), 0.3, &style, &effects));
+    QCOMPARE(effects.at(0).parameters.value(QStringLiteral("intensity")).toDouble(), 0.1);
+    QCOMPARE(effects.at(1).parameters.value(QStringLiteral("intensity")).toDouble(), 0.3);
+}
+
+void CoreTest::titleTemplateValidatorExplainsMistakes()
+{
+    const auto parse = [](const char *json) { return QJsonDocument::fromJson(QByteArray(json)).object(); };
+    const auto find = [](const QList<TemplateIssue> &issues, const QString &path) -> const TemplateIssue * {
+        for (const TemplateIssue &i : issues)
+            if (i.path == path)
+                return &i;
+        return nullptr;
+    };
+
+    // A typo in a binding names the nearest real path.
+    QList<TemplateIssue> issues = validateTitleTemplate(parse(R"({
+        "format": 1, "id": "test.typo", "label": "Typo",
+        "style": { "layers": [ { "id": "glow", "kind": "glow", "blur": 10 }, { "id": "fill", "kind": "fill" } ] },
+        "controls": [ { "id": "g", "label": "Glow", "type": "scalar", "bind": "layer.glow.bluur", "min": 0, "max": 50 } ] })"),
+                                                        TemplateEnvironment{});
+    const TemplateIssue *typo = find(issues, QStringLiteral("controls[0].bind"));
+    QVERIFY(typo);
+    QCOMPARE(typo->code, QStringLiteral("binding"));
+    QVERIFY2(typo->message.contains(QLatin1String("blur")), qPrintable(typo->message));
+
+    // Unknown layers list the real ones; a colour on a gradient points at the stops; wrong types say both.
+    issues = validateTitleTemplate(parse(R"({
+        "format": 1, "id": "test.many", "label": "Many",
+        "style": { "layers": [ { "id": "fill", "kind": "fill",
+                                 "paint": { "kind": "gradient", "gradient": { "stops": [ { "pos": 0, "color": "#ff0000" }, { "pos": 1, "color": "#0000ff" } ] } } } ],
+                   "animation": { "in": { "preset": "no-such-preset" } } },
+        "controls": [
+          { "id": "a", "label": "A", "type": "color", "bind": "layer.glow.color" },
+          { "id": "b", "label": "B", "type": "color", "bind": "layer.fill.color" },
+          { "id": "c", "label": "C", "type": "bool", "bind": "font.size" },
+          { "id": "d", "label": "D", "type": "color", "bind": "layer.fill.gradient.stop.1.color" },
+          { "id": "e", "label": "E", "type": "enum", "bind": "align" },
+          { "id": "a", "label": "Dup", "type": "text", "bind": "text" } ] })"),
+                                   TemplateEnvironment{});
+    QVERIFY(find(issues, QStringLiteral("controls[0].bind"))->message.contains(QLatin1String("fill")));
+    QVERIFY(find(issues, QStringLiteral("controls[1].bind"))->message.contains(QLatin1String("gradient.stop")));
+    QCOMPARE(find(issues, QStringLiteral("controls[2].type"))->expected, QStringLiteral("scalar"));
+    QVERIFY(!find(issues, QStringLiteral("controls[3].bind")) && !find(issues, QStringLiteral("controls[3].type")));
+    QVERIFY(find(issues, QStringLiteral("controls[4].options")));
+    QVERIFY(find(issues, QStringLiteral("controls[5].id")));
+    const TemplateIssue *preset = find(issues, QStringLiteral("style.animation.in.preset"));
+    QVERIFY(preset && preset->expected.contains(QLatin1String("pop")));
+
+    // Schema basics, with the accepted values spelled out.
+    issues = validateTitleTemplate(parse(R"({ "format": 2, "id": "Bad Id", "kind": "poster",
+        "style": { "pixelSize": 5000, "layers": [ { "id": "x", "kind": "sparkle" } ] }, "colour": 1 })"),
+                                   TemplateEnvironment{});
+    QCOMPARE(find(issues, QStringLiteral("format"))->code, QStringLiteral("compatibility"));
+    QVERIFY(find(issues, QStringLiteral("id")));
+    QVERIFY(find(issues, QStringLiteral("label")));
+    QVERIFY(find(issues, QStringLiteral("kind"))->expected.contains(QLatin1String("caption")));
+    QCOMPARE(find(issues, QStringLiteral("style.pixelSize"))->code, QStringLiteral("range"));
+    QVERIFY(find(issues, QStringLiteral("style.layers[0].kind"))->expected.contains(QLatin1String("glow")));
+    QCOMPARE(find(issues, QStringLiteral("colour"))->severity, TemplateIssue::Severity::Warning);
+
+    // Param types and ranges of a preset, plain or typed.
+    issues = validateTitleTemplate(parse(R"({ "format": 1, "id": "test.params", "label": "P", "style": {
+        "animation": { "in": { "preset": "pop", "params": { "duration": "fast", "from": 999, "ease": "wobbly", "nope": 1 } } } } })"),
+                                   TemplateEnvironment{});
+    QCOMPARE(find(issues, QStringLiteral("style.animation.in.params.duration"))->code, QStringLiteral("schema"));
+    QCOMPARE(find(issues, QStringLiteral("style.animation.in.params.from"))->code, QStringLiteral("range"));
+    QVERIFY(find(issues, QStringLiteral("style.animation.in.params.ease")));
+    QVERIFY(find(issues, QStringLiteral("style.animation.in.params.nope")));
+
+    // With the engine side known: missing effects and fonts, unknown effect params, app version.
+    TemplateEnvironment env;
+    env.effect = [](const QString &id) -> std::optional<EffectPresetMeta> {
+        if (id != QLatin1String("bling_sparkle"))
+            return std::nullopt;
+        EffectPresetMeta meta;
+        meta.id = id;
+        EffectParamSpec intensity;
+        intensity.key = QStringLiteral("intensity");
+        intensity.min = 0.0;
+        intensity.max = 1.0;
+        meta.parameters = {intensity};
+        return meta;
+    };
+    env.fontAvailable = [](const QString &family) { return family == QLatin1String("Inter"); };
+    env.appVersion = QStringLiteral("1.2.0");
+    issues = validateTitleTemplate(parse(R"({ "format": 1, "id": "test.env", "label": "E",
+        "requires": { "fonts": ["Comic Neue"], "minAppVersion": "1.10.0" },
+        "style": { "fontFamily": "Comic Neue" },
+        "effects": [ { "key": "sparks", "effect": "bling_sparkle", "parameters": { "intensity": 2, "glitter": 1 } },
+                     { "key": "fire", "effect": "flame_burst" } ],
+        "controls": [ { "id": "s", "label": "S", "type": "scalar", "bind": "effect.sparks.glitter", "min": 0, "max": 1 },
+                      { "id": "f", "label": "F", "type": "bool", "bind": "effect.fire.enabled" } ] })"),
+                                   env);
+    QCOMPARE(find(issues, QStringLiteral("requires.minAppVersion"))->code, QStringLiteral("compatibility"));
+    QCOMPARE(find(issues, QStringLiteral("style.fontFamily"))->code, QStringLiteral("missing_dependency"));
+    QCOMPARE(find(issues, QStringLiteral("style.fontFamily"))->severity, TemplateIssue::Severity::Warning);
+    QCOMPARE(find(issues, QStringLiteral("effects[0].parameters.intensity"))->code, QStringLiteral("range"));
+    QVERIFY(find(issues, QStringLiteral("effects[0].parameters.glitter"))->expected.contains(QLatin1String("intensity")));
+    QCOMPARE(find(issues, QStringLiteral("effects[1].effect"))->code, QStringLiteral("missing_dependency"));
+    QVERIFY(find(issues, QStringLiteral("controls[0].bind"))->message.contains(QLatin1String("intensity")));
+    QVERIFY(!find(issues, QStringLiteral("controls[1].bind"))); // .enabled needs no catalog
+    QVERIFY(find(issues, QStringLiteral("style.effectPadding"))); // effects without room: a warning
+
+    // Machine-readable and human-readable forms carry the same facts.
+    const QJsonObject asJson = templateIssueToJson(issues.first());
+    QVERIFY(asJson.contains(QStringLiteral("severity")) && asJson.contains(QStringLiteral("path")));
+    QVERIFY(templateIssueToText(issues.first()).contains(issues.first().path));
+}
+
+void CoreTest::titleTemplateUserStoreKeepsEverything()
+{
+    const QString org = QCoreApplication::organizationName();
+    const QString app = QCoreApplication::applicationName();
+    QStandardPaths::setTestModeEnabled(true);
+    QCoreApplication::setOrganizationName(QStringLiteral("DriftTest"));
+    QCoreApplication::setApplicationName(QStringLiteral("DafinTestTemplates"));
+    TextPresetStore &store = TextPresetStore::instance();
+    QFile::remove(TextPresetStore::storePath());
+    store.reload();
+
+    // "My Electric Pop": Fast Pop with the user's changes, saved as a new template.
+    const TextPreset original = *textPresetForId(QStringLiteral("dafin.fast-pop"));
+    const QJsonObject originalJson = titleTemplateToJson(original);
+    TextPreset mine = original;
+    mine.label = QStringLiteral("My Electric Pop");
+    mine.description = QStringLiteral("Yellow, fast");
+    mine.category = QStringLiteral("cat-youtube");
+    mine.basedOn = original.id;
+    QVERIFY(writeTemplateBinding(QStringLiteral("layer.fill.color"), QStringLiteral("#ffcc00"), &mine.style, &mine.effects));
+    QVERIFY(writeTemplateBinding(QStringLiteral("animation.in.duration"), 0.08, &mine.style, &mine.effects));
+    mine.style.keyframes.insert(QStringLiteral("underlineReveal"), [] {
+        KeyframeTrack<double> t;
+        t.setKeyframe(0, Keyframe<double>{0.0});
+        t.setKeyframe(300'000, Keyframe<double>{1.0});
+        return t;
+    }());
+    Effect sparkle;
+    sparkle.catalogId = QStringLiteral("bling_sparkle");
+    sparkle.templateKey = QStringLiteral("sparks");
+    sparkle.parameters.insert(QStringLiteral("intensity"), 0.7);
+    mine.effects = {sparkle};
+
+    const QString id = store.addTemplate(mine);
+    QVERIFY(isUserTextPresetId(id));
+    QVERIFY(id != original.id);
+    // The original is untouched, in memory and in the catalog.
+    QVERIFY(titleTemplateToJson(*textPresetForId(original.id)) == originalJson);
+
+    store.reload();
+    const TextPreset back = *store.presetForId(id);
+    QCOMPARE(back.label, QStringLiteral("My Electric Pop"));
+    QCOMPARE(back.description, QStringLiteral("Yellow, fast"));
+    QCOMPARE(back.category, QStringLiteral("cat-youtube"));
+    QCOMPARE(back.basedOn, original.id);
+    QCOMPARE(back.controls, original.controls);
+    QCOMPARE(back.effects.size(), 1);
+    QCOMPARE(back.effects.first().templateKey, QStringLiteral("sparks"));
+    QCOMPARE(readTemplateBinding(QStringLiteral("layer.fill.color"), back.style, back.effects).toString(), QStringLiteral("#ffcc00"));
+    QCOMPARE(readTemplateBinding(QStringLiteral("animation.in.duration"), back.style, back.effects).toDouble(), 0.08);
+    QVERIFY(back.style.keyframes.contains(QStringLiteral("underlineReveal")));
+
+    // Update only reaches user templates, and keeps the user's name and category.
+    TextPreset changed = back;
+    changed.label = QStringLiteral("ignored");
+    QVERIFY(writeTemplateBinding(QStringLiteral("layer.fill.color"), QStringLiteral("#00ff88"), &changed.style, &changed.effects));
+    QVERIFY(store.updateTemplate(id, changed));
+    QVERIFY(!store.updateTemplate(original.id, changed));
+    QVERIFY(!store.updateTemplate(QStringLiteral("user:missing"), changed));
+    store.reload();
+    QCOMPARE(store.presetForId(id)->label, QStringLiteral("My Electric Pop"));
+    QCOMPARE(readTemplateBinding(QStringLiteral("layer.fill.color"), store.presetForId(id)->style, {}).toString(),
+             QStringLiteral("#00ff88"));
+    QVERIFY(titleTemplateToJson(*textPresetForId(original.id)) == originalJson);
+
+    // Duplicate, metadata, categories.
+    const QString copy = store.duplicate(id, QStringLiteral("Copy"));
+    QVERIFY(isUserTextPresetId(copy) && copy != id);
+    QCOMPARE(store.presetForId(copy)->basedOn, id);
+    QVERIFY(store.setMetadata(copy, QStringLiteral("  second  "), QStringLiteral("cat-gaming")));
+    QCOMPARE(store.presetForId(copy)->description, QStringLiteral("second"));
+    QCOMPARE(store.moveCategory(QStringLiteral("cat-youtube"), QString()), 1);
+    QVERIFY(store.presetForId(id)->category.isEmpty());
+
+    // Export → import: a new id, uncategorised, everything else intact.
+    const QString exportPath = QDir(QDir::tempPath()).filePath(QStringLiteral("dafin-template-test.drifttextstyle"));
+    QVERIFY(store.exportToFile(copy, exportPath));
+    const QString imported = store.importFromFile(exportPath);
+    QVERIFY(isUserTextPresetId(imported) && imported != copy);
+    QVERIFY(store.presetForId(imported)->category.isEmpty());
+    QCOMPARE(store.presetForId(imported)->effects.size(), 1);
+    QFile::remove(exportPath);
+
+    // Categories: stable ids, no twins, deleting one never deletes templates.
+    TemplateCategoryStore &cats = TemplateCategoryStore::instance();
+    QFile::remove(TemplateCategoryStore::storePath());
+    cats.reload();
+    const QString yt = cats.add(QStringLiteral("YouTube Titles"));
+    const QString gaming = cats.add(QStringLiteral("Gaming Effects"));
+    QVERIFY(yt.startsWith(QLatin1String("cat-")) && gaming != yt);
+    QCOMPARE(cats.add(QStringLiteral("  youtube titles ")), yt);
+    QVERIFY(cats.add(QStringLiteral("  ")).isEmpty());
+    QVERIFY(cats.rename(yt, QStringLiteral("YouTube")));
+    QVERIFY(cats.move(gaming, 0));
+    cats.reload();
+    QCOMPARE(cats.categories().size(), 2);
+    QCOMPARE(cats.categories().first().id, gaming);
+    QCOMPARE(cats.categoryForId(yt)->name, QStringLiteral("YouTube"));
+    QVERIFY(store.setMetadata(id, QString(), gaming));
+    QCOMPARE(store.moveCategory(gaming, yt), 1);
+    QVERIFY(cats.remove(gaming));
+    QVERIFY(store.presetForId(id).has_value());
+    QCOMPARE(store.presetForId(id)->category, yt);
+    QFile::remove(TemplateCategoryStore::storePath());
+    cats.reload();
+
+    // A legacy entry (just a style) still loads.
+    QVERIFY(titleTemplateFromJson(QJsonObject{{QStringLiteral("id"), QStringLiteral("user:old")},
+                                              {QStringLiteral("label"), QStringLiteral("Old")},
+                                              {QStringLiteral("style"), textStyleToJson(TextStyle{})}})
+                .effects.isEmpty());
+
+    QFile::remove(TextPresetStore::storePath());
+    store.reload();
+    QCoreApplication::setOrganizationName(org);
+    QCoreApplication::setApplicationName(app);
+    QStandardPaths::setTestModeEnabled(false);
+}
+
+void CoreTest::textAnimationParamsAcceptPlainValues()
+{
+    const QJsonObject plain = QJsonDocument::fromJson(R"({ "preset": "pop",
+        "params": { "duration": 0.12, "ease": "back", "from": 70 } })").object();
+    const TextAnimationSlot slot = textAnimationSlotFromJson(plain);
+    QCOMPARE(slot.params.value(QStringLiteral("duration")).type, VectorSlotValue::Type::Scalar);
+    QCOMPARE(slot.params.value(QStringLiteral("duration")).scalar, 0.12);
+    QCOMPARE(slot.params.value(QStringLiteral("ease")).text, QStringLiteral("back"));
+    // The typed form is still what Dafin writes, and it reads back the same.
+    const TextAnimationSlot again = textAnimationSlotFromJson(textAnimationSlotToJson(slot));
+    QCOMPARE(again.params.value(QStringLiteral("duration")).scalar, 0.12);
+    QCOMPARE(again.params.value(QStringLiteral("from")).scalar, 70.0);
+    // Effects carry their template key through the project file.
+    Effect e;
+    e.catalogId = QStringLiteral("bling_sparkle");
+    e.templateKey = QStringLiteral("sparks");
+    QCOMPARE(effectsFromJson(effectsToJson({e})).first().templateKey, QStringLiteral("sparks"));
 }
 
 void CoreTest::animationBoundsCoverTheEnvelope()

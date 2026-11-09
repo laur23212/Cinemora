@@ -303,6 +303,7 @@ struct SlotTime
     TimeUs staggerElapsedUs = 0; // In: since the origin; Out: until the end
     double elapsedSec = 0.0;     // for wiggles
     TimeUs durationUs = 0;
+    double timeScale = 1.0;      // TextTimingFit: < 1 plays the slot faster, 0 = instant In
 };
 
 TimeUs derivedSlotDuration(const TextAnimationSlot &slot, const QList<TextAnimator> &animators,
@@ -324,28 +325,50 @@ TimeUs derivedSlotDuration(const TextAnimationSlot &slot, const QList<TextAnimat
     return longest > 0 ? longest : 400000;
 }
 
+// Far enough past any slot's end that every stagger and curve has settled.
+constexpr TimeUs kSettledUs = 1'000'000'000'000;
+
+// Time inside a fitted slot: the slot plays timeScale times its authored length, so its own clock
+// runs 1 / timeScale faster. Scale 0 is an In that is already over.
+//
+// Rounded up, plus one microsecond of window time: frame timestamps are whole microseconds and
+// may sit a fraction below the exact frame instant the fitted length was snapped to. Without the
+// margin the last fragment of a fitted reveal would land one frame late (1 µs short, scaled up).
+TimeUs slotLocalUs(TimeUs us, double timeScale)
+{
+    if (timeScale >= 1.0)
+        return us;
+    if (timeScale <= 0.0)
+        return us >= 0 ? kSettledUs : us;
+    return static_cast<TimeUs>(std::ceil((static_cast<double>(us) + 1.0) / timeScale));
+}
+
 SlotTime slotTimeFor(TextAnimSlotKind kind, const TextAnimationSlot &slot,
                      const QList<TextAnimator> &animators, const Domains &domains,
-                     const EvalContext &ctx)
+                     const EvalContext &ctx, double timeScale = 1.0)
 {
     SlotTime st;
     if (!slot.enabled || animators.isEmpty())
         return st;
+    // An Out too short to fit even one frame is dropped rather than flashed.
+    if (kind == TextAnimSlotKind::Out && timeScale <= 0.0)
+        return st;
     st.active = true;
+    st.timeScale = kind == TextAnimSlotKind::Loop ? 1.0 : std::clamp(timeScale, 0.0, 1.0);
     const TimeUs start = ctx.windowStartUs;
     const TimeUs end = ctx.windowStartUs + ctx.windowDurationUs;
     const TimeUs t = ctx.timelineUs;
     st.durationUs = derivedSlotDuration(slot, animators, domains);
     switch (kind) {
     case TextAnimSlotKind::In: {
-        const TimeUs elapsed = t - start - slot.delayUs;
+        const TimeUs elapsed = slotLocalUs(t - start, st.timeScale) - slot.delayUs;
         st.staggerElapsedUs = elapsed;
         st.progress = clamp01(static_cast<double>(elapsed) / static_cast<double>(st.durationUs));
         st.elapsedSec = usToSeconds(std::max<TimeUs>(0, t - start));
         break;
     }
     case TextAnimSlotKind::Out: {
-        const TimeUs remaining = end - slot.delayUs - t;
+        const TimeUs remaining = slotLocalUs(end - t, st.timeScale) - slot.delayUs;
         st.isOut = true;
         st.staggerElapsedUs = remaining;
         st.progress = clamp01(1.0 - static_cast<double>(remaining) / static_cast<double>(st.durationUs));
@@ -581,11 +604,13 @@ CaretState caretFor(const TextAnimationSet &set, const ResolvedSlots &resolved, 
 
     bool show = false;
     if (in.active) {
-        const TimeUs revealEnd = set.in.delayUs + in.durationUs;
+        const TimeUs revealEnd =
+            static_cast<TimeUs>(std::llround(static_cast<double>(set.in.delayUs + in.durationUs) * in.timeScale));
         show = c.holdAfterUs < 0 || elapsed <= revealEnd + c.holdAfterUs;
     }
     if (out.active && hasStepStagger(resolved.out)) {
-        const TimeUs outStart = end - set.out.delayUs - out.durationUs;
+        const TimeUs outStart = end
+            - static_cast<TimeUs>(std::llround(static_cast<double>(set.out.delayUs + out.durationUs) * out.timeScale));
         show = show || ctx.timelineUs >= outStart;
     }
     if (!in.active && !out.active)
@@ -703,8 +728,9 @@ Frame evaluateTextAnimation(const TextAnimationSet &set, const ResolvedSlots &re
     const int n = fragments.size();
     frame.props.resize(n);
 
-    const SlotTime inTime = slotTimeFor(TextAnimSlotKind::In, set.in, resolved.in, domains, ctx);
-    const SlotTime outTime = slotTimeFor(TextAnimSlotKind::Out, set.out, resolved.out, domains, ctx);
+    const FittedTiming fit = fittedTiming(set, resolved, domains, ctx.windowDurationUs, ctx.fps);
+    const SlotTime inTime = slotTimeFor(TextAnimSlotKind::In, set.in, resolved.in, domains, ctx, fit.inScale);
+    const SlotTime outTime = slotTimeFor(TextAnimSlotKind::Out, set.out, resolved.out, domains, ctx, fit.outScale);
     const SlotTime loopTime = slotTimeFor(TextAnimSlotKind::Loop, set.loop, resolved.loop, domains, ctx);
 
     bool timeDriven = false;
@@ -766,6 +792,80 @@ Frame evaluateTextAnimation(const TextAnimationSet &set, const ResolvedSlots &re
     frame.isStatic = identity && !timeDriven && !set.caret.enabled;
     frame.poseHash = frame.isStatic ? 0 : poseHashOf(frame);
     return frame;
+}
+
+FittedTiming fittedTiming(const TextAnimationSet &set, const ResolvedSlots &resolved, const Domains &domains,
+                          TimeUs windowDurationUs, int fps)
+{
+    FittedTiming f;
+    f.inActive = set.in.enabled && !resolved.in.isEmpty();
+    f.outActive = set.out.enabled && !resolved.out.isEmpty();
+    if (f.inActive)
+        f.inNaturalUs = std::max<TimeUs>(0, set.in.delayUs) + derivedSlotDuration(set.in, resolved.in, domains);
+    if (f.outActive)
+        f.outNaturalUs = std::max<TimeUs>(0, set.out.delayUs) + derivedSlotDuration(set.out, resolved.out, domains);
+
+    double inUs = static_cast<double>(f.inNaturalUs);
+    double outUs = static_cast<double>(f.outNaturalUs);
+    const TextTimingFit &rules = set.timing;
+    if (f.inActive && rules.maxReadUs > 0 && inUs > static_cast<double>(rules.maxReadUs))
+        inUs = static_cast<double>(rules.maxReadUs);
+    if (rules.fitToWindow && windowDurationUs > 0) {
+        const double budget = 0.5 * static_cast<double>(windowDurationUs);
+        if (inUs + outUs > budget) {
+            const double k = budget / (inUs + outUs);
+            inUs *= k;
+            outUs *= k;
+        }
+    }
+
+    // Only what a rule shortened is snapped (down, so it stays inside its budget); authored timing
+    // that already fits plays exactly as before.
+    const double frameUs = fps > 0 ? 1e6 / fps : 0.0;
+    const auto snapShortened = [frameUs](double us, TimeUs natural) {
+        if (frameUs <= 0.0 || us >= static_cast<double>(natural))
+            return us;
+        const double snapped = std::floor(us / frameUs + 1e-6) * frameUs;
+        return snapped < frameUs ? 0.0 : snapped;
+    };
+    if (f.inActive)
+        inUs = snapShortened(inUs, f.inNaturalUs);
+    if (f.outActive)
+        outUs = snapShortened(outUs, f.outNaturalUs);
+
+    f.inUs = f.inActive ? static_cast<TimeUs>(std::llround(inUs)) : 0;
+    f.outUs = f.outActive ? static_cast<TimeUs>(std::llround(outUs)) : 0;
+    f.inScale = f.inNaturalUs > 0 ? std::min(1.0, inUs / static_cast<double>(f.inNaturalUs)) : 1.0;
+    f.outScale = f.outNaturalUs > 0 ? std::min(1.0, outUs / static_cast<double>(f.outNaturalUs)) : 1.0;
+    f.fitted = f.inScale < 1.0 || f.outScale < 1.0;
+    f.readableAtUs = f.inUs;
+    return f;
+}
+
+Domains estimateDomains(const QString &text)
+{
+    Domains d;
+    bool inWord = false;
+    d.lines = 1;
+    for (const QChar c : text) {
+        if (c == QLatin1Char('\n')) {
+            ++d.lines;
+            inWord = false;
+            continue;
+        }
+        if (c.isLowSurrogate())
+            continue; // one grapheme per surrogate pair
+        ++d.chars;
+        if (c.isSpace()) {
+            inWord = false;
+            continue;
+        }
+        ++d.nonSpaceChars;
+        if (!inWord)
+            ++d.words;
+        inWord = true;
+    }
+    return d;
 }
 
 Bounds animationBounds(const ResolvedSlots &resolved, const EvalContext &ctx)
@@ -1191,8 +1291,22 @@ TextAnimationSlot textAnimationSlotFromJson(const QJsonObject &o)
     TextAnimationSlot s;
     s.presetId = o.value(QStringLiteral("preset")).toString();
     const QJsonObject params = o.value(QStringLiteral("params")).toObject();
-    for (auto it = params.constBegin(); it != params.constEnd(); ++it)
-        s.params.insert(it.key(), VectorSlotValue::fromJson(it->toObject()));
+    for (auto it = params.constBegin(); it != params.constEnd(); ++it) {
+        // The typed form {"type", "value"} is what Dafin writes. Hand-written files (templates
+        // from an external author) may use the plain value: a number is a scalar, true/false a
+        // switch, "#rrggbb" a colour, any other string text.
+        const QJsonValue v = it.value();
+        if (v.isObject())
+            s.params.insert(it.key(), VectorSlotValue::fromJson(v.toObject()));
+        else if (v.isDouble())
+            s.params.insert(it.key(), VectorSlotValue::fromScalar(v.toDouble()));
+        else if (v.isBool())
+            s.params.insert(it.key(), VectorSlotValue::fromScalar(v.toBool() ? 1.0 : 0.0));
+        else if (v.isString() && v.toString().startsWith(QLatin1Char('#')) && QColor(v.toString()).isValid())
+            s.params.insert(it.key(), VectorSlotValue::fromColor(QColor(v.toString())));
+        else if (v.isString())
+            s.params.insert(it.key(), VectorSlotValue::fromText(v.toString()));
+    }
     for (const QJsonValue &v : o.value(QStringLiteral("animators")).toArray())
         s.animators.append(textAnimatorFromJson(v.toObject()));
     s.delayUs = o.value(QStringLiteral("delayUs")).toInteger(0);
@@ -1217,6 +1331,14 @@ QJsonObject textAnimationSetToJson(const TextAnimationSet &set)
         o.insert(QStringLiteral("anchorGrouping"), textAnchorGroupingToString(set.anchorGrouping));
     if (!set.anchorAlignment.isNull())
         o.insert(QStringLiteral("anchorAlignment"), pointToJson(set.anchorAlignment));
+    if (!set.timing.isDefault()) {
+        QJsonObject timing;
+        if (!set.timing.fitToWindow)
+            timing.insert(QStringLiteral("fit"), false);
+        if (set.timing.maxReadUs > 0)
+            timing.insert(QStringLiteral("maxReadMs"), static_cast<double>(set.timing.maxReadUs) / 1000.0);
+        o.insert(QStringLiteral("timing"), timing);
+    }
     return o;
 }
 
@@ -1229,6 +1351,9 @@ TextAnimationSet textAnimationSetFromJson(const QJsonObject &o)
     set.caret = textCaretFromJson(o.value(QStringLiteral("caret")).toObject());
     set.anchorGrouping = textAnchorGroupingFromString(o.value(QStringLiteral("anchorGrouping")).toString());
     set.anchorAlignment = pointFromJson(o.value(QStringLiteral("anchorAlignment")), QPointF());
+    const QJsonObject timing = o.value(QStringLiteral("timing")).toObject();
+    set.timing.fitToWindow = timing.value(QStringLiteral("fit")).toBool(true);
+    set.timing.maxReadUs = static_cast<TimeUs>(std::llround(qMax(0.0, timing.value(QStringLiteral("maxReadMs")).toDouble(0.0)) * 1000.0));
     return set;
 }
 

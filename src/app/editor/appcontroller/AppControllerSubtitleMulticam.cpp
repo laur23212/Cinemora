@@ -59,10 +59,9 @@ void AppController::addTextClip(const QString &text, double atSeconds, const QSt
     clip.srcIn = 0;
     clip.srcOut = drift::kTextClipDurationUs;
     if (!presetId.isEmpty()) {
-        if (const std::optional<drift::TextStyle> preset = drift::textStyleForPresetId(presetId)) {
-            clip.textStyle = *preset;
-            clip.textStyle.packId = presetId;
-        }
+        // Dafin: through the template path, so a title template's clip effects come along.
+        if (const std::optional<drift::TextPreset> preset = drift::textPresetForId(presetId))
+            applyTitleTemplate(clip, *preset);
     }
     applyDefaultVisualLayout(clip, m_project.width(), m_project.height());
 

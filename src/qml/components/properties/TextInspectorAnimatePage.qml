@@ -14,6 +14,9 @@ Column {
     TextInspectorAnimateHint {
         inspector: root.inspector
     }
+    TextInspectorReadability {
+        inspector: root.inspector
+    }
     TextInspectorAnimCategoryStrip {
         inspector: root.inspector
     }

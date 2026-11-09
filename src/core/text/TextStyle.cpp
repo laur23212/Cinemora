@@ -4,6 +4,7 @@
 #include "core/text/animation/TextAnimationPreset.h"
 #include "core/text/TextLook.h"
 #include "core/text/TextPresetStore.h"
+#include "core/text/TextTemplate.h"
 
 #include <QCoreApplication>
 #include <QJsonArray>
@@ -809,13 +810,21 @@ const QList<TextPreset> &textPresets()
 
 std::optional<TextPreset> textPresetForId(const QString &id)
 {
-    if (isUserTextPresetId(id))
-        return TextPresetStore::instance().presetForId(id);
-    for (const TextPreset &preset : textPresets()) {
-        if (preset.id == id)
-            return preset;
+    if (isUserTextPresetId(id)) {
+        std::optional<TextPreset> user = TextPresetStore::instance().presetForId(id);
+        if (user)
+            user->origin = QStringLiteral("user");
+        return user;
     }
-    return std::nullopt;
+    for (const TextPreset &preset : textPresets()) {
+        if (preset.id == id) {
+            TextPreset pack = preset;
+            pack.origin = QStringLiteral("pack");
+            return pack;
+        }
+    }
+    // Dafin: bundled and installed JSON title templates.
+    return TitleTemplateCatalog::instance().templateForId(id);
 }
 
 std::optional<TextStyle> textStyleForPresetId(const QString &id)
@@ -894,7 +903,8 @@ const QStringList &flatKeyframeKeys()
 {
     static const QStringList keys{QStringLiteral("pixelSize"), QStringLiteral("letterSpacing"),
                                   QStringLiteral("lineHeight"), QStringLiteral("boxPadding"),
-                                  QStringLiteral("pathBend")};
+                                  QStringLiteral("pathBend"), QStringLiteral("underlineWidth"),
+                                  QStringLiteral("underlineOffset"), QStringLiteral("underlineReveal")};
     return keys;
 }
 
@@ -961,6 +971,12 @@ QString textKeyframeLabel(const QString &key, const TextStyle &s)
         return QCoreApplication::translate("TextStyle", "Box padding");
     if (canonical == QLatin1String("pathBend"))
         return QCoreApplication::translate("TextStyle", "Bend");
+    if (canonical == QLatin1String("underlineWidth"))
+        return QCoreApplication::translate("TextStyle", "Underline · Thickness");
+    if (canonical == QLatin1String("underlineOffset"))
+        return QCoreApplication::translate("TextStyle", "Underline · Offset");
+    if (canonical == QLatin1String("underlineReveal"))
+        return QCoreApplication::translate("TextStyle", "Underline · Drawn");
     return shadingLayerKeyframeLabel(s.layers, canonical.isEmpty() ? key : canonical);
 }
 
@@ -979,6 +995,12 @@ bool textStyleScalar(const TextStyle &s, const QString &rawKey, double *out)
         *out = s.boxPadding;
     else if (key == QStringLiteral("pathBend"))
         *out = s.pathBend;
+    else if (key == QStringLiteral("underlineWidth"))
+        *out = s.underlineWidth;
+    else if (key == QStringLiteral("underlineOffset"))
+        *out = s.underlineOffset;
+    else if (key == QStringLiteral("underlineReveal"))
+        *out = s.underlineReveal;
     else {
         LayerKeyPath path;
         parseLayerKey(key, &path);
@@ -1002,6 +1024,12 @@ bool setTextStyleScalar(TextStyle &s, const QString &rawKey, double value)
         s.boxPadding = qMax(0.0, value);
     else if (key == QStringLiteral("pathBend"))
         s.pathBend = qBound(-100.0, value, 100.0);
+    else if (key == QStringLiteral("underlineWidth"))
+        s.underlineWidth = qMax(0.0, value);
+    else if (key == QStringLiteral("underlineOffset"))
+        s.underlineOffset = value;
+    else if (key == QStringLiteral("underlineReveal"))
+        s.underlineReveal = qBound(0.0, value, 1.0);
     else {
         LayerKeyPath path;
         parseLayerKey(key, &path);
@@ -1079,6 +1107,13 @@ QJsonObject textStyleToJson(const TextStyle &s)
     // Only animated styles carry the key: projects without text animation stay byte-identical.
     if (!keyframesJson.isEmpty())
         json.insert(QStringLiteral("keyframes"), keyframesJson);
+    // Dafin additions, written only when set, for the same reason.
+    if (s.underlineReveal < 1.0)
+        json.insert(QStringLiteral("underlineReveal"), s.underlineReveal);
+    if (s.effectPadding > 0.0)
+        json.insert(QStringLiteral("effectPadding"), s.effectPadding);
+    if (!s.templateId.isEmpty())
+        json.insert(QStringLiteral("templateId"), s.templateId);
     return json;
 }
 
@@ -1176,6 +1211,9 @@ TextStyle textStyleFromJson(const QJsonObject &o)
     s.underlineColor = QColor(o.value(QStringLiteral("underlineColor")).toString(s.underlineColor.name(QColor::HexArgb)));
     s.underlineWidth = o.value(QStringLiteral("underlineWidth")).toDouble(s.underlineWidth);
     s.underlineOffset = o.value(QStringLiteral("underlineOffset")).toDouble(s.underlineOffset);
+    s.underlineReveal = qBound(0.0, o.value(QStringLiteral("underlineReveal")).toDouble(1.0), 1.0);
+    s.effectPadding = qBound(0.0, o.value(QStringLiteral("effectPadding")).toDouble(0.0), 2000.0);
+    s.templateId = o.value(QStringLiteral("templateId")).toString();
     s.strikethroughEnabled = o.value(QStringLiteral("strikethroughEnabled")).toBool(s.strikethroughEnabled);
     s.accent =wordAccentFromJson(o.value(QStringLiteral("accent")).toObject());
 

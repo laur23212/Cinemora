@@ -33,8 +33,8 @@ CollapsibleSection {
         width: parent.width
         variant: "secondary"
         glyph: Theme.icons.save
-        text: qsTr("Save style…")
-        tooltip: qsTr("Save this text's style as a reusable preset")
+        text: qsTr("Save as new template…")
+        tooltip: qsTr("Keep this look (style and effects) as a new template in My templates")
         onClicked: inspector.openSaveStyle()
     }
 

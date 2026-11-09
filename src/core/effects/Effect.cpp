@@ -104,6 +104,8 @@ QJsonArray effectsToJson(const QList<Effect> &effects)
         };
         if (!effect.enabled)
             object.insert(QStringLiteral("enabled"), false);
+        if (!effect.templateKey.isEmpty())
+            object.insert(QStringLiteral("templateKey"), effect.templateKey);
         if (!paramKeyframes.isEmpty())
             object.insert(QStringLiteral("paramKeyframes"), paramKeyframes);
         array.append(object);
@@ -120,6 +122,7 @@ QList<Effect> effectsFromJson(const QJsonArray &array)
         effect.name = object.value(QStringLiteral("name")).toString();
         effect.catalogId = object.value(QStringLiteral("catalogId")).toString();
         effect.enabled = object.value(QStringLiteral("enabled")).toBool(true);
+        effect.templateKey = object.value(QStringLiteral("templateKey")).toString();
         const QJsonObject params = object.value(QStringLiteral("parameters")).toObject();
         for (auto it = params.constBegin(); it != params.constEnd(); ++it)
             effect.parameters.insert(it.key(), it.value().toVariant());

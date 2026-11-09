@@ -11,6 +11,10 @@ Column {
     signal exportRequested(var preset)
     signal renameRequested(var preset)
     signal deleteRequested(var preset)
+    signal detailsRequested(var preset)
+    signal duplicateRequested(var preset)
+    // Dafin: a template installed from a file: it can be removed, not edited.
+    property bool installed: false
     width: cardSize
     spacing: Theme.spacingSm
 
@@ -55,7 +59,7 @@ Column {
             variant: "ghost"
             buttonSize: 20
             iconSize: 12
-            tooltip: qsTr("Style options")
+            tooltip: qsTr("Template options")
             onClicked: cardMenu.popup()
         }
 
@@ -73,18 +77,39 @@ Column {
             id: cardMenu
 
             ThemedMenuItem {
+                visible: !root.installed
+                height: visible ? implicitHeight : 0
+                text: qsTr("Details and category…")
+                icon.name: Theme.icons.pencil
+                onTriggered: detailsRequested(root.modelData)
+            }
+            ThemedMenuItem {
+                visible: !root.installed
+                height: visible ? implicitHeight : 0
                 text: qsTr("Rename…")
                 icon.name: Theme.icons.pencil
                 onTriggered: renameRequested(root.modelData)
             }
             ThemedMenuItem {
+                visible: !root.installed
+                height: visible ? implicitHeight : 0
+                text: qsTr("Duplicate")
+                icon.name: Theme.icons.copy
+                onTriggered: duplicateRequested(root.modelData)
+            }
+            ThemedMenuItem {
+                visible: !root.installed
+                height: visible ? implicitHeight : 0
                 text: qsTr("Export…")
                 icon.name: Theme.icons.folderOutput
                 onTriggered: exportRequested(root.modelData)
             }
-            ThemedMenuSeparator { }
+            ThemedMenuSeparator {
+                visible: !root.installed
+                height: visible ? implicitHeight : 0
+            }
             ThemedMenuItem {
-                text: qsTr("Delete")
+                text: root.installed ? qsTr("Remove") : qsTr("Delete")
                 icon.name: Theme.icons.trash
                 onTriggered: deleteRequested(root.modelData)
             }

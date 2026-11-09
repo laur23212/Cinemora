@@ -1,0 +1,40 @@
+{
+  "format": 1,
+  "id": "dafin.fast-reveal-sparks",
+  "label": "Fast Reveal + Sparks",
+  "description": "Words snap in from a blur in 150 ms, then a cyan glow and sparkles keep it alive.",
+  "category": "fast-decorated",
+  "tags": ["fast", "sparks", "glow", "neon", "gaming"],
+  "sampleText": "NEW RECORD",
+  "requires": { "fonts": ["Inter"] },
+  "style": {
+    "fontFamily": "Inter",
+    "fontWeight": 700,
+    "pixelSize": 104,
+    "effectPadding": 48,
+    "layers": [
+      { "id": "glow", "kind": "glow", "paint": { "kind": "solid", "color": "#22e3ff" },
+        "blur": 26, "spread": 2, "opacity": 0.85 },
+      { "id": "stroke", "kind": "stroke", "paint": { "kind": "solid", "color": "#062433" },
+        "width": 5, "strokeAlign": "outside" },
+      { "id": "fill", "kind": "fill", "paint": { "kind": "solid", "color": "#ffffff" } }
+    ],
+    "animation": {
+      "in":   { "preset": "blur-in", "params": { "duration": 0.15, "unit": "word", "stagger": 0 } },
+      "loop": { "preset": "breathe", "params": { "amount": 0.2 } }
+    }
+  },
+  "effects": [
+    { "key": "sparks", "effect": "bling_sparkle",
+      "parameters": { "intensity": 0.75, "threshold": 0.6, "density": 0.55 } }
+  ],
+  "controls": [
+    { "id": "text", "label": "Text", "type": "text", "bind": "text" },
+    { "id": "color", "label": "Text colour", "type": "color", "bind": "layer.fill.color" },
+    { "id": "glow", "label": "Glow colour", "type": "color", "bind": "layer.glow.color" },
+    { "id": "glowSize", "label": "Glow size", "type": "scalar", "bind": "layer.glow.blur", "min": 0, "max": 60, "step": 1, "unit": "px" },
+    { "id": "sparks", "label": "Sparkles", "type": "bool", "bind": "effect.sparks.enabled" },
+    { "id": "sparkAmount", "label": "Sparkle amount", "type": "scalar", "bind": "effect.sparks.intensity", "min": 0, "max": 1, "step": 0.01 },
+    { "id": "entrance", "label": "Entrance", "type": "scalar", "bind": "animation.in.duration", "min": 0, "max": 0.5, "step": 0.01, "unit": "s", "group": "Timing" }
+  ]
+}

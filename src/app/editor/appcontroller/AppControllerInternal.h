@@ -4,6 +4,7 @@
 #include "app/editor/AppControllerDetail.h"
 #include "app/bin/AssetLibrary.h"
 #include "core/text/animation/TextAnimationPreset.h"
+#include "core/text/TextTemplate.h"
 
 #include "app/mcp/McpDetail.h"
 
@@ -162,6 +163,13 @@ QVariantMap wordAccentToMap(const drift::WordAccent &a);
 // `timelineStart` places the keyframe times on the timeline for the inspector rows and the
 // keyframe graph, which read them the same way they read a mask's.
 QVariantMap textStyleToMap(const drift::TextStyle &s, drift::TimeUs timelineStart);
+
+// Dafin title templates (AppControllerTemplates.cpp). Applying one replaces the clip's style and
+// the effects an earlier template added (keyed effects), keeps the user's own effects, and
+// remembers the template on the style. Returns how many of its effects are not installed.
+int applyTitleTemplate(drift::Clip &clip, const drift::TextPreset &preset);
+// The effect catalog and installed fonts, for validating template files.
+drift::TemplateEnvironment dafinTemplateEnvironment(bool portable);
 
 QVariant vectorSlotValueToVariant(const drift::VectorSlotValue &v);
 

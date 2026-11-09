@@ -275,6 +275,8 @@ QVariantMap textAnimationSetToMap(const drift::TextAnimationSet &set)
                                               {QStringLiteral("color"), c.color.isValid() ? c.color.name(QColor::HexArgb) : QString()}}},
         {QStringLiteral("anchorGrouping"), drift::textAnchorGroupingToString(set.anchorGrouping)},
         {QStringLiteral("anchorAlignment"), QVariantList{set.anchorAlignment.x(), set.anchorAlignment.y()}},
+        {QStringLiteral("timing"), QVariantMap{{QStringLiteral("fit"), set.timing.fitToWindow},
+                                               {QStringLiteral("maxReadMs"), double(set.timing.maxReadUs) / 1000.0}}},
         {QStringLiteral("custom"), (set.in.presetId.isEmpty() && !set.in.animators.isEmpty())
                                        || (set.out.presetId.isEmpty() && !set.out.animators.isEmpty())
                                        || (set.loop.presetId.isEmpty() && !set.loop.animators.isEmpty())},
@@ -372,6 +374,14 @@ void applyTextAnimationSetPatch(drift::TextAnimationSet *set, const QVariantMap 
     if (m.contains(QStringLiteral("anchorAlignment"))) {
         const QVariantList l = m.value(QStringLiteral("anchorAlignment")).toList();
         set->anchorAlignment = QPointF(qBound(-1.0, l.value(0).toDouble(), 1.0), qBound(-1.0, l.value(1).toDouble(), 1.0));
+    }
+    if (m.contains(QStringLiteral("timing"))) {
+        const QVariantMap t = m.value(QStringLiteral("timing")).toMap();
+        if (t.contains(QStringLiteral("fit")))
+            set->timing.fitToWindow = t.value(QStringLiteral("fit")).toBool();
+        if (t.contains(QStringLiteral("maxReadMs")))
+            set->timing.maxReadUs =
+                static_cast<drift::TimeUs>(qBound(0.0, t.value(QStringLiteral("maxReadMs")).toDouble(), 10000.0) * 1000.0);
     }
 }
 

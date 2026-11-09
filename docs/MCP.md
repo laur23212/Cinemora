@@ -723,6 +723,7 @@ tree for experts.
 | `set_text_animation({clip, which, preset, …})` / `clear_text_animation` | Set or clear a slot. Switching to a different preset resets its params to that preset's defaults unless `keepControls:true`; `durationOverride` sets the slot's total length; `animators:[…]` installs an inline animator tree instead |
 | `import_text_animation({path, which})` | A Lottie / `.lottie` text layer's animators (After Effects export) or a Drift preset file, saved as a user preset under the slot's `imported` category; `unsupported` lists what was dropped |
 | `apply_text_style_to_all({clip, scope})` | Copy a caption clip's style to the other subtitle clips on its track (or `project`) |
+| `set_text({clip, style:{animation:{timing:{fit, maxReadMs}}}})` | Dafin readability rules: `fit` (default true) keeps In + Out within half the clip, `maxReadMs` makes the whole text readable by then. Title templates (`docs/template-authoring.md`) apply through `apply_text_preset` with their clip effects |
 
 Reel-style typography, for example: `set_text_animation({clip, which:"in", preset:"type-on-blur", stagger:0.05})`,
 `set_text_animation({clip, which:"loop", preset:"tracking-drift"})`,

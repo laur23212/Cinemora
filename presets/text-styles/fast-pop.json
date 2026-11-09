@@ -1,0 +1,36 @@
+{
+  "format": 1,
+  "id": "dafin.fast-pop",
+  "label": "Fast Pop",
+  "description": "Pops in within 120 ms and stays perfectly still: readable almost at once.",
+  "category": "fast-titles",
+  "tags": ["fast", "youtube", "bold", "pop"],
+  "sampleText": "LET'S GO",
+  "requires": { "fonts": ["Inter"] },
+  "style": {
+    "fontFamily": "Inter",
+    "fontWeight": 700,
+    "pixelSize": 110,
+    "layers": [
+      { "id": "shadow", "kind": "shadow", "paint": { "kind": "solid", "color": "#000000" },
+        "offsetX": 0, "offsetY": 6, "blur": 14, "opacity": 0.55 },
+      { "id": "stroke", "kind": "stroke", "paint": { "kind": "solid", "color": "#111111" },
+        "width": 7, "strokeAlign": "outside" },
+      { "id": "fill", "kind": "fill", "paint": { "kind": "solid", "color": "#ffffff" } }
+    ],
+    "animation": {
+      "in":  { "preset": "pop",  "params": { "duration": 0.12, "from": 70, "ease": "back" } },
+      "out": { "preset": "fade", "params": { "duration": 0.1 } }
+    }
+  },
+  "controls": [
+    { "id": "text", "label": "Text", "type": "text", "bind": "text" },
+    { "id": "font", "label": "Font", "type": "font", "bind": "font.family" },
+    { "id": "size", "label": "Size", "type": "scalar", "bind": "font.size", "min": 24, "max": 300, "step": 1, "unit": "px" },
+    { "id": "color", "label": "Text colour", "type": "color", "bind": "layer.fill.color" },
+    { "id": "outline", "label": "Outline colour", "type": "color", "bind": "layer.stroke.color" },
+    { "id": "entrance", "label": "Entrance", "type": "scalar", "bind": "animation.in.duration", "min": 0, "max": 0.5, "step": 0.01, "unit": "s",
+      "description": "How long the pop takes. 0.1–0.15 s keeps the text readable almost at once." },
+    { "id": "exit", "label": "Fade out", "type": "bool", "bind": "animation.out.enabled", "group": "Timing" }
+  ]
+}

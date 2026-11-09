@@ -200,6 +200,23 @@ struct TextAnimationSlot
 
 enum class TextAnchorGrouping { Character, Word, Line, All };
 
+// Readability rules for the In and Out slots (Dafin). The Loop slot is decoration and never
+// counts: text is "readable" once the In slot has brought every fragment to rest.
+struct TextTimingFit
+{
+    // On a short window, In + Out together may take at most half of it; both shrink by the same
+    // factor, snapped down to whole frames. An In that would be shorter than one frame becomes
+    // instant and an Out that short is dropped, so the text always gets the frames.
+    bool fitToWindow = true;
+    // When > 0, the In slot (delay, stagger and per-unit duration together) is compressed so the
+    // whole text is at rest by this time. Captions use it so a long line does not type itself
+    // out for seconds.
+    TimeUs maxReadUs = 0;
+
+    bool operator==(const TextTimingFit &o) const { return fitToWindow == o.fitToWindow && maxReadUs == o.maxReadUs; }
+    bool isDefault() const { return fitToWindow && maxReadUs <= 0; }
+};
+
 struct TextAnimationSet
 {
     TextAnimationSlot in;
@@ -208,6 +225,7 @@ struct TextAnimationSet
     TextCaret caret;
     TextAnchorGrouping anchorGrouping = TextAnchorGrouping::Character;
     QPointF anchorAlignment; // -1..1 inside the anchor box
+    TextTimingFit timing;
 
     bool isActive() const { return in.isActive() || out.isActive() || loop.isActive(); }
 };
@@ -349,6 +367,7 @@ struct EvalContext
     int activeWordIndex = -1;    // karaoke
     QColor baseFillColor = Qt::white;
     QColor baseStrokeColor = Qt::black;
+    int fps = 0;                 // project frame rate; 0 = fitted durations are not frame-snapped
 };
 
 // The three resolved after preset resolution (TextAnimationPreset turns a preset id + params into
@@ -389,6 +408,33 @@ struct Bounds
     double maxTrackingPx = 0.0;
 };
 Bounds animationBounds(const ResolvedSlots &resolved, const EvalContext &ctx);
+
+// How the In and Out slots actually play in a window of `windowDurationUs` once TextTimingFit is
+// applied. A scale of 1 is the authored timing, 0 an instant In / a dropped Out.
+//
+// readableAtUs is an animation-based estimate, measured from the window start: the moment the In
+// slot (delay included) has brought every fragment to its resting pose. It does not account for
+// Loop motion, shader paints or clip effects that may still obscure the text, and it is 0 when
+// there is no In slot (readable from the first frame).
+struct FittedTiming
+{
+    TimeUs inNaturalUs = 0;  // delay + duration as authored
+    TimeUs outNaturalUs = 0;
+    TimeUs inUs = 0;         // as played
+    TimeUs outUs = 0;
+    double inScale = 1.0;
+    double outScale = 1.0;
+    bool inActive = false;
+    bool outActive = false;
+    bool fitted = false;     // any rule changed the authored timing
+    TimeUs readableAtUs = 0;
+};
+FittedTiming fittedTiming(const TextAnimationSet &set, const ResolvedSlots &resolved, const Domains &domains,
+                          TimeUs windowDurationUs, int fps);
+
+// Domain sizes from the raw text, without a layout: lines are counted at explicit line breaks
+// only. Good enough for an estimate shown in the editor; the renderer uses the laid-out sizes.
+Domains estimateDomains(const QString &text);
 
 } // namespace textanim
 } // namespace drift

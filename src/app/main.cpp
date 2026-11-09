@@ -15,6 +15,7 @@
 #include "engine/render2d/skia/SkiaRuntime.h"
 #if !defined(Q_OS_ANDROID) && !defined(Q_OS_WASM)
 #include "app/HeadlessApp.h"
+#include "app/TemplateTool.h"
 #include "app/mcp/transport/McpStdio.h"
 #endif
 #include "app/online/addons/AddonManager.h"
@@ -536,6 +537,12 @@ int main(int argc, char *argv[])
         qputenv("QT_LOGGING_RULES", "qt.scenegraph.time.renderloop.debug=true");
 
 #if !defined(Q_OS_ANDROID) && !defined(Q_OS_WASM)
+    // Dafin: checking title template files, or printing the authoring reference, needs no
+    // window (TemplateTool.h).
+    for (int i = 1; i < argc; ++i) {
+        if (qstrcmp(argv[i], "--validate-template") == 0 || qstrcmp(argv[i], "--template-guide") == 0)
+            return drift::runTemplateTool(argc, argv);
+    }
     // --headless is checked first: it also accepts --mcp-stdio, as the transport to serve
     // rather than as a request to attach to an editor running elsewhere.
     for (int i = 1; i < argc; ++i) {

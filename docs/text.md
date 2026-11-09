@@ -55,6 +55,13 @@ user-facing surface is the Text tab (Type · Look · Animate) and the `text` MCP
   it). v6 flat fields become the four layers (disabled ones kept so toggling restores their
   values); `animIn/animOut` kinds become preset slots (`wave` moves to `loop`).
 
+- **Readability (Dafin)**: `TextAnimationSet::timing` (`fit`, `maxReadMs`) and
+  `textanim::fittedTiming`: In + Out never take more than half the window, an optional cap
+  compresses the whole In, shortened slots snap down to frames (a slot under one frame becomes
+  instant / is dropped). `slotLocalUs` runs a fitted slot's clock faster. `readableAtUs` is when the
+  In has brought every fragment to rest (Loop never counts). Title templates that build on all of
+  this are in `TextTemplate.h` and `docs/template-authoring.md`.
+
 ## Rendering (`src/engine`)
 
 - `TextLayout` (QTextLayout) lays the text out once per text/size change into a cached

@@ -1,0 +1,35 @@
+{
+  "format": 1,
+  "id": "dafin.readable-caption",
+  "label": "Readable Caption",
+  "description": "Words rise in, but every caption is fully readable within 250 ms, on a soft dark box.",
+  "category": "captions",
+  "kind": "caption",
+  "tags": ["caption", "subtitle", "readable", "shorts"],
+  "sampleText": "this is how captions should read",
+  "requires": { "fonts": ["Inter"] },
+  "style": {
+    "fontFamily": "Inter",
+    "fontWeight": 700,
+    "pixelSize": 64,
+    "boxEnabled": true,
+    "boxColor": "#99000000",
+    "boxPadding": 14,
+    "boxRadius": 12,
+    "layers": [
+      { "id": "fill", "kind": "fill", "paint": { "kind": "solid", "color": "#ffffff" } }
+    ],
+    "animation": {
+      "in": { "preset": "rise-by-word", "params": { "duration": 0.18 } },
+      "timing": { "maxReadMs": 250 }
+    }
+  },
+  "controls": [
+    { "id": "font", "label": "Font", "type": "font", "bind": "font.family" },
+    { "id": "size", "label": "Size", "type": "scalar", "bind": "font.size", "min": 24, "max": 160, "step": 1, "unit": "px" },
+    { "id": "color", "label": "Text colour", "type": "color", "bind": "layer.fill.color" },
+    { "id": "box", "label": "Background", "type": "bool", "bind": "box.enabled" },
+    { "id": "boxColor", "label": "Background colour", "type": "color", "bind": "box.color" },
+    { "id": "read", "label": "Readable within", "type": "scalar", "bind": "timing.maxReadMs", "min": 0, "max": 1000, "step": 10, "unit": "ms" }
+  ]
+}

@@ -1168,8 +1168,9 @@ QRectF fillTextLayer(GpuLayer &layer, const drift::TextStyle &style, const QStri
     // The inline editor shows the text as it will rest: the default frame is the identity, with
     // nothing hidden, wiped or typed out. Keyframed style properties were resolved by the caller.
     if (!atRest) {
-        const drift::textanim::EvalContext ctx = drift::text::evalContextFor(
+        drift::textanim::EvalContext ctx = drift::text::evalContextFor(
             style, layoutRect, renderScale, windowStartUs, windowDurationUs, timelineUs, activeWordIndex);
+        ctx.fps = projectFps; // fitted In/Out durations snap to whole frames
         request.frame = drift::textanim::evaluateTextAnimation(anim.set, anim.resolved, request.set->infos,
                                                                request.set->domains, ctx);
         request.envelope = drift::textanim::animationBounds(anim.resolved, ctx);

@@ -988,6 +988,13 @@ public:
     Q_INVOKABLE QVariantList textAnimationCategories(const QString &slot) const;
     // Where to seek to preview the slot: the window start (In), before the exit (Out), the playhead (Loop).
     Q_INVOKABLE double textAnimationSlotStartSeconds(int trackIndex, int clipIndex, const QString &slot) const;
+    // How the In / Out slots play on this clip (the subtitle cue under the playhead for captions)
+    // once the readability rules apply: {readableAt, inDuration, outDuration, naturalIn,
+    // naturalOut, fitted, window, fit, maxReadMs}, seconds. Estimated from the raw text.
+    Q_INVOKABLE QVariantMap textTimingInfo(int trackIndex, int clipIndex) const;
+    // Patch the readability rules: {fit: bool, maxReadMs: number (0 = no cap)}. One undo step.
+    Q_INVOKABLE void setTextAnimationTiming(int trackIndex, int clipIndex, const QVariantMap &patch);
+    Q_INVOKABLE void previewSetTextAnimationTiming(int trackIndex, int clipIndex, const QVariantMap &patch);
     // Looks: one-click recipes that rewrite the layer stack from a few params.
     Q_INVOKABLE QVariantList textLooks() const;
     Q_INVOKABLE void applyTextLook(int trackIndex, int clipIndex, const QString &lookId, const QVariantMap &params = {});
@@ -1012,6 +1019,41 @@ public:
     // catalog (and the MCP list it feeds) stays a stable, shippable set.
     Q_INVOKABLE QVariantList userTextPresets() const;
     Q_INVOKABLE QString saveTextStyleAsPreset(int trackIndex, int clipIndex, const QString &label);
+    // Dafin title templates (AppControllerTemplates.cpp; format in core/text/TextTemplate.h).
+    // Every template the browser lists: bundled JSON, the built-in packs, installed files.
+    Q_INVOKABLE QVariantList textTemplates() const;
+    // The template the clip came from ({} for a hand-made style), with isUser / missing.
+    Q_INVOKABLE QVariantMap textTemplateInfo(int trackIndex, int clipIndex) const;
+    // The template's quick controls with the clip's current values and the template's own.
+    Q_INVOKABLE QVariantList templateControls(int trackIndex, int clipIndex) const;
+    Q_INVOKABLE void setTemplateControl(int trackIndex, int clipIndex, const QString &controlId, const QVariant &value);
+    Q_INVOKABLE void previewSetTemplateControl(int trackIndex, int clipIndex, const QString &controlId,
+                                               const QVariant &value);
+    Q_INVOKABLE void resetTemplateControl(int trackIndex, int clipIndex, const QString &controlId);
+    // Re-applies the clip's template: its style and effects come back, the clip's text stays.
+    Q_INVOKABLE void resetTextTemplate(int trackIndex, int clipIndex);
+    // Save as New Template: {label, description, category}. Never overwrites anything; returns the
+    // new "user:" id, empty on failure.
+    Q_INVOKABLE QString saveTextTemplate(int trackIndex, int clipIndex, const QVariantMap &details);
+    // Writes the clip's look into the user template it came from. User templates only; clips
+    // already using the template keep their own copy.
+    Q_INVOKABLE bool updateTextTemplate(int trackIndex, int clipIndex);
+    Q_INVOKABLE QString duplicateUserTextPreset(const QString &presetId);
+    // {label?, description?, category?}
+    Q_INVOKABLE bool setUserTextPresetDetails(const QString &presetId, const QVariantMap &details);
+    // The user's template categories: [{id, name, count}].
+    Q_INVOKABLE QVariantList templateCategories() const;
+    Q_INVOKABLE QString addTemplateCategory(const QString &name);
+    Q_INVOKABLE bool renameTemplateCategory(const QString &categoryId, const QString &name);
+    // Moves the category's templates to `moveTo` ("" = uncategorised) and removes the category.
+    Q_INVOKABLE bool removeTemplateCategory(const QString &categoryId, const QString &moveTo);
+    // Checks a template file without installing it: {ok, id, label, issues:[…], report}. The
+    // report is plain text meant to be pasted back to the template's author.
+    Q_INVOKABLE QVariantMap checkTextTemplateFile(const QUrl &fileUrl) const;
+    // Checks, then copies into AppData/text-styles (replacing an older file with the same id).
+    Q_INVOKABLE QVariantMap installTextTemplate(const QUrl &fileUrl);
+    Q_INVOKABLE bool uninstallTextTemplate(const QString &templateId);
+    Q_INVOKABLE void copyPlainTextToClipboard(const QString &text) const;
     Q_INVOKABLE bool renameUserTextPreset(const QString &presetId, const QString &label);
     Q_INVOKABLE bool deleteUserTextPreset(const QString &presetId);
     Q_INVOKABLE bool exportUserTextPreset(const QString &presetId, const QUrl &fileUrl);
@@ -1788,6 +1830,8 @@ signals:
     void shortcutsChanged();
     void assetFavoritesChanged();
     void userTextPresetsChanged();
+    void textTemplatesChanged();
+    void templateCategoriesChanged();
     void userFontsChanged();
     void userEffectPresetsChanged();
     void facePropsChanged();
@@ -2347,6 +2391,8 @@ protected:
     void addChromaKey(const QString &clipId, double hue);
     bool m_chromaDetecting = false;
     drift::Clip *textClipAt(int trackIndex, int clipIndex);
+    // A quick control's edit on the clip, without the undo bookkeeping.
+    bool writeTemplateControl(int trackIndex, int clipIndex, const QString &controlId, const QVariant &value);
     // A text, subtitle or shape clip: anything that carries a shading stack.
     drift::Clip *styledClipAt(int trackIndex, int clipIndex, bool textOnly = false);
     static void applyTextStylePatch(drift::TextStyle &style, const QVariantMap &patch);

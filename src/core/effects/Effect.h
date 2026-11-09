@@ -32,6 +32,11 @@ struct Effect
     // skipped at render/mix time. Default true so older projects load as enabled.
     bool enabled = true;
 
+    // Dafin: set when a title template added this effect — its key inside the template
+    // ("sparks"). Template bindings address the effect by it ("effect.sparks.intensity"), and
+    // applying another template replaces only effects that carry a key, never the user's own.
+    QString templateKey;
+
     QString filterGraphString() const;
 
     // parameters[key], overridden by paramKeyframes[key] evaluated at clipTimeUs.

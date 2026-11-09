@@ -630,6 +630,9 @@ add_library(driftcore STATIC
     src/core/text/TextStyle.cpp
     src/core/text/TextPresetStore.h
     src/core/text/TextPresetStore.cpp
+    src/core/text/TemplateControl.h
+    src/core/text/TextTemplate.h
+    src/core/text/TextTemplate.cpp
     src/core/effects/EffectStackStore.h
     src/core/effects/EffectStackStore.cpp
     src/core/shapes/ShapeStyle.h
@@ -688,6 +691,14 @@ qt_add_resources(driftcore "drift_text_animations"
     PREFIX "/text-animations"
     BASE "${CMAKE_SOURCE_DIR}/presets/text-animations"
     FILES ${DRIFT_TEXT_ANIMATION_FILES}
+)
+
+# Dafin title templates (TextTemplate.h): style + clip effects + quick controls, one JSON each.
+file(GLOB DAFIN_TEXT_STYLE_FILES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/presets/text-styles/*.json")
+qt_add_resources(driftcore "drift_text_styles"
+    PREFIX "/text-styles"
+    BASE "${CMAKE_SOURCE_DIR}/presets/text-styles"
+    FILES ${DAFIN_TEXT_STYLE_FILES}
 )
 
 # Audio effect DSP. JUCE modules compile into whatever target links them, so keeping them in a
@@ -1264,6 +1275,7 @@ target_sources(driftapp PRIVATE
     src/app/editor/appcontroller/AppControllerProject.cpp
     src/app/editor/appcontroller/AppControllerTextLayers.cpp
     src/app/editor/appcontroller/AppControllerDafin.cpp
+    src/app/editor/appcontroller/AppControllerTemplates.cpp
     src/app/mcp/AgentImageLog.h
     src/app/mcp/AgentImageLog.cpp
     src/app/mcp/McpController.h
@@ -1416,6 +1428,7 @@ if(NOT ANDROID AND NOT EMSCRIPTEN)
     target_sources(drift PRIVATE
         src/app/HeadlessApp.h
         src/app/HeadlessApp.cpp
+        src/app/TemplateTool.cpp
     )
     target_sources(driftapp PRIVATE
         src/app/mcp/transport/McpStdio.h
@@ -1828,6 +1841,9 @@ qt_add_qml_module(drift
         src/qml/components/properties/TextInspectorContentSection.qml
         src/qml/components/properties/TextInspectorAnimatePage.qml
         src/qml/components/properties/TextInspectorAnimateHint.qml
+        src/qml/components/properties/TextInspectorReadability.qml
+        src/qml/components/properties/TextInspectorTemplateSection.qml
+        src/qml/components/properties/TemplateControlField.qml
         src/qml/components/properties/TextInspectorAnimSlotBar.qml
         src/qml/components/properties/TextInspectorAnimPresetGrid.qml
         src/qml/components/properties/TextInspectorAnimControls.qml
@@ -2220,6 +2236,7 @@ qt_add_qml_module(drift
         src/qml/components/SubtitleCueLane.qml
         src/qml/components/shell/ShortcutCaptureField.qml
         src/qml/components/ColorSwatchField.qml
+        src/qml/components/SaveTemplateDialog.qml
         src/qml/components/controls/ThemedColorDialog.qml
         src/qml/components/ColorEyedropper.qml
         src/qml/components/EffectBrowser.qml

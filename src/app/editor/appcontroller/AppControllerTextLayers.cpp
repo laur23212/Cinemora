@@ -390,6 +390,68 @@ double AppController::textAnimationSlotStartSeconds(int trackIndex, int clipInde
     return drift::usToSeconds(start);
 }
 
+QVariantMap AppController::textTimingInfo(int trackIndex, int clipIndex) const
+{
+    QVariantMap out;
+    if (trackIndex < 0 || trackIndex >= m_project.tracks().size())
+        return out;
+    const drift::Track &track = m_project.tracks().at(trackIndex);
+    if (clipIndex < 0 || clipIndex >= track.clips.size())
+        return out;
+    const drift::Clip &clip = track.clips.at(clipIndex);
+    if (clip.type != drift::ClipType::Text && clip.type != drift::ClipType::Subtitle)
+        return out;
+
+    drift::TimeUs window = clip.timelineDuration;
+    QString text = clip.textContent.isEmpty() ? clip.name : clip.textContent;
+    if (clip.type == drift::ClipType::Subtitle) {
+        const drift::TimeUs localUs = m_playheadUs - clip.timelineStart;
+        const drift::SubtitleCue *cue = drift::activeSubtitleCueAt(clip.subtitleCues, localUs);
+        if (!cue && !clip.subtitleCues.isEmpty())
+            cue = &clip.subtitleCues.first();
+        if (cue) {
+            window = cue->endUs - cue->startUs;
+            text = cue->text;
+        }
+    }
+    const drift::ResolvedTextAnimation anim = drift::resolveTextAnimation(clip.textStyle.animation);
+    const drift::textanim::FittedTiming fit = drift::textanim::fittedTiming(
+        anim.set, anim.resolved, drift::textanim::estimateDomains(text), window, m_project.fps());
+    out.insert(QStringLiteral("readableAt"), drift::usToSeconds(fit.readableAtUs));
+    out.insert(QStringLiteral("inDuration"), drift::usToSeconds(fit.inUs));
+    out.insert(QStringLiteral("outDuration"), drift::usToSeconds(fit.outUs));
+    out.insert(QStringLiteral("naturalIn"), drift::usToSeconds(fit.inNaturalUs));
+    out.insert(QStringLiteral("naturalOut"), drift::usToSeconds(fit.outNaturalUs));
+    out.insert(QStringLiteral("hasIn"), fit.inActive);
+    out.insert(QStringLiteral("hasOut"), fit.outActive);
+    out.insert(QStringLiteral("fitted"), fit.fitted);
+    out.insert(QStringLiteral("window"), drift::usToSeconds(window));
+    out.insert(QStringLiteral("fit"), clip.textStyle.animation.timing.fitToWindow);
+    out.insert(QStringLiteral("maxReadMs"), double(clip.textStyle.animation.timing.maxReadUs) / 1000.0);
+    return out;
+}
+
+void AppController::setTextAnimationTiming(int trackIndex, int clipIndex, const QVariantMap &patch)
+{
+    drift::Clip *clip = textClipAt(trackIndex, clipIndex);
+    if (!clip)
+        return;
+    const drift::Project before = m_project;
+    applyTextAnimationSetPatch(&clip->textStyle.animation, QVariantMap{{QStringLiteral("timing"), patch}});
+    pushProjectEdit(before, tr("Edit text timing"));
+    finishEdit(tr("Text timing updated"));
+}
+
+void AppController::previewSetTextAnimationTiming(int trackIndex, int clipIndex, const QVariantMap &patch)
+{
+    drift::Clip *clip = textClipAt(trackIndex, clipIndex);
+    if (!clip)
+        return;
+    beginImplicitPreviewDrag(tr("Edit text timing"));
+    applyTextAnimationSetPatch(&clip->textStyle.animation, QVariantMap{{QStringLiteral("timing"), patch}});
+    emitPreviewEdit(trackIndex, clipIndex, {QStringLiteral("textAnim.timing")});
+}
+
 QVariantList AppController::textLooks() const
 {
     QVariantList out;

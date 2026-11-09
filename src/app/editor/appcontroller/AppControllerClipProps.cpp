@@ -1254,29 +1254,22 @@ void AppController::applyTextPreset(int trackIndex, int clipIndex, const QString
     if (clip.type != drift::ClipType::Text && clip.type != drift::ClipType::Subtitle)
         return;
 
-    const std::optional<drift::TextStyle> preset = drift::textStyleForPresetId(presetId);
+    const std::optional<drift::TextPreset> preset = drift::textPresetForId(presetId);
     if (!preset)
         return;
 
     const drift::Project before = m_project;
-    clip.textStyle = *preset;
-    clip.textStyle.packId = presetId;
+    // Dafin: a title template brings its clip effects along (and takes the previous template's away).
+    const int missing = applyTitleTemplate(clip, *preset);
     pushProjectEdit(before, tr("Apply text preset"));
-    finishEdit(tr("Text preset applied"));
+    finishEdit(missing > 0 ? tr("Template applied; %n of its effects are not installed", "", missing)
+                           : tr("Text preset applied"));
 }
 
 QVariantList AppController::textPresets() const
 {
-    QVariantList out;
-    for (const drift::TextPreset &preset : drift::textPresets()) {
-        out.append(QVariantMap{
-            {QStringLiteral("id"), preset.id},
-            {QStringLiteral("label"), preset.label},
-            {QStringLiteral("sampleText"), preset.sampleText},
-            {QStringLiteral("style"), textStyleToMap(preset.style, 0)},
-        });
-    }
-    return out;
+    // Dafin: the bundled JSON title templates and installed ones join the built-in packs.
+    return textTemplates();
 }
 
 QVariantList AppController::userTextPresets() const
@@ -1287,6 +1280,13 @@ QVariantList AppController::userTextPresets() const
             {QStringLiteral("id"), preset.id},
             {QStringLiteral("label"), preset.label},
             {QStringLiteral("style"), textStyleToMap(preset.style, 0)},
+            {QStringLiteral("sampleText"), preset.sampleText},
+            {QStringLiteral("description"), preset.description},
+            {QStringLiteral("category"), preset.category},
+            {QStringLiteral("kind"), preset.kind},
+            {QStringLiteral("effectCount"), preset.effects.size()},
+            {QStringLiteral("controlCount"), preset.controls.size()},
+            {QStringLiteral("basedOn"), preset.basedOn},
         });
     }
     return out;

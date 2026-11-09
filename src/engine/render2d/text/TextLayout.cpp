@@ -50,7 +50,8 @@ quint64 styleHash(const drift::TextStyle &s)
                       s.pathBend, static_cast<int>(s.align), static_cast<int>(s.valign), s.wordWrap,
                       s.lineHeight, s.letterSpacing, static_cast<int>(s.textCase), s.boxEnabled,
                       s.boxColor.rgba(), s.boxPadding, s.boxRadius, highlightHash(s.wordHighlight), s.underlineEnabled,
-                      s.underlineColor.rgba(), s.underlineWidth, s.underlineOffset, s.strikethroughEnabled,
+                      s.underlineColor.rgba(), s.underlineWidth, s.underlineOffset,
+                      qHashMulti(0, s.underlineReveal, s.effectPadding), s.strikethroughEnabled,
                       qHashMulti(0, static_cast<int>(a.rule), a.n, a.phase, a.colorEnabled,
                                  a.color.rgba(), a.sizeScale, a.outlineEnabled, a.outlineWidth,
                                  a.outlineColor.rgba(), highlightHash(a.highlight)));
@@ -1029,6 +1030,8 @@ double bleedFor(const drift::TextStyle &style)
                   accented ? highlightBleed(accent.highlight) : 0.0);
     if (style.underlineEnabled)
         bleed += style.underlineOffset + style.underlineWidth;
+    // Room the template reserved for clip effects drawing around the text (Dafin).
+    bleed += qMax(0.0, style.effectPadding);
     // A scaled accent word overshoots the block's line box on both sides.
     if (accented && accent.sizeScale > 1.0)
         bleed += style.pixelSize * (accent.sizeScale - 1.0);

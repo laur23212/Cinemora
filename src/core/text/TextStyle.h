@@ -1,5 +1,8 @@
 #pragma once
 
+#include "core/effects/Effect.h"
+#include "core/text/TemplateControl.h"
+
 #include "core/animation/Keyframe.h"
 #include "core/text/animation/TextAnimator.h"
 #include "core/text/TextShading.h"
@@ -107,6 +110,16 @@ struct TextStyle
     QColor underlineColor = QColor(230, 40, 40);
     double underlineWidth = 6.0;
     double underlineOffset = 4.0; // below the baseline
+    // Dafin: how much of each line's underline is drawn, 0..1 from the left. Keyframe it
+    // ("underlineReveal") for a draw-on underline.
+    double underlineReveal = 1.0;
+    // Dafin: extra room, project px, kept around the text's raster so clip effects (sparks,
+    // glows, particles) have pixels to draw into beyond the shading layers' own reach. Effects
+    // run on that raster, after the shading, and cannot draw outside it.
+    double effectPadding = 0.0;
+    // Dafin: the title template this style came from (its id), kept through hand edits so the
+    // inspector can offer "Update template" and "Reset". Empty for hand-made styles.
+    QString templateId;
 
     // Rule through the middle of each line, in the text's own fill colour.
     bool strikethroughEnabled = false;
@@ -163,6 +176,23 @@ struct TextPreset
     // Short phrase shown on picker thumbnails — chosen to demo the pack's look
     // (accents, wrap, weight) rather than a meaningless filler line.
     QString sampleText;
+
+    // Dafin title templates (TextTemplate.h). A built-in C++ style pack leaves all of these empty.
+    QString description;
+    QString category;       // catalog category slug; for user templates the library category id
+    QStringList tags;
+    QString kind;           // "title" (default), "lower-third" or "caption"
+    QList<Effect> effects;  // clip effects applied with the style; Effect::templateKey names each
+    QList<TemplateControl> controls;
+    QString basedOn;        // the template this one was saved from; informational only
+    TimeUs sourceDurationUs = 0; // clip length the effects' keyframes were authored on
+    QStringList requiredFonts;
+    QString minAppVersion;
+    // Runtime only, never written: where the entry came from ("pack" = C++ style pack,
+    // "builtin" = bundled JSON, "installed" = AppData/text-styles, "user" = saved by the user)
+    // and, for files, the path.
+    QString origin;
+    QString sourcePath;
 };
 
 // Built-in style packs only. User-saved presets live in TextPresetStore; textPresetForId()
