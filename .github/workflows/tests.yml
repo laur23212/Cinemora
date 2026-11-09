@@ -262,6 +262,12 @@ jobs:
         id: build
         run: cmake --build build --parallel
 
+      # Dafin fork: regenerate i18n/*.ts with this job's own lupdate first, as package.yml does,
+      # so a new UI string does not fail the Translations check; it still catches catalogs that
+      # would not settle (two lupdate runs giving different results).
+      - name: Regenerate translation catalogs
+        run: cmake --build build --target update_translations
+
       # Deliberately not QT_QPA_PLATFORM=offscreen: that plugin cannot create an OpenGL context
       # on a runner with no /dev/dri, so every compositor test would render a null QImage and
       # only some of them QSKIP on GpuEffectExecutor::isAvailable() — the rest would compare
@@ -680,6 +686,13 @@ jobs:
           foreach ($dir in $testDirs) {
             Copy-Item $dlls.FullName $dir -Force
           }
+
+      # Dafin fork: regenerate i18n/*.ts with this job's own lupdate first, as package.yml does,
+      # so a new UI string does not fail the Translations check; it still catches catalogs that
+      # would not settle (two lupdate runs giving different results).
+      - name: Regenerate translation catalogs
+        shell: pwsh
+        run: cmake --build build --target update_translations
 
       # .deps\ffmpeg\bin ahead of Qt's bin: Qt ships its own avcodec DLLs under the same names and
       # the suite must run against the FFmpeg it was built with. Serial for the shared
