@@ -1259,8 +1259,9 @@ void AppController::applyTextPreset(int trackIndex, int clipIndex, const QString
         return;
 
     const drift::Project before = m_project;
-    // Dafin: a title template brings its clip effects along (and takes the previous template's away).
-    const int missing = applyTitleTemplate(clip, *preset);
+    // Dafin: a title template brings its clip effects along (and takes the previous template's
+    // away, from the clip's effects adjustment too).
+    const int missing = applyTitleTemplate(m_project, trackIndex, clipIndex, *preset);
     pushProjectEdit(before, tr("Apply text preset"));
     finishEdit(missing > 0 ? tr("Template applied; %n of its effects are not installed", "", missing)
                            : tr("Text preset applied"));

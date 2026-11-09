@@ -945,8 +945,12 @@ void EditorStateTest::goldPopSurvivesSaveAndReopen()
     for (auto it = edits.cbegin(); it != edits.cend(); ++it)
         state.setTemplateControl(state.selectedTrack(), state.selectedClip(), it.key(), it.value());
     const QVariantMap before = controlValues(state, state.selectedTrack(), state.selectedClip());
-    for (auto it = edits.cbegin(); it != edits.cend(); ++it)
-        QCOMPARE(before.value(it.key()).toString(), it.value().toString());
+    for (auto it = edits.cbegin(); it != edits.cend(); ++it) {
+        if (it.key().startsWith(QLatin1String("gold")) || it.key() == QLatin1String("outlinecolor"))
+            QCOMPARE(QColor(before.value(it.key()).toString()), QColor(it.value().toString())); // "#ffe0e0" == "#ffffe0e0"
+        else
+            QCOMPARE(before.value(it.key()).toString(), it.value().toString());
+    }
 
     QTemporaryDir dir;
     QVERIFY(dir.isValid());
@@ -976,61 +980,95 @@ void EditorStateTest::switchingTitleTemplatesKeepsOtherEffects()
 {
     AssetLibrary library;
     AppController state(&library);
-    // Another title with its own effect, to be left alone.
-    state.addTextClip(QStringLiteral("Other title"), 8.0);
-    const QString otherId = state.project()->tracks().at(state.selectedTrack()).clips.at(state.selectedClip()).id;
-    state.addEffect(state.selectedTrack(), state.selectedClip(), QStringLiteral("stylize.vignette"));
     const auto clipOf = [&state](const QString &id) {
         const auto [t, c] = clipIndexOf(state.project(), id);
         return state.project()->tracks().at(t).clips.at(c);
     };
+    // Every effect a title has: on the clip, and on the adjustment linked to it, which is where
+    // the editor moves a clip's effects after each edit. Template effects show their key.
+    const auto titleEffectKeys = [&state](const QString &id) {
+        QStringList keys;
+        for (const drift::Track &track : state.project()->tracks())
+            for (const drift::Clip &clip : track.clips)
+                if (clip.id == id || (clip.type == drift::ClipType::Adjustment && clip.linkedClipId == id))
+                    for (const drift::Effect &e : clip.effects)
+                        keys << (e.templateKey.isEmpty() ? QStringLiteral("user:") + e.catalogId : e.templateKey);
+        keys.sort();
+        return keys;
+    };
+    const auto adjustmentsFor = [&state](const QString &id) {
+        int n = 0;
+        for (const drift::Track &track : state.project()->tracks())
+            for (const drift::Clip &clip : track.clips)
+                n += clip.type == drift::ClipType::Adjustment && clip.linkedClipId == id ? 1 : 0;
+        return n;
+    };
+    const auto apply = [&state](const QString &id, const QString &preset) {
+        const auto [t, c] = clipIndexOf(state.project(), id);
+        state.applyTextPreset(t, c, preset);
+    };
+    const auto controlCount = [&state](const QString &id) {
+        const auto [t, c] = clipIndexOf(state.project(), id);
+        return state.templateControls(t, c).size();
+    };
+
+    // Another title, to be left alone.
+    state.addTextClip(QStringLiteral("Other title"), 8.0);
+    const QString otherId = state.project()->tracks().at(state.selectedTrack()).clips.at(state.selectedClip()).id;
     const drift::Clip otherBefore = clipOf(otherId);
-    QCOMPARE(otherBefore.effects.size(), 1);
+
+    // Sparks and back with nothing of the user's: its sparkle comes with it, and goes with it,
+    // adjustment and all. Its sparkle controls reach the effect where the editor keeps it.
+    state.addTextClip(QStringLiteral("Plain"), 16.0, QStringLiteral("dafin.fast-reveal-sparks"));
+    const QString plainId = state.project()->tracks().at(state.selectedTrack()).clips.at(state.selectedClip()).id;
+    QCOMPARE(titleEffectKeys(plainId), QStringList{QStringLiteral("sparks")});
+    QCOMPARE(controlCount(plainId), drift::textPresetForId(QStringLiteral("dafin.fast-reveal-sparks"))->controls.size());
+    apply(plainId, kGoldPop);
+    QCOMPARE(titleEffectKeys(plainId), QStringList{});
+    QCOMPARE(adjustmentsFor(plainId), 0);
 
     state.addTextClip(QString(), 0.0, kGoldPop);
     const QString id = state.project()->tracks().at(state.selectedTrack()).clips.at(state.selectedClip()).id;
     const drift::Clip added = clipOf(id);
+    // The user's own effect, added the way the Effects panel does (it lands on the adjustment) …
     {
         const auto [t, c] = clipIndexOf(state.project(), id);
-        state.addEffect(t, c, QStringLiteral("adjust.contrast")); // the user's own
+        state.addEffect(t, c, QStringLiteral("adjust.contrast"));
     }
-    const auto templateKeys = [](const drift::Clip &clip) {
-        QStringList keys;
-        for (const drift::Effect &e : clip.effects)
-            keys << (e.templateKey.isEmpty() ? QStringLiteral("user:") + e.catalogId : e.templateKey);
-        return keys;
-    };
-    QCOMPARE(templateKeys(clipOf(id)), QStringList{QStringLiteral("user:adjust.contrast")});
+    // … and one on the clip itself, as older projects and agents have them.
+    {
+        const auto [t, c] = clipIndexOf(state.project(), id);
+        drift::Effect mine;
+        mine.catalogId = QStringLiteral("stylize.vignette");
+        state.project()->tracks()[t].clips[c].effects.append(mine);
+    }
+    const QStringList users{QStringLiteral("user:adjust.contrast"), QStringLiteral("user:stylize.vignette")};
+    QCOMPARE(titleEffectKeys(id), users);
 
-    // Sparks brings its sparkle effect; the user's contrast stays.
-    {
-        const auto [t, c] = clipIndexOf(state.project(), id);
-        state.applyTextPreset(t, c, QStringLiteral("dafin.fast-reveal-sparks"));
-    }
+    // Sparks brings its sparkle; the user's effects stay.
+    apply(id, QStringLiteral("dafin.fast-reveal-sparks"));
     QCOMPARE(clipOf(id).textStyle.templateId, QStringLiteral("dafin.fast-reveal-sparks"));
-    QCOMPARE(templateKeys(clipOf(id)), (QStringList{QStringLiteral("user:adjust.contrast"), QStringLiteral("sparks")}));
+    QCOMPARE(titleEffectKeys(id), (QStringList{QStringLiteral("sparks")} + users));
+    QCOMPARE(controlCount(id), drift::textPresetForId(QStringLiteral("dafin.fast-reveal-sparks"))->controls.size());
 
-    // Back to Gold Pop, twice: the sparkle goes, nothing is duplicated, the user's effect stays.
+    // Back to Gold Pop, twice: the sparkle goes, nothing is duplicated, the user's effects stay.
     for (int i = 0; i < 2; ++i) {
-        const auto [t, c] = clipIndexOf(state.project(), id);
-        state.applyTextPreset(t, c, kGoldPop);
+        apply(id, kGoldPop);
         QCOMPARE(clipOf(id).textStyle.templateId, kGoldPop);
-        QCOMPARE(templateKeys(clipOf(id)), QStringList{QStringLiteral("user:adjust.contrast")});
+        QCOMPARE(titleEffectKeys(id), users);
+        QCOMPARE(adjustmentsFor(id), 1);
     }
     // Words, place and length are the clip's own and stay put.
     QCOMPARE(clipOf(id).textContent, added.textContent);
     QCOMPARE(clipOf(id).timelineStart, added.timelineStart);
     QCOMPARE(clipOf(id).timelineDuration, added.timelineDuration);
-    {
-        const auto [t, c] = clipIndexOf(state.project(), id);
-        QCOMPARE(state.templateControls(t, c).size(), 7);
-    }
+    QCOMPARE(controlCount(id), 7);
 
     // The other title did not move.
     const drift::Clip otherAfter = clipOf(otherId);
-    QCOMPARE(otherAfter.effects.size(), 1);
-    QCOMPARE(otherAfter.effects.first().catalogId, QStringLiteral("stylize.vignette"));
+    QCOMPARE(titleEffectKeys(otherId), QStringList{});
     QCOMPARE(drift::textStyleToJson(otherAfter.textStyle), drift::textStyleToJson(otherBefore.textStyle));
+    QCOMPARE(otherAfter.textContent, otherBefore.textContent);
 }
 
 void EditorStateTest::olderTitlesStillWork()

@@ -168,6 +168,13 @@ QVariantMap textStyleToMap(const drift::TextStyle &s, drift::TimeUs timelineStar
 // the effects an earlier template added (keyed effects), keeps the user's own effects, and
 // remembers the template on the style. Returns how many of its effects are not installed.
 int applyTitleTemplate(drift::Clip &clip, const drift::TextPreset &preset);
+// The same for a clip already on the timeline. After an edit the editor keeps a clip's effects on
+// its linked effects adjustment (hoistClipEffectsToAdjustmentLanes), so the previous template's
+// effects are taken off there, and an adjustment left with nothing on it goes.
+int applyTitleTemplate(drift::Project &project, int trackIndex, int clipIndex, const drift::TextPreset &preset);
+// The list a title's effects are in: its effects adjustment once it has one, else the clip's own.
+const QList<drift::Effect> &titleEffects(const drift::Project &project, int trackIndex, int clipIndex);
+QList<drift::Effect> *titleEffects(drift::Project &project, int trackIndex, int clipIndex);
 // The effect catalog and installed fonts, for validating template files.
 drift::TemplateEnvironment dafinTemplateEnvironment(bool portable);
 

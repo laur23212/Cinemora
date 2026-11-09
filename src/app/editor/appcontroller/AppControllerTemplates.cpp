@@ -22,6 +22,7 @@
 #include <QSet>
 
 #include <algorithm>
+#include <utility>
 
 namespace drift::appcontroller_detail {
 
@@ -91,6 +92,70 @@ int applyTitleTemplate(Clip &clip, const TextPreset &preset)
         rescaleEffectKeyframes(added, preset.sourceDurationUs, clip.timelineDuration);
     // The previous template's effects go; effects the user added themselves stay.
     replaceTemplateEffects(&clip.effects, added);
+    return missing;
+}
+
+namespace {
+
+// The adjustment carrying a clip's video effects: every edit moves clip effects onto it
+// (hoistClipEffectsToAdjustmentLanes, run by pushProjectEdit), template effects included.
+bool findEffectsHost(const Project &project, int trackIndex, const QString &clipId, int *lane, int *index)
+{
+    for (const int l : adjustmentLaneIndexes(project, trackIndex)) {
+        const QList<Clip> &clips = project.tracks().at(l).clips;
+        for (int i = 0; i < clips.size(); ++i) {
+            if (clips.at(i).adjustmentKind == AdjustmentKind::VideoEffects && clips.at(i).linkedClipId == clipId) {
+                *lane = l;
+                *index = i;
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+} // namespace
+
+const QList<Effect> &titleEffects(const Project &project, int trackIndex, int clipIndex)
+{
+    const Clip &clip = project.tracks().at(trackIndex).clips.at(clipIndex);
+    int lane = -1, index = -1;
+    if (clip.effects.isEmpty() && findEffectsHost(project, trackIndex, clip.id, &lane, &index))
+        return project.tracks().at(lane).clips.at(index).effects;
+    return clip.effects;
+}
+
+QList<Effect> *titleEffects(Project &project, int trackIndex, int clipIndex)
+{
+    Clip &clip = project.tracks()[trackIndex].clips[clipIndex];
+    int lane = -1, index = -1;
+    if (clip.effects.isEmpty() && findEffectsHost(project, trackIndex, clip.id, &lane, &index))
+        return &project.tracks()[lane].clips[index].effects;
+    return &clip.effects;
+}
+
+int applyTitleTemplate(Project &project, int trackIndex, int clipIndex, const TextPreset &preset)
+{
+    const QString clipId = project.tracks().at(trackIndex).clips.at(clipIndex).id;
+    int lane = -1, index = -1;
+    if (findEffectsHost(project, trackIndex, clipId, &lane, &index)) {
+        // The previous template's effects went to the adjustment with the user's own: take them
+        // off there. The new ones join it when the edit is pushed.
+        QList<Effect> &hosted = project.tracks()[lane].clips[index].effects;
+        hosted.erase(std::remove_if(hosted.begin(), hosted.end(), [](const Effect &e) { return !e.templateKey.isEmpty(); }),
+                     hosted.end());
+    }
+    const int missing = applyTitleTemplate(project.tracks()[trackIndex].clips[clipIndex], preset);
+    if (lane >= 0) {
+        // An adjustment that only ever carried the old template's effects has nothing left to do.
+        const Clip &host = project.tracks().at(lane).clips.at(index);
+        if (host.effects.isEmpty() && host.audioEffects.isEmpty()
+            && project.tracks().at(trackIndex).clips.at(clipIndex).effects.isEmpty()) {
+            project.tracks()[lane].clips.removeAt(index);
+            if (project.tracks().at(lane).clips.isEmpty())
+                project.tracks().removeAt(lane);
+        }
+    }
     return missing;
 }
 
@@ -190,16 +255,18 @@ QVariantList AppController::templateControls(int trackIndex, int clipIndex) cons
     if (!preset)
         return {};
     const drift::TemplateEnvironment env = dafinTemplateEnvironment(false);
+    // A title's effects sit on its effects adjustment once the editor has moved them there.
+    const QList<drift::Effect> &effects = titleEffects(m_project, trackIndex, clipIndex);
     QVariantList out;
     for (const drift::TemplateControl &c : preset->controls) {
         // A caption's words come from its cues, so a text control has nothing to drive there.
         if (c.bind == QLatin1String("text") && clip->type == drift::ClipType::Subtitle)
             continue;
         QStringList values;
-        const QString type = drift::templateBindingType(c.bind, clip->textStyle, clip->effects, env, nullptr, &values);
+        const QString type = drift::templateBindingType(c.bind, clip->textStyle, effects, env, nullptr, &values);
         if (type != c.type)
             continue; // the clip was edited so far that this control no longer has its target
-        const QVariant value = drift::readTemplateBinding(c.bind, clip->textStyle, clip->effects, clip->textContent);
+        const QVariant value = drift::readTemplateBinding(c.bind, clip->textStyle, effects, clip->textContent);
         const QVariant fallback = drift::readTemplateBinding(c.bind, preset->style, preset->effects, preset->sampleText);
         QVariantList options;
         for (int i = 0; i < c.options.size(); ++i)
@@ -240,7 +307,8 @@ bool AppController::writeTemplateControl(int trackIndex, int clipIndex, const QS
     if (control->type == QLatin1String("scalar"))
         v = qBound(control->min, value.toDouble(), control->max);
     QString content = clip->textContent;
-    if (!drift::writeTemplateBinding(control->bind, v, &clip->textStyle, &clip->effects, &content))
+    if (!drift::writeTemplateBinding(control->bind, v, &clip->textStyle, titleEffects(m_project, trackIndex, clipIndex),
+                                     &content))
         return false;
     if (control->bind == QLatin1String("text") && content != clip->textContent) {
         clip->textContent = content;
@@ -296,7 +364,7 @@ void AppController::resetTextTemplate(int trackIndex, int clipIndex)
     }
     const drift::Project before = m_project;
     // Everything the template defines comes back; the clip's own text, timing and placement stay.
-    const int missing = applyTitleTemplate(*clip, *preset);
+    const int missing = applyTitleTemplate(m_project, trackIndex, clipIndex, *preset);
     pushProjectEdit(before, tr("Reset template"));
     finishEdit(missing > 0 ? tr("Template reset; %n of its effects are not installed", "", missing)
                            : tr("Template reset"));
@@ -327,12 +395,13 @@ QString AppController::saveTextTemplate(int trackIndex, int clipIndex, const QVa
     preset.controls = base ? base->controls : QList<drift::TemplateControl>{};
     preset.tags = base ? base->tags : QStringList{};
     preset.sourceDurationUs = clip->timelineDuration;
+    const QList<drift::Effect> effects = titleEffects(std::as_const(m_project), trackIndex, clipIndex);
     QSet<QString> keys;
-    for (const drift::Effect &e : clip->effects)
+    for (const drift::Effect &e : effects)
         if (!e.templateKey.isEmpty())
             keys.insert(e.templateKey);
     int minted = 0;
-    for (drift::Effect e : clip->effects) {
+    for (drift::Effect e : effects) {
         if (e.templateKey.isEmpty()) {
             do
                 e.templateKey = QStringLiteral("fx%1").arg(++minted);
@@ -363,7 +432,7 @@ QString AppController::saveTextTemplate(int trackIndex, int clipIndex, const QVa
     clip->textStyle.templateId = id;
     clip->textStyle.packId = id;
     int i = 0;
-    for (drift::Effect &e : clip->effects)
+    for (drift::Effect &e : *titleEffects(m_project, trackIndex, clipIndex))
         e.templateKey = preset.effects.value(i++).templateKey;
     pushProjectEdit(before, tr("Save as new template"));
     finishEdit(tr("Saved as “%1”").arg(label));
@@ -381,7 +450,7 @@ bool AppController::updateTextTemplate(int trackIndex, int clipIndex)
     drift::TextPreset content = *existing;
     content.style = clip->textStyle;
     content.effects.clear();
-    for (const drift::Effect &e : clip->effects)
+    for (const drift::Effect &e : titleEffects(std::as_const(m_project), trackIndex, clipIndex))
         if (!e.templateKey.isEmpty())
             content.effects.append(e);
     content.sourceDurationUs = clip->timelineDuration;

@@ -131,6 +131,7 @@
 #ifdef DRIFT_WITH_SKIA
 #include "engine/render2d/skia/SkiaRuntime.h"
 #include "engine/render2d/text/SkiaTextPainter.h"
+#include "engine/render2d/skia/VectorPainter.h"
 #include "engine/render2d/text/TemplateContactSheet.h"
 #endif
 #include "engine/gpu/effects/GpuEffectExecutor.h"
@@ -11352,38 +11353,71 @@ void EngineTest::goldPopEditorFramesMatchTheContactSheet()
         {QStringLiteral("GOLD POP"), 30, drift::secondsToUs(0.4), {0, 34, 100, 200, 300, 399}},
     };
 
+    // Every frame is measured before anything is asserted, so a failure shows the whole picture:
+    // the pixels against the sheet, and the GPU layer's own placement against the sheet's.
+    QStringList problems;
     for (const Case &c : cases) {
         project.setFps(c.fps);
         clip.textContent = c.text;
         clip.timelineDuration = c.duration;
         clip.srcOut = c.duration;
         const double frameUs = 1e6 / c.fps;
+        const int lastFrame = int(std::floor((c.duration - 1) / frameUs));
         double holdInk = 0.0;
         for (const Backdrop &backdrop : backdrops) {
             project.setBackground(backdrop.background);
             for (double ms : c.ms) {
-                const int frame = std::min(int(std::floor((c.duration - 1) / frameUs)), int(std::llround(ms * 1000.0 / frameUs)));
+                const int frame = std::min(lastFrame, int(std::llround(ms * 1000.0 / frameUs)));
                 const drift::TimeUs t = drift::TimeUs(std::llround(frame * frameUs));
                 const QString label = QStringLiteral("%1 on %2, %3 fps %4 ms clip, frame %5 (%6 ms)")
                                           .arg(QString(c.text).replace(QLatin1Char('\n'), QLatin1Char('/')), backdrop.name)
                                           .arg(c.fps).arg(c.duration / 1000).arg(frame).arg(t / 1000.0, 0, 'f', 1);
                 const QImage gpu = compositor.compositeAt(t, third);
-                QVERIFY2(!gpu.isNull(), qPrintable(label));
-                QCOMPARE(gpu.size(), cell);
+                if (gpu.isNull() || gpu.size() != cell) {
+                    problems << label + QStringLiteral(": no frame of the cell's size");
+                    continue;
+                }
                 const QImage cpu = drift::skia::renderTemplateFrame(clip.textStyle, c.text, c.duration, cell, c.fps, t,
                                                                     backdrop.image);
                 const FrameDiff d = frameDiff(cpu, gpu, backdrop.image);
-                const QString why = label + QStringLiteral(": ") + d.describe();
+                QString why = label + QStringLiteral(": ") + d.describe();
+
+                // Where the editor puts the layer, against where the sheet draws it.
+                const drift::skia::TemplateFrame sheet =
+                    drift::skia::templateFrameAt(clip.textStyle, c.text, c.duration, cell, c.fps, t);
+                GpuScene scene;
+                if (backdrop.name == QLatin1String("dark") && sheet.painter && sheet.block.opacity > 0.001
+                    && compositor.buildSceneAt(t, third, &scene) && scene.items.size() == 1) {
+                    const GpuLayer &layer = scene.items.at(0).layer;
+                    QRectF want = sheet.rect.translated(sheet.block.dx, sheet.block.dy);
+                    const QPointF centre = want.center();
+                    want.setSize(want.size() * sheet.block.scale);
+                    want.moveCenter(centre);
+                    const double off = std::max({std::abs(layer.rect.left() - want.left()), std::abs(layer.rect.top() - want.top()),
+                                                 std::abs(layer.rect.right() - want.right()), std::abs(layer.rect.bottom() - want.bottom())});
+                    why += QStringLiteral(" | layer %1,%2 %3x%4 vs sheet %5,%6 %7x%8, raster %9x%10 vs %11x%12, opacity %13 vs %14")
+                               .arg(layer.rect.x(), 0, 'f', 3).arg(layer.rect.y(), 0, 'f', 3)
+                               .arg(layer.rect.width(), 0, 'f', 3).arg(layer.rect.height(), 0, 'f', 3)
+                               .arg(want.x(), 0, 'f', 3).arg(want.y(), 0, 'f', 3).arg(want.width(), 0, 'f', 3).arg(want.height(), 0, 'f', 3)
+                               .arg(layer.vector ? layer.vector->size().width() : 0).arg(layer.vector ? layer.vector->size().height() : 0)
+                               .arg(sheet.painter->size().width()).arg(sheet.painter->size().height())
+                               .arg(layer.opacity, 0, 'f', 4).arg(sheet.block.opacity, 0, 'f', 4);
+                    if (off > 0.01 || std::abs(layer.opacity - sheet.block.opacity) > 1e-3)
+                        problems << QStringLiteral("layer placed apart from the sheet: ") + why;
+                }
+                qInfo().noquote() << why;
+
                 if (frame == 0) {
                     // Hidden until the pop starts: the first frame is the backdrop and nothing else.
-                    QVERIFY2(d.box.isEmpty(), qPrintable(QStringLiteral("sheet draws the title on ") + why));
-                    QVERIFY2(d.max <= 2, qPrintable(QStringLiteral("editor draws the title on ") + why));
+                    if (!d.box.isEmpty())
+                        problems << QStringLiteral("sheet draws the title on ") + why;
+                    if (d.max > 2)
+                        problems << QStringLiteral("editor draws the title on ") + why;
                     continue;
                 }
-                QVERIFY2(!d.box.isEmpty(), qPrintable(QStringLiteral("nothing drawn on ") + why));
-                QVERIFY2(d.mean < 4.5, qPrintable(why));
-                QVERIFY2(d.over64 < 0.005, qPrintable(why));
-                QVERIFY2(QLineF(d.inkReference, d.inkOther).length() < 1.0, qPrintable(why));
+                if (d.box.isEmpty() || d.mean >= 4.5 || d.over64 >= 0.005
+                    || QLineF(d.inkReference, d.inkOther).length() >= 1.0)
+                    problems << why;
 
                 // The fade out shows: on the 3 s clip the last frame carries well under the hold.
                 // (On the 400 ms clip the exit is two frames, so its last frame is only half way
@@ -11395,13 +11429,12 @@ void EngineTest::goldPopEditorFramesMatchTheContactSheet()
                         ink += channelDiff(gpuPremul.pixel(x, y), backdrop.image.pixel(x, y));
                 if (ms == 150 || ms == 200)
                     holdInk = ink;
-                if (c.duration >= drift::secondsToUs(1.0) && frame == int(std::floor((c.duration - 1) / frameUs))
-                    && holdInk > 0.0)
-                    QVERIFY2(ink < 0.6 * holdInk,
-                             qPrintable(QStringLiteral("exit not fading (%1 of the hold): ").arg(ink / holdInk, 0, 'f', 2) + why));
+                if (c.duration >= drift::secondsToUs(1.0) && frame == lastFrame && holdInk > 0.0 && ink >= 0.6 * holdInk)
+                    problems << QStringLiteral("exit not fading (%1 of the hold): ").arg(ink / holdInk, 0, 'f', 2) + why;
             }
         }
     }
+    QVERIFY2(problems.isEmpty(), qPrintable(problems.join(QLatin1Char('\n'))));
 
     // On the bright backdrop at rest: pale gold on top, deep gold at the bottom (angle 90), and in
     // "line" space each line of a two-line title gets the whole ramp, so the second line starts as
