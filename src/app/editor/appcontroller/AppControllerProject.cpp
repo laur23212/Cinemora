@@ -32,6 +32,7 @@
 
 #include <QFileInfo>
 #include <QMimeDatabase>
+#include <QPointer>
 #include <QUrl>
 #include <QtConcurrent/QtConcurrentRun>
 

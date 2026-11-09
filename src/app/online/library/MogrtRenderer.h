@@ -4,11 +4,12 @@
 #include <QJsonObject>
 #include <QObject>
 #include <QPointer>
+#include <QProcess>
 #include <QString>
 #include <QUrl>
 #include <QVariantList>
 
-class QProcess;
+
 
 namespace dafin::assets {
 

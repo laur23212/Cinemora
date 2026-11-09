@@ -22,7 +22,9 @@
 #include <QTimer>
 #include <QUuid>
 
+#include <algorithm>
 #include <cmath>
+#include <utility>
 
 using dafin::assets::MogrtRenderer;
 using drift::appdetail::setClipLayoutPixels;

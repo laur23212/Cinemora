@@ -11,6 +11,7 @@
 #include <QVariant>
 #include <QVariantMap>
 
+#include <cstdint>
 #include <functional>
 
 class AppController;
