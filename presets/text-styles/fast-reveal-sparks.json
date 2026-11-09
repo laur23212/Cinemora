@@ -21,7 +21,7 @@
     ],
     "animation": {
       "in":   { "preset": "blur-in", "params": { "duration": 0.15, "unit": "word", "stagger": 0 } },
-      "loop": { "preset": "breathe", "params": { "amount": 0.2 } }
+      "loop": { "preset": "breathe", "params": { "amount": 0.12 } }
     }
   },
   "effects": [

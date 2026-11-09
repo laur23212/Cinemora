@@ -6,6 +6,7 @@
 #include "core/text/animation/TextAnimationPreset.h"
 #include "engine/packages/assets/FontCatalog.h"
 #include "engine/packages/effects/EffectCatalog.h"
+#include "engine/render2d/text/TemplateContactSheet.h"
 
 #include <QDir>
 #include <QDirIterator>
@@ -121,8 +122,9 @@ QString guideMarkdown()
         s << "| `" << e.meta.id << "` | " << e.meta.displayName << " | " << params.join(QStringLiteral("; ")) << " |\n";
     }
 
-    s << "\n## Fonts bundled or installed here\n\n";
-    QStringList fonts{QStringLiteral("Inter")};
+    s << "\n## Fonts installed here for text\n\n"
+         "From the Fonts Essentials add-on and the user's own fonts (system fonts also work on the machine that has them):\n\n";
+    QStringList fonts;
     for (const FontFamilyEntry &f : fontCatalog())
         fonts << QStringLiteral("%1 (weights %2)").arg(f.family, [&] {
             QStringList w;
@@ -134,8 +136,9 @@ QString guideMarkdown()
         fonts << QStringLiteral("%1 (user font)").arg(f);
     for (const QString &f : fonts)
         s << "- " << f << "\n";
-    s << "\nSystem fonts also work on the machine that has them; a portable template should stick to the list above "
-         "and name its font in `requires.fonts`.\n";
+    if (fonts.isEmpty())
+        s << "- (none: the Fonts Essentials add-on is not installed)\n";
+    s << "\nA portable template should use a Fonts Essentials family and name it in `requires.fonts`.\n";
     return out;
 }
 
@@ -189,6 +192,57 @@ int runTemplateTool(int argc, char *argv[])
     if (args.contains(QStringLiteral("--template-guide"))) {
         print(guideMarkdown());
         return 0;
+    }
+
+    if (args.contains(QStringLiteral("--template-preview"))) {
+        const auto opt = [&](const char *name, const QString &fallback) {
+            const int i = args.indexOf(QLatin1String(name));
+            return i >= 0 && i + 1 < args.size() ? args.at(i + 1) : fallback;
+        };
+        const QString path = opt("--template-preview", QString());
+        if (path.isEmpty() || outPath.isEmpty()) {
+            std::fputs("usage: dafin --template-preview <file.json> --out <sheet.png> [--text \"...\"] [--fps N] "
+                       "[--duration-ms N] [--times ms,ms,...]\n",
+                       stderr);
+            return 2;
+        }
+        QFile file(path);
+        QJsonParseError parseError;
+        const QJsonDocument doc = file.open(QIODevice::ReadOnly) ? QJsonDocument::fromJson(file.readAll(), &parseError)
+                                                                 : QJsonDocument();
+        if (!doc.isObject()) {
+            std::fprintf(stderr, "%s is not a template file\n", qPrintable(path));
+            return 1;
+        }
+        const QList<TemplateIssue> issues =
+            validateTitleTemplate(doc.object(), drift::appcontroller_detail::dafinTemplateEnvironment(false));
+        for (const TemplateIssue &i : issues)
+            std::fprintf(stderr, "%s\n", qPrintable(templateIssueToText(i)));
+        if (hasTemplateErrors(issues))
+            return 1;
+#ifdef DRIFT_WITH_SKIA
+        skia::ContactSheetOptions o;
+        o.text = opt("--text", QString());
+        o.fps = opt("--fps", QStringLiteral("30")).toInt();
+        o.durationUs = TimeUs(opt("--duration-ms", QStringLiteral("3000")).toDouble() * 1000.0);
+        const QString times = opt("--times", QString());
+        if (!times.isEmpty())
+            for (const QString &ms : times.split(QLatin1Char(',')))
+                o.times << TimeUs(ms.toDouble() * 1000.0);
+        const skia::ContactSheetResult r = skia::renderTemplateContactSheet(titleTemplateFromJson(doc.object()), o);
+        if (!r.sheet.save(outPath)) {
+            std::fprintf(stderr, "could not write %s\n", qPrintable(outPath));
+            return 1;
+        }
+        std::printf("readable at %.1f ms; entrance %.1f of %.1f ms, exit %.1f of %.1f ms%s; wrote %s\n",
+                    r.timing.readableAtUs / 1000.0, r.timing.inUs / 1000.0, r.timing.inNaturalUs / 1000.0,
+                    r.timing.outUs / 1000.0, r.timing.outNaturalUs / 1000.0, r.timing.fitted ? " (fitted)" : "",
+                    qPrintable(outPath));
+        return 0;
+#else
+        std::fputs("this build has no text renderer\n", stderr);
+        return 1;
+#endif
     }
 
     const bool json = args.removeAll(QStringLiteral("--json")) > 0;

@@ -6653,6 +6653,29 @@ void CoreTest::titleTemplateValidatorExplainsMistakes()
     const TemplateIssue *preset = find(issues, QStringLiteral("style.animation.in.preset"));
     QVERIFY(preset && preset->expected.contains(QLatin1String("pop")));
 
+    // Controls that would move nothing are refused, with the param that does the job named.
+    issues = validateTitleTemplate(parse(R"({ "format": 1, "id": "test.dead", "label": "Dead",
+        "style": { "animation": { "in": { "preset": "typewriter" },
+                                  "loop": { "preset": "breathe", "params": { "period": 2 } } } },
+        "controls": [ { "id": "a", "label": "A", "type": "scalar", "bind": "animation.loop.duration", "min": 0, "max": 5 },
+                      { "id": "b", "label": "B", "type": "scalar", "bind": "animation.in.duration", "min": 0, "max": 5 },
+                      { "id": "c", "label": "C", "type": "scalar", "bind": "animation.loop.param.speed", "min": 0.05, "max": 2 } ] })"),
+                                   TemplateEnvironment{});
+    QString all;
+    for (const TemplateIssue &i : issues)
+        all += templateIssueToText(i) + QLatin1Char('\n');
+    const TemplateIssue *deadLoop = find(issues, QStringLiteral("controls[0].bind"));
+    const TemplateIssue *deadIn = find(issues, QStringLiteral("controls[1].bind"));
+    QVERIFY2(deadLoop && deadLoop->message.contains(QLatin1String("animation.loop.param.speed")), qPrintable(all));
+    QVERIFY2(deadIn && deadIn->message.contains(QLatin1String("stagger")), qPrintable(all));
+    QVERIFY(!find(issues, QStringLiteral("controls[2].bind")));
+    QVERIFY(!find(issues, QStringLiteral("style.animation.loop.params.period"))); // the loop slot's own setting
+    issues = validateTitleTemplate(parse(R"({ "format": 1, "id": "test.period", "label": "P",
+        "style": { "animation": { "loop": { "preset": "slow-zoom" } } },
+        "controls": [ { "id": "a", "label": "A", "type": "scalar", "bind": "animation.loop.duration", "min": 0, "max": 10 } ] })"),
+                                   TemplateEnvironment{});
+    QVERIFY(!find(issues, QStringLiteral("controls[0].bind"))); // slow-zoom does follow the period
+
     // Schema basics, with the accepted values spelled out.
     issues = validateTitleTemplate(parse(R"({ "format": 2, "id": "Bad Id", "kind": "poster",
         "style": { "pixelSize": 5000, "layers": [ { "id": "x", "kind": "sparkle" } ] }, "colour": 1 })"),
@@ -6835,6 +6858,15 @@ void CoreTest::titleTemplateUserStoreKeepsEverything()
 
 void CoreTest::textAnimationParamsAcceptPlainValues()
 {
+    // A template style that leaves out "layers" keeps its animation (and gets the white fill),
+    // rather than being read as the flat v6 form, which has no "animation" block.
+    const TextPreset bare = titleTemplateFromJson(QJsonDocument::fromJson(R"({ "format": 1, "id": "test.bare", "label": "B",
+        "style": { "pixelSize": 90, "animation": { "in": { "preset": "pop", "params": { "duration": 0.1 } } } } })").object());
+    QCOMPARE(bare.style.animation.in.presetId, QStringLiteral("pop"));
+    QCOMPARE(bare.style.pixelSize, 90);
+    QCOMPARE(bare.style.layers.size(), 1);
+    QCOMPARE(bare.style.layers.first().kind, TextLayerKind::Fill);
+
     const QJsonObject plain = QJsonDocument::fromJson(R"({ "preset": "pop",
         "params": { "duration": 0.12, "ease": "back", "from": 70 } })").object();
     const TextAnimationSlot slot = textAnimationSlotFromJson(plain);

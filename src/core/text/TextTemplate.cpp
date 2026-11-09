@@ -157,7 +157,13 @@ TextPreset titleTemplateFromJson(const QJsonObject &o, bool keepId)
     const QJsonObject req = o.value(QStringLiteral("requires")).toObject();
     p.requiredFonts = stringList(req.value(QStringLiteral("fonts")));
     p.minAppVersion = req.value(QStringLiteral("minAppVersion")).toString();
-    p.style = textStyleFromJson(o.value(QStringLiteral("style")).toObject());
+    // A template's style is always the current (layered) form. textStyleFromJson reads a style
+    // without "layers" as the old flat v6 form and would drop its "animation", so a style that
+    // leaves the stack out gets the default one (a white fill) instead.
+    QJsonObject styleJson = o.value(QStringLiteral("style")).toObject();
+    if (!styleJson.contains(QStringLiteral("layers")))
+        styleJson.insert(QStringLiteral("layers"), textStyleToJson(TextStyle{}).value(QStringLiteral("layers")));
+    p.style = textStyleFromJson(styleJson);
     p.style.packId.clear();
     p.style.templateId.clear();
 
@@ -380,6 +386,33 @@ int editDistance(const QString &a, const QString &b)
 
 } // namespace
 
+// Whether a loop preset's motion follows the slot's progress (so its period matters) rather than
+// absolute time (wiggle: its own speed param) or the spoken word (karaoke).
+static bool presetFollowsLoopPeriod(const TextAnimationPreset &preset)
+{
+    for (const QJsonValue &a : preset.animators) {
+        for (const QJsonValue &sel : a.toObject().value(QStringLiteral("selectors")).toArray()) {
+            if (sel.isString())
+                return true; // the "stagger" shorthand
+            const QString driver = sel.toObject().value(QStringLiteral("driver")).toString(QStringLiteral("curves"));
+            if (driver != QLatin1String("wiggle") && driver != QLatin1String("karaoke"))
+                return true;
+        }
+        if (a.toObject().value(QStringLiteral("selectors")).toArray().isEmpty())
+            return true;
+    }
+    return false;
+}
+
+static QString presetSpeedParams(const TextAnimationPreset &preset)
+{
+    QStringList ids;
+    for (const TextAnimParamSpec &p : preset.params)
+        if (p.unit == QLatin1String("Hz") || p.id == QLatin1String("speed") || p.id == QLatin1String("frequency"))
+            ids.append(QStringLiteral("animation.loop.param.%1").arg(p.id));
+    return ids.isEmpty() ? QStringLiteral("it has none") : ids.join(QStringLiteral(", "));
+}
+
 // Every concrete path that resolves on this style and effect list, in a stable order.
 static QStringList concreteBindings(const TextStyle &style, const QList<Effect> &effects)
 {
@@ -503,8 +536,20 @@ QString templateBindingType(const QString &bind, const TextStyle &style, const Q
         const QString field = parts.at(2);
         if (field == QLatin1String("enabled") && parts.size() == 3)
             return QStringLiteral("bool");
-        if (field == QLatin1String("duration") && parts.size() == 3)
+        if (field == QLatin1String("duration") && parts.size() == 3) {
+            // A control that moves nothing is worse than none: say where the speed really lives.
+            if (const std::optional<TextAnimationPreset> preset = slotPreset(*slot)) {
+                if (parts.at(1) == QLatin1String("loop") && !presetFollowsLoopPeriod(*preset))
+                    return fail(QStringLiteral("loop preset \"%1\" runs on its own clock, so animation.loop.duration has "
+                                               "no effect; bind its speed param instead (%2)")
+                                    .arg(preset->id, presetSpeedParams(*preset)));
+                if (parts.at(1) != QLatin1String("loop") && preset->flag(QStringLiteral("durationLocked")))
+                    return fail(QStringLiteral("preset \"%1\" ignores duration (its length comes from stagger and its "
+                                               "own params); bind animation.%2.param.stagger or one of its params instead")
+                                    .arg(preset->id, parts.at(1)));
+            }
             return QStringLiteral("scalar");
+        }
         if (field == QLatin1String("preset") && parts.size() == 3) {
             if (enumValues)
                 for (const TextAnimationPreset &p : TextAnimationPresetCatalog::instance().presetsFor(slotKind(parts.at(1))))
@@ -1090,6 +1135,17 @@ void checkStyle(const QJsonObject &json, const TextStyle &style, const TemplateE
         for (auto it = params.constBegin(); it != params.constEnd(); ++it) {
             const QString paramPath = QStringLiteral("%1.params.%2").arg(path, it.key());
             const TextAnimParamSpec *spec = found->param(it.key());
+            // "period" is the loop slot's own setting (seconds, 0 = one pass over the clip), read for
+            // every loop preset though none declares it.
+            if (!spec && slotName == QLatin1String("loop") && it.key() == QLatin1String("period")) {
+                QJsonValue period = it.value();
+                if (period.isObject())
+                    period = period.toObject().value(QStringLiteral("value"));
+                if (!period.isDouble() || period.toDouble() < 0.0 || period.toDouble() > 600.0)
+                    issues.error(QStringLiteral("range"), paramPath, QStringLiteral("period must be a number of seconds"),
+                                 QStringLiteral("0..600 (0 = one pass over the clip)"));
+                continue;
+            }
             if (!spec) {
                 QStringList ids;
                 for (const TextAnimParamSpec &p : found->params)

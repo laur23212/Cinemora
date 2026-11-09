@@ -41,9 +41,9 @@ TemplateEnvironment dafinTemplateEnvironment(bool portable)
                 return f.compare(family, Qt::CaseInsensitive) == 0;
             });
         };
-        // The bundled UI font is registered as "Inter" for text clips.
-        return family.compare(QLatin1String("Inter"), Qt::CaseInsensitive) == 0 || contains(userFontFamilies())
-               || contains(systemFontFamilies());
+        // Text clips draw with the font catalog (the Fonts Essentials add-on), the user's own fonts
+        // or the system's. Dafin's bundled InterUI files are for the interface only.
+        return contains(userFontFamilies()) || contains(systemFontFamilies());
     };
     env.idTaken = [](const QString &id) { return textPresetForId(id).has_value(); };
 #ifdef DRIFT_VERSION
