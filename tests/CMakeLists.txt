@@ -272,6 +272,9 @@ qt_add_executable(tst_mcp
     ../src/app/editor/sessions/MaskStackModel.cpp
     ../src/app/editor/sessions/MaskingController.cpp
     ../src/app/editor/sessions/SubtitleController.cpp
+    ../src/app/editor/sessions/MogrtTitleController.cpp
+    ../src/app/online/library/MogrtInfo.cpp
+    ../src/app/online/library/MogrtRenderer.cpp
     ../src/app/editor/sessions/SubtitleCueModel.cpp
     ../src/app/editor/sessions/SubtitleCueFilterModel.cpp
     ../src/app/jobs/vision/SegmentationController.cpp
