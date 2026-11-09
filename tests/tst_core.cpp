@@ -136,6 +136,7 @@ private slots:
     void textTimingTinyWindowsStayReadable();
     void textTimingHandlesDelayReverseAndLines();
     void textTimingRoundTripsInJson();
+    void textTimingOlderProjectsKeepAuthoredTiming();
     void textTimingEveryPresetIsReadableInTime();
     void titleTemplatesBundledAreValid();
     void titleTemplateControlsDriveTheirProperty();
@@ -2073,7 +2074,7 @@ void CoreTest::sourceLabAnnotationsRoundTrip()
 
     const QJsonObject json = project.toJson();
     QCOMPARE(json.value(QStringLiteral("version")).toInt(), drift::Project::kCurrentVersion);
-    QCOMPARE(drift::Project::kCurrentVersion, 22);
+    QCOMPARE(drift::Project::kCurrentVersion, 23);
 
     QString error;
     const drift::Project loaded = drift::Project::fromJson(json, &error);
@@ -2112,7 +2113,7 @@ void CoreTest::maskFramePatchesRoundTripAndLookUpByMediaTime()
     project.tracks()[0].clips.append(clip);
 
     const QJsonObject json = project.toJson();
-    QCOMPARE(json.value(QStringLiteral("version")).toInt(), 22);
+    QCOMPARE(json.value(QStringLiteral("version")).toInt(), drift::Project::kCurrentVersion);
     const QJsonArray patches = json.value(QStringLiteral("tracks")).toArray().at(0).toObject()
                                    .value(QStringLiteral("clips")).toArray().at(0).toObject()
                                    .value(QStringLiteral("mask")).toObject().value(QStringLiteral("patches")).toArray();
@@ -6461,6 +6462,69 @@ void CoreTest::textTimingRoundTripsInJson()
     QVERIFY(textAnimationSetFromJson(QJsonObject{}).timing.isDefault());
 }
 
+// A project from before the readability rules (format 22 and earlier) plays its titles as they
+// were made: the 0.9 s clip of the text reel with a 0.5 s zoom in and a 0.25 s fade out keeps
+// both whole. A template's own timing block, and every title made from now on, follow the rules.
+void CoreTest::textTimingOlderProjectsKeepAuthoredTiming()
+{
+    const auto textClip = [](const QString &id, TimeUs duration) {
+        Clip clip;
+        clip.id = id;
+        clip.type = ClipType::Text;
+        clip.textContent = QStringLiteral("Text");
+        clip.timelineDuration = duration;
+        clip.srcOut = duration;
+        clip.textStyle.animation.in = textAnimationSlotFromJson(QJsonObject{
+            {QStringLiteral("preset"), QStringLiteral("zoom-out")},
+            {QStringLiteral("params"), QJsonObject{{QStringLiteral("duration"), 0.5}}}});
+        clip.textStyle.animation.out = textAnimationSlotFromJson(QJsonObject{
+            {QStringLiteral("preset"), QStringLiteral("fade-shift")},
+            {QStringLiteral("params"), QJsonObject{{QStringLiteral("duration"), 0.25}}}});
+        return clip;
+    };
+    Project project;
+    project.tracks().clear();
+    project.tracks().append(Track{.type = TrackType::Text});
+    project.tracks()[0].clips.append(textClip(QStringLiteral("authored"), 900'000));
+    Clip capped = textClip(QStringLiteral("capped"), 900'000);
+    capped.textStyle.animation.timing.maxReadUs = 150'000;
+    capped.timelineStart = 2'000'000;
+    project.tracks()[0].clips.append(capped);
+
+    QJsonObject json = project.toJson();
+    QCOMPARE(json.value(QStringLiteral("version")).toInt(), 23);
+    const auto timingOf = [](const Project &p, int i) { return p.tracks().at(0).clips.at(i).textStyle.animation.timing; };
+
+    // Saved by this version: the rules apply as written.
+    QString error;
+    Project now = Project::fromJson(json, &error);
+    QVERIFY2(error.isEmpty(), qPrintable(error));
+    QVERIFY(timingOf(now, 0).fitToWindow);
+    QVERIFY(timingOf(now, 1).fitToWindow);
+
+    // The same document as format 22: the plain title keeps its timing, the capped one its block.
+    json.insert(QStringLiteral("version"), 22);
+    const Project older = Project::fromJson(json, &error);
+    QVERIFY2(error.isEmpty(), qPrintable(error));
+    QVERIFY(!timingOf(older, 0).fitToWindow);
+    QVERIFY(timingOf(older, 1).fitToWindow);
+    QCOMPARE(timingOf(older, 1).maxReadUs, TimeUs(150'000));
+
+    const Clip &authored = older.tracks().at(0).clips.at(0);
+    const ResolvedTextAnimation anim = resolveTextAnimation(authored.textStyle.animation);
+    const FittedTiming fit = fittedTiming(anim.set, anim.resolved, estimateDomains(authored.textContent), 900'000, 30);
+    QVERIFY(!fit.fitted);
+    QCOMPARE(fit.inUs, TimeUs(500'000));
+    QCOMPARE(fit.outUs, TimeUs(250'000));
+    // Under the rules the same clip would have been squeezed into 450 ms.
+    const ResolvedTextAnimation ruled = resolveTextAnimation(now.tracks().at(0).clips.at(0).textStyle.animation);
+    QVERIFY(fittedTiming(ruled.set, ruled.resolved, estimateDomains(authored.textContent), 900'000, 30).fitted);
+
+    // Saved again, the choice is written down and survives the next load.
+    const Project again = Project::fromJson(older.toJson(), &error);
+    QVERIFY(!timingOf(again, 0).fitToWindow);
+}
+
 void CoreTest::textTimingEveryPresetIsReadableInTime()
 {
     // Every built-in entrance, with the same preset as the exit where it has one, on short and
@@ -6553,54 +6617,36 @@ void CoreTest::titleTemplatesBundledAreValid()
 
 void CoreTest::titleTemplateControlsDriveTheirProperty()
 {
-    // Every control of every bundled template: the binding resolves to the control's type, its
-    // current value reads back, and writing a different value changes the template — the text,
-    // the style or the effects — so no control is disconnected.
+    // Every control of every bundled template passes checkTemplateControls (what
+    // `dafin --check-template` runs on a new file): the binding resolves to the control's type,
+    // a different value changes the template, reads back, leaves the other controls alone,
+    // survives a save and reload, and reset restores the template's value.
+    int checked = 0;
     for (const TextPreset &t : TitleTemplateCatalog::instance().templates()) {
-        for (const TemplateControl &c : t.controls) {
-            const QString label = t.id + QLatin1String(" / ") + c.id;
-            QString why;
-            QStringList values;
-            QCOMPARE(templateBindingType(c.bind, t.style, t.effects, TemplateEnvironment{}, &why, &values), c.type);
-            const QString content = QStringLiteral("Sample");
-            const QVariant before = readTemplateBinding(c.bind, t.style, t.effects, content);
-            QVERIFY2(before.isValid(), qPrintable(label));
-
-            QVariant next;
-            if (c.type == QLatin1String("scalar"))
-                next = qFuzzyCompare(before.toDouble() + 1.0, c.max + 1.0) ? c.min : c.max;
-            else if (c.type == QLatin1String("bool"))
-                next = !before.toBool();
-            else if (c.type == QLatin1String("color"))
-                next = before.toString() == QLatin1String("#123456") ? QStringLiteral("#654321") : QStringLiteral("#123456");
-            else if (c.type == QLatin1String("font"))
-                next = QStringLiteral("Some Other Font");
-            else if (c.type == QLatin1String("text"))
-                next = QStringLiteral("Changed");
-            else if (c.type == QLatin1String("enum"))
-                next = c.options.value(c.options.indexOf(before.toString()) == 0 ? 1 : 0);
-
-            TextStyle style = t.style;
-            QList<Effect> effects = t.effects;
-            QString text = content;
-            QVERIFY2(writeTemplateBinding(c.bind, next, &style, &effects, &text), qPrintable(label));
-            const bool changed = text != content || textStyleToJson(style) != textStyleToJson(t.style)
-                                 || effectsToJson(effects) != effectsToJson(t.effects);
-            QVERIFY2(changed, qPrintable(label));
-            const QVariant after = readTemplateBinding(c.bind, style, effects, text);
-            if (c.type == QLatin1String("scalar"))
-                QVERIFY2(std::abs(after.toDouble() - next.toDouble()) < 1e-6 || c.bind == QLatin1String("font.weight"),
-                         qPrintable(label));
-            else if (c.type == QLatin1String("color"))
-                QCOMPARE(QColor(after.toString()), QColor(next.toString()));
-            else
-                QCOMPARE(after.toString(), next.toString());
-            // And the edit survives the project file.
-            const TextStyle reloaded = textStyleFromJson(textStyleToJson(style));
-            const QVariant persisted = readTemplateBinding(c.bind, reloaded, effectsFromJson(effectsToJson(effects)), text);
-            QCOMPARE(persisted.toString(), after.toString());
+        const QList<TemplateControlCheck> checks = checkTemplateControls(t, TemplateEnvironment{});
+        QCOMPARE(checks.size(), t.controls.size());
+        for (const TemplateControlCheck &c : checks) {
+            QVERIFY2(c.ok, qPrintable(t.id + QLatin1String(" / ") + c.controlId + QLatin1String(": ") + c.problem));
+            ++checked;
         }
     }
+    QVERIFY(checked >= 40);
+
+    // And it notices a control that cannot do anything, or that drags another one along.
+    TextPreset broken = *textPresetForId(QStringLiteral("chatgpt.gold-pop"));
+    broken.controls[1].min = broken.controls[1].max = 110; // size, pinned
+    TemplateControl twin = broken.controls[4];              // outline colour …
+    twin.id = QStringLiteral("outline2");
+    twin.bind = QStringLiteral("layer.outline.width");      // … and a second control on the same layer
+    twin.type = QStringLiteral("scalar");
+    twin.min = 0;
+    twin.max = 20;
+    broken.controls.append(twin);
+    const QList<TemplateControlCheck> checks = checkTemplateControls(broken, TemplateEnvironment{});
+    QVERIFY(!checks.at(1).ok);
+    QVERIFY2(checks.at(1).problem.contains(QLatin1String("cannot move")), qPrintable(checks.at(1).problem));
+    QVERIFY2(checks.last().ok, qPrintable(checks.last().problem)); // width and colour are independent
+
     // Effects are addressed by key: putting another effect in front does not re-target a control.
     const TextPreset sparks = *textPresetForId(QStringLiteral("dafin.fast-reveal-sparks"));
     QList<Effect> effects = sparks.effects;

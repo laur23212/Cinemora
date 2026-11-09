@@ -14,6 +14,13 @@ namespace drift {
 //       Renders the template's motion as a contact sheet (dark and light background rows, frames
 //       labelled with time and frame number) with Dafin's own text painter, for an author who
 //       cannot run the editor to look at. Clip effects are not drawn.
+//   dafin --check-template <file.json> --out <folder> [--text "..."]
+//       The whole round for a new template: the validator in normal and portable mode, every quick
+//       control (binds, changes the template, reads back, leaves the others alone, survives a save,
+//       resets), the timing at 24/30/60 fps on 0.4/1/3 s clips, and five contact sheets (30 and
+//       60 fps, a short clip at 24 fps, two lines, long text) — written to <folder> with
+//       <name>-report.md. Exit code 0 = the automated checks passed (the sheets still need a
+//       person's eyes; nothing is approved), 1 = they did not, 2 = bad arguments.
 //   dafin --template-guide [--out <file>]
 //       Prints the authoring reference generated from this build: binding paths, animation
 //       presets and their params, text shader paints, effects and their parameters, fonts.

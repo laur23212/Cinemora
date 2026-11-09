@@ -69,6 +69,7 @@
 #include "app/jobs/vision/TrackerListModel.h"
 #include "engine/compositor/FrameCompositor.h"
 #include "engine/compositor/GpuCompositor.h"
+#include "ui/imageproviders/TextStylePreviewImageProvider.h"
 #include "engine/tracking/MotionTracking.h"
 #include "engine/decode/readers/ClipReaderPool.h"
 #include "app/editor/AppController.h"
@@ -184,6 +185,11 @@ private slots:
     void addTextClipEmptyUsesPlaceholder();
     void addTextClipWithTextDoesNotRequestEdit();
     void addTextClipWithPresetAppliesStyle();
+    void goldPopIsInTheTitleLibrary();
+    void goldPopControlsReachThePreview();
+    void goldPopSurvivesSaveAndReopen();
+    void switchingTitleTemplatesKeepsOtherEffects();
+    void olderTitlesStillWork();
     void undoRedoClipAdd();
     void sourceFramingPreservesOriginalAndUndoes();
     void undoLibraryClipDropOntoExistingTrack();
@@ -729,6 +735,365 @@ void EditorStateTest::addTextClipWithPresetAppliesStyle()
     const QVariantMap style = clip.value(QStringLiteral("textStyle")).toMap();
     QCOMPARE(style.value(QStringLiteral("packId")).toString(), QStringLiteral("neon"));
     QCOMPARE(style.value(QStringLiteral("fontFamily")).toString(), QStringLiteral("Bebas Neue"));
+}
+
+// Dafin: Gold Pop (chatgpt.gold-pop), the first title ChatGPT designed, through the editor's own
+// paths — the Titles tab and its card, a tap to add it, the seven quick controls, the program
+// monitor's picture, save and reopen — and the titles that came before it.
+namespace {
+
+// The program monitor at `ms`: the FrameCompositor the preview and the exporter draw with.
+QImage programFrame(const drift::Project *project, double ms)
+{
+    FrameCompositor compositor;
+    compositor.setProject(project);
+    FrameCompositor::RenderOptions half;
+    half.previewScale = 0.5;
+    return compositor.compositeAt(drift::TimeUs(std::llround(ms * 1000.0)), half).convertToFormat(QImage::Format_RGB32);
+}
+
+int largestChannelDiff(QRgb a, QRgb b)
+{
+    return std::max({std::abs(qRed(a) - qRed(b)), std::abs(qGreen(a) - qGreen(b)), std::abs(qBlue(a) - qBlue(b))});
+}
+
+// Everything that is not the backdrop (the frame's top-left pixel).
+QRect inkBox(const QImage &frame)
+{
+    QRect box;
+    const QRgb backdrop = frame.pixel(0, 0);
+    for (int y = 0; y < frame.height(); ++y)
+        for (int x = 0; x < frame.width(); ++x)
+            if (largestChannelDiff(frame.pixel(x, y), backdrop) > 8)
+                box |= QRect(x, y, 1, 1);
+    return box;
+}
+
+int maxFrameDiff(const QImage &a, const QImage &b)
+{
+    if (a.size() != b.size())
+        return 255;
+    int max = 0;
+    for (int y = 0; y < a.height(); ++y)
+        for (int x = 0; x < a.width(); ++x)
+            max = std::max(max, largestChannelDiff(a.pixel(x, y), b.pixel(x, y)));
+    return max;
+}
+
+template <typename Pred>
+QPair<int, double> countAndMeanY(const QImage &frame, Pred pred)
+{
+    int n = 0;
+    double y0 = 0.0;
+    for (int y = 0; y < frame.height(); ++y) {
+        for (int x = 0; x < frame.width(); ++x) {
+            const QRgb px = frame.pixel(x, y);
+            if (pred(qRed(px), qGreen(px), qBlue(px))) {
+                ++n;
+                y0 += y;
+            }
+        }
+    }
+    return {n, n ? y0 / n : -1.0};
+}
+
+bool goldFill(int r, int g, int b) { return r > 150 && g > 90 && r - b > 50; }
+bool pureRed(int r, int g, int b) { return r > 190 && g < 90 && b < 90; }
+bool pureGreen(int r, int g, int b) { return g > 180 && r < 90 && b < 90; }
+bool pureBlue(int r, int g, int b) { return b > 180 && r < 90 && g < 90; }
+
+QVariantMap controlValues(const AppController &state, int track, int clip)
+{
+    QVariantMap values;
+    for (const QVariant &v : state.templateControls(track, clip))
+        values.insert(v.toMap().value(QStringLiteral("id")).toString(), v.toMap().value(QStringLiteral("value")));
+    return values;
+}
+
+// Where a clip is now, by id: indices move when clips are added or sorted.
+QPair<int, int> clipIndexOf(const drift::Project *project, const QString &id)
+{
+    for (int t = 0; t < project->tracks().size(); ++t)
+        for (int c = 0; c < project->tracks().at(t).clips.size(); ++c)
+            if (project->tracks().at(t).clips.at(c).id == id)
+                return {t, c};
+    return {-1, -1};
+}
+
+const QString kGoldPop = QStringLiteral("chatgpt.gold-pop");
+
+} // namespace
+
+void EditorStateTest::goldPopIsInTheTitleLibrary()
+{
+    AssetLibrary library;
+    AppController state(&library);
+    // The Titles tab lists textTemplates(); its Built-in section is every row not installed.
+    QVariantMap row;
+    for (const QVariant &v : state.textTemplates())
+        if (v.toMap().value(QStringLiteral("id")).toString() == kGoldPop)
+            row = v.toMap();
+    QVERIFY2(!row.isEmpty(), "Gold Pop is not in the title library");
+    QCOMPARE(row.value(QStringLiteral("label")).toString(), QStringLiteral("Gold Pop"));
+    QVERIFY(row.value(QStringLiteral("origin")).toString() != QStringLiteral("installed"));
+    QCOMPARE(row.value(QStringLiteral("category")).toString(), QStringLiteral("fast-titles"));
+    QCOMPARE(row.value(QStringLiteral("controlCount")).toInt(), 7);
+    QVERIFY(row.value(QStringLiteral("readableMs")).toDouble() <= 150.0);
+
+    // Its card: image://textstyle/<id> at a card's size, the title at rest in gold with its dark
+    // outline (TextStylePackThumb asks for the card's own size).
+    TextStylePreviewImageProvider provider;
+    QSize size;
+    const QImage card = provider.requestImage(kGoldPop, &size, QSize(240, 132))
+                            .convertToFormat(QImage::Format_ARGB32);
+    QVERIFY(!card.isNull());
+    QCOMPARE(size, card.size());
+    int gold = 0, outline = 0;
+    for (int y = 0; y < card.height(); ++y) {
+        for (int x = 0; x < card.width(); ++x) {
+            const QRgb px = card.pixel(x, y);
+            if (qAlpha(px) < 200)
+                continue;
+            gold += goldFill(qRed(px), qGreen(px), qBlue(px)) ? 1 : 0;
+            outline += qRed(px) < 60 && qGreen(px) < 50 && qBlue(px) < 70 ? 1 : 0;
+        }
+    }
+    QVERIFY2(gold > 150 && outline > 60, qPrintable(QStringLiteral("card: %1 gold, %2 outline pixels").arg(gold).arg(outline)));
+}
+
+void EditorStateTest::goldPopControlsReachThePreview()
+{
+    if (!GpuCompositor::isAvailable())
+        QSKIP("No GPU compositor available");
+    AssetLibrary library;
+    AppController state(&library);
+    state.addTextClip(QString(), 0.0, kGoldPop); // what a tap on the card does
+    const int track = state.selectedTrack();
+    const int clip = state.selectedClip();
+    QCOMPARE(state.textTemplateInfo(track, clip).value(QStringLiteral("id")).toString(), kGoldPop);
+    QStringList ids;
+    for (const QVariant &v : state.templateControls(track, clip))
+        ids << v.toMap().value(QStringLiteral("id")).toString();
+    QCOMPARE(ids, (QStringList{QStringLiteral("title"), QStringLiteral("size"), QStringLiteral("goldhighlight"),
+                               QStringLiteral("goldshadow"), QStringLiteral("outlinecolor"), QStringLiteral("entrance"),
+                               QStringLiteral("subtlemotion")}));
+    const QString content = state.project()->tracks().at(track).clips.at(clip).textContent;
+
+    // As added: hidden on the first frame, then gold with no pure red, green or blue anywhere.
+    const QImage hold = programFrame(state.project(), 1000);
+    const QRect holdBox = inkBox(hold);
+    QVERIFY(!holdBox.isEmpty());
+    QVERIFY(inkBox(programFrame(state.project(), 0)).isEmpty());
+    QVERIFY2(countAndMeanY(hold, goldFill).first > 300, "no gold in the preview");
+    QCOMPARE(countAndMeanY(hold, pureRed).first, 0);
+    QCOMPARE(countAndMeanY(hold, pureGreen).first, 0);
+    QCOMPARE(countAndMeanY(hold, pureBlue).first, 0);
+
+    // Each control reaches the picture.
+    state.setTemplateControl(track, clip, QStringLiteral("outlinecolor"), QStringLiteral("#ff00ff00"));
+    QVERIFY(countAndMeanY(programFrame(state.project(), 1000), pureGreen).first > 100);
+    state.setTemplateControl(track, clip, QStringLiteral("goldhighlight"), QStringLiteral("#ffff0000"));
+    state.setTemplateControl(track, clip, QStringLiteral("goldshadow"), QStringLiteral("#ff0000ff"));
+    {
+        const QImage recoloured = programFrame(state.project(), 1000);
+        const auto red = countAndMeanY(recoloured, pureRed);
+        const auto blue = countAndMeanY(recoloured, pureBlue);
+        QVERIFY2(red.first > 50 && blue.first > 50, qPrintable(QStringLiteral("%1 red, %2 blue").arg(red.first).arg(blue.first)));
+        // The highlight stop is the top of the letters, the deep stop the bottom.
+        QVERIFY2(red.second < blue.second, qPrintable(QStringLiteral("red at y %1, blue at y %2").arg(red.second).arg(blue.second)));
+    }
+    state.setTemplateControl(track, clip, QStringLiteral("size"), 160.0);
+    QVERIFY(inkBox(programFrame(state.project(), 1000)).height() > holdBox.height() * 1.25);
+    state.setTemplateControl(track, clip, QStringLiteral("title"), QStringLiteral("AB"));
+    QCOMPARE(state.project()->tracks().at(track).clips.at(clip).textContent, QStringLiteral("AB"));
+    QVERIFY(inkBox(programFrame(state.project(), 1000)).width() < holdBox.width());
+
+    // Entrance at 0: no pop, the title is there on the first frame.
+    state.setTemplateControl(track, clip, QStringLiteral("entrance"), 0.0);
+    QVERIFY(!inkBox(programFrame(state.project(), 0)).isEmpty());
+
+    // Subtle motion: breathing every 2.5 s, so two hold frames 1.25 s apart differ; off, they match.
+    QVERIFY(maxFrameDiff(programFrame(state.project(), 1000), programFrame(state.project(), 2250)) > 8);
+    state.setTemplateControl(track, clip, QStringLiteral("subtlemotion"), false);
+    QVERIFY(maxFrameDiff(programFrame(state.project(), 1000), programFrame(state.project(), 2250)) <= 1);
+
+    // Reset brings each one back, and the picture with them.
+    for (const QString &id : ids)
+        state.resetTemplateControl(track, clip, id);
+    state.setTemplateControl(track, clip, QStringLiteral("title"), content);
+    for (const QVariant &v : state.templateControls(track, clip))
+        QVERIFY2(!v.toMap().value(QStringLiteral("modified")).toBool(), qPrintable(v.toMap().value(QStringLiteral("id")).toString()));
+    QVERIFY(maxFrameDiff(programFrame(state.project(), 1000), hold) <= 1);
+    QVERIFY(inkBox(programFrame(state.project(), 0)).isEmpty());
+}
+
+void EditorStateTest::goldPopSurvivesSaveAndReopen()
+{
+    QStandardPaths::setTestModeEnabled(true);
+    const auto restore = qScopeGuard([] { QStandardPaths::setTestModeEnabled(false); });
+    AssetLibrary library;
+    AppController state(&library);
+    state.addTextClip(QString(), 0.0, kGoldPop);
+    const QString id = state.project()->tracks().at(state.selectedTrack()).clips.at(state.selectedClip()).id;
+    const QVariantMap edits{{QStringLiteral("title"), QStringLiteral("SAVED TITLE")},
+                            {QStringLiteral("size"), 150.0},
+                            {QStringLiteral("goldhighlight"), QStringLiteral("#ffffe0e0")},
+                            {QStringLiteral("goldshadow"), QStringLiteral("#ff803000")},
+                            {QStringLiteral("outlinecolor"), QStringLiteral("#ff102060")},
+                            {QStringLiteral("entrance"), 0.08},
+                            {QStringLiteral("subtlemotion"), false}};
+    for (auto it = edits.cbegin(); it != edits.cend(); ++it)
+        state.setTemplateControl(state.selectedTrack(), state.selectedClip(), it.key(), it.value());
+    const QVariantMap before = controlValues(state, state.selectedTrack(), state.selectedClip());
+    for (auto it = edits.cbegin(); it != edits.cend(); ++it)
+        QCOMPARE(before.value(it.key()).toString(), it.value().toString());
+
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral("gold-pop.drift"));
+    state.projectFile()->saveProject(QUrl::fromLocalFile(path));
+    state.projectFile()->waitForSave();
+    QVERIFY(!state.projectFile()->hasUnsavedChanges());
+
+    AppController reopened(&library);
+    reopened.projectFile()->loadProject(QUrl::fromLocalFile(path));
+    QTRY_VERIFY(!reopened.projectFile()->projectLoadPending());
+    const auto [track, clip] = clipIndexOf(reopened.project(), id);
+    QVERIFY(track >= 0);
+    QCOMPARE(reopened.textTemplateInfo(track, clip).value(QStringLiteral("id")).toString(), kGoldPop);
+    QCOMPARE(controlValues(reopened, track, clip), before);
+    // The readability rules a template brings are kept too: a reopened project is not "older".
+    QVERIFY(reopened.project()->tracks().at(track).clips.at(clip).textStyle.animation.timing.fitToWindow);
+
+    if (!GpuCompositor::isAvailable())
+        QSKIP("No GPU compositor available; the controls round-tripped");
+    for (double ms : {0.0, 40.0, 1000.0, 4950.0})
+        QVERIFY2(maxFrameDiff(programFrame(state.project(), ms), programFrame(reopened.project(), ms)) <= 1,
+                 qPrintable(QStringLiteral("frame at %1 ms").arg(ms)));
+}
+
+void EditorStateTest::switchingTitleTemplatesKeepsOtherEffects()
+{
+    AssetLibrary library;
+    AppController state(&library);
+    // Another title with its own effect, to be left alone.
+    state.addTextClip(QStringLiteral("Other title"), 8.0);
+    const QString otherId = state.project()->tracks().at(state.selectedTrack()).clips.at(state.selectedClip()).id;
+    state.addEffect(state.selectedTrack(), state.selectedClip(), QStringLiteral("stylize.vignette"));
+    const auto clipOf = [&state](const QString &id) {
+        const auto [t, c] = clipIndexOf(state.project(), id);
+        return state.project()->tracks().at(t).clips.at(c);
+    };
+    const drift::Clip otherBefore = clipOf(otherId);
+    QCOMPARE(otherBefore.effects.size(), 1);
+
+    state.addTextClip(QString(), 0.0, kGoldPop);
+    const QString id = state.project()->tracks().at(state.selectedTrack()).clips.at(state.selectedClip()).id;
+    const drift::Clip added = clipOf(id);
+    {
+        const auto [t, c] = clipIndexOf(state.project(), id);
+        state.addEffect(t, c, QStringLiteral("adjust.contrast")); // the user's own
+    }
+    const auto templateKeys = [](const drift::Clip &clip) {
+        QStringList keys;
+        for (const drift::Effect &e : clip.effects)
+            keys << (e.templateKey.isEmpty() ? QStringLiteral("user:") + e.catalogId : e.templateKey);
+        return keys;
+    };
+    QCOMPARE(templateKeys(clipOf(id)), QStringList{QStringLiteral("user:adjust.contrast")});
+
+    // Sparks brings its sparkle effect; the user's contrast stays.
+    {
+        const auto [t, c] = clipIndexOf(state.project(), id);
+        state.applyTextPreset(t, c, QStringLiteral("dafin.fast-reveal-sparks"));
+    }
+    QCOMPARE(clipOf(id).textStyle.templateId, QStringLiteral("dafin.fast-reveal-sparks"));
+    QCOMPARE(templateKeys(clipOf(id)), (QStringList{QStringLiteral("user:adjust.contrast"), QStringLiteral("sparks")}));
+
+    // Back to Gold Pop, twice: the sparkle goes, nothing is duplicated, the user's effect stays.
+    for (int i = 0; i < 2; ++i) {
+        const auto [t, c] = clipIndexOf(state.project(), id);
+        state.applyTextPreset(t, c, kGoldPop);
+        QCOMPARE(clipOf(id).textStyle.templateId, kGoldPop);
+        QCOMPARE(templateKeys(clipOf(id)), QStringList{QStringLiteral("user:adjust.contrast")});
+    }
+    // Words, place and length are the clip's own and stay put.
+    QCOMPARE(clipOf(id).textContent, added.textContent);
+    QCOMPARE(clipOf(id).timelineStart, added.timelineStart);
+    QCOMPARE(clipOf(id).timelineDuration, added.timelineDuration);
+    {
+        const auto [t, c] = clipIndexOf(state.project(), id);
+        QCOMPARE(state.templateControls(t, c).size(), 7);
+    }
+
+    // The other title did not move.
+    const drift::Clip otherAfter = clipOf(otherId);
+    QCOMPARE(otherAfter.effects.size(), 1);
+    QCOMPARE(otherAfter.effects.first().catalogId, QStringLiteral("stylize.vignette"));
+    QCOMPARE(drift::textStyleToJson(otherAfter.textStyle), drift::textStyleToJson(otherBefore.textStyle));
+}
+
+void EditorStateTest::olderTitlesStillWork()
+{
+    QStandardPaths::setTestModeEnabled(true);
+    const auto restore = qScopeGuard([] { QStandardPaths::setTestModeEnabled(false); });
+    const bool gpu = GpuCompositor::isAvailable();
+
+    // The text reel was saved before title templates existed (document format 7): fifteen
+    // animated titles. They load, keep the timing they were made with, and draw.
+    const QString reel = QFINDTESTDATA("data/text-reel.drift");
+    QVERIFY(!reel.isEmpty());
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString copy = dir.filePath(QStringLiteral("text-reel.drift"));
+    QVERIFY(QFile::copy(reel, copy));
+    AssetLibrary library;
+    AppController state(&library);
+    state.projectFile()->loadProject(QUrl::fromLocalFile(copy));
+    QTRY_VERIFY(!state.projectFile()->projectLoadPending());
+    int titles = 0;
+    for (const drift::Track &track : state.project()->tracks()) {
+        for (const drift::Clip &clip : track.clips) {
+            if (clip.type != drift::ClipType::Text)
+                continue;
+            ++titles;
+            QVERIFY(clip.textStyle.templateId.isEmpty());
+            QVERIFY2(!clip.textStyle.animation.timing.fitToWindow, qPrintable(clip.textContent));
+            if (gpu) {
+                const QImage middle = programFrame(state.project(), (clip.timelineStart + clip.timelineDuration / 2) / 1000.0);
+                QVERIFY2(!inkBox(middle).isEmpty(), qPrintable(QStringLiteral("nothing drawn for ") + clip.textContent));
+            }
+        }
+    }
+    QCOMPARE(titles, 15);
+
+    // Every template that shipped before Gold Pop, and a style pack from before templates, still
+    // applies from the library and draws at rest.
+    AppController fresh(&library);
+    QStringList ids;
+    for (const QVariant &v : fresh.textTemplates()) {
+        const QVariantMap row = v.toMap();
+        if (row.value(QStringLiteral("origin")).toString() != QStringLiteral("installed")
+            && row.value(QStringLiteral("id")).toString().startsWith(QLatin1String("dafin.")))
+            ids << row.value(QStringLiteral("id")).toString();
+    }
+    for (const QString &id :
+         {QStringLiteral("dafin.fast-pop"), QStringLiteral("dafin.instant-underline"), QStringLiteral("dafin.fast-reveal-sparks"),
+          QStringLiteral("dafin.static-title"), QStringLiteral("dafin.readable-caption")})
+        QVERIFY2(ids.contains(id), qPrintable(id));
+    ids << QStringLiteral("neon");
+    double at = 0.0;
+    for (const QString &id : ids) {
+        fresh.addTextClip(QStringLiteral("Older title"), at, id);
+        const drift::Clip &clip = fresh.project()->tracks().at(fresh.selectedTrack()).clips.at(fresh.selectedClip());
+        QCOMPARE(clip.textStyle.packId, id);
+        if (id != QStringLiteral("neon"))
+            QVERIFY2(!fresh.templateControls(fresh.selectedTrack(), fresh.selectedClip()).isEmpty(), qPrintable(id));
+        if (gpu)
+            QVERIFY2(!inkBox(programFrame(fresh.project(), (clip.timelineStart + clip.timelineDuration / 2) / 1000.0)).isEmpty(),
+                     qPrintable(QStringLiteral("nothing drawn for ") + id));
+        at += 10.0;
+    }
 }
 
 void EditorStateTest::undoRedoClipAdd()

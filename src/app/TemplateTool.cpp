@@ -6,6 +6,7 @@
 #include "core/text/animation/TextAnimationPreset.h"
 #include "engine/packages/assets/FontCatalog.h"
 #include "engine/packages/effects/EffectCatalog.h"
+#include "engine/render2d/text/TemplateCheck.h"
 #include "engine/render2d/text/TemplateContactSheet.h"
 
 #include <QDir>
@@ -192,6 +193,32 @@ int runTemplateTool(int argc, char *argv[])
     if (args.contains(QStringLiteral("--template-guide"))) {
         print(guideMarkdown());
         return 0;
+    }
+
+    if (args.contains(QStringLiteral("--check-template"))) {
+        const int at = args.indexOf(QStringLiteral("--check-template"));
+        const QString path = args.value(at + 1);
+        if (path.isEmpty() || path.startsWith(QLatin1String("--")) || outPath.isEmpty()) {
+            std::fputs("usage: dafin --check-template <file.json> --out <folder> [--text \"...\"]\n", stderr);
+            return 2;
+        }
+#ifdef DRIFT_WITH_SKIA
+        skia::TemplateCheckOptions o;
+        o.outDir = outPath;
+        const int textAt = args.indexOf(QStringLiteral("--text"));
+        if (textAt >= 0)
+            o.text = args.value(textAt + 1);
+        const skia::TemplateCheckResult r = skia::runTemplateCheck(
+            path, drift::appcontroller_detail::dafinTemplateEnvironment(false),
+            drift::appcontroller_detail::dafinTemplateEnvironment(true), o);
+        std::fputs(r.report.toUtf8().constData(), stdout);
+        std::printf("\nReport: %s\n", qPrintable(QDir::toNativeSeparators(r.reportPath)));
+        std::fflush(stdout);
+        return r.automatedChecksPassed ? 0 : 1;
+#else
+        std::fputs("this build has no text renderer\n", stderr);
+        return 1;
+#endif
     }
 
     if (args.contains(QStringLiteral("--template-preview"))) {

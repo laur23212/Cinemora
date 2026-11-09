@@ -60,7 +60,9 @@ user-facing surface is the Text tab (Type · Look · Animate) and the `text` MCP
   compresses the whole In, shortened slots snap down to frames (a slot under one frame becomes
   instant / is dropped). `slotLocalUs` runs a fitted slot's clock faster. `readableAtUs` is when the
   In has brought every fragment to rest (Loop never counts). Title templates that build on all of
-  this are in `TextTemplate.h` and `docs/template-authoring.md`.
+  this are in `TextTemplate.h` and `docs/template-authoring.md`. Projects saved before document
+  format 23 keep their titles' authored timing: `keepAuthoredTextTiming` (Project.cpp) turns `fit`
+  off on text and subtitle clips that had no timing of their own.
 
 ## Rendering (`src/engine`)
 

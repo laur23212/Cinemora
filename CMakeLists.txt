@@ -1063,6 +1063,8 @@ if(DRIFT_WITH_SKIA)
         src/engine/render2d/text/SkiaTextEffects.cpp
         src/engine/render2d/text/TemplateContactSheet.h
         src/engine/render2d/text/TemplateContactSheet.cpp
+        src/engine/render2d/text/TemplateCheck.h
+        src/engine/render2d/text/TemplateCheck.cpp
     )
     # build-skia.sh compiles Skia with RTTI (see the extra_cflags_cc note there), so Drift classes
     # may subclass Skia interfaces from any translation unit. vcpkg's port on Windows keeps /GR-,

@@ -114,11 +114,28 @@ bool hasTemplateErrors(const QList<TemplateIssue> &issues);
 QJsonObject templateIssueToJson(const TemplateIssue &issue);
 QString templateIssueToText(const TemplateIssue &issue);
 
+// What every quick control of a template must do, checked without the editor (`dafin
+// --check-template` and the tests): its binding resolves to the control's type and its value
+// reads back; a different value it can reach changes the template (text, style or effects), reads
+// back, leaves the other controls alone and survives a save and reload; and writing the
+// template's own value back — the reset button — restores it.
+struct TemplateControlCheck
+{
+    QString controlId;
+    QString bind;
+    QString type;
+    QVariant templateValue; // what the template sets
+    QVariant testValue;     // the other value written
+    bool ok = false;
+    QString problem;        // empty when ok
+};
+QList<TemplateControlCheck> checkTemplateControls(const TextPreset &preset, const TemplateEnvironment &env);
+
 // ---------------------------------------------------------------------------------------------
-// The JSON templates on disk: bundled (:/text-styles), $DAFIN_TEXT_STYLES (':'-separated dirs)
-// and the installed folder, later roots overriding earlier ids. Files that do not validate are
-// skipped and listed in loadErrors(). Effects and fonts are not checked here (core cannot see
-// them); applying a template skips an effect the catalog does not have.
+// The JSON templates on disk: bundled (:/text-styles), $DAFIN_TEXT_STYLES (folders separated as
+// in PATH: ';' on Windows, ':' elsewhere) and the installed folder, later roots overriding earlier
+// ids. Files that do not validate are skipped and listed in loadErrors(). Effects and fonts are not
+// checked here (core cannot see them); applying a template skips an effect the catalog does not have.
 class TitleTemplateCatalog
 {
 public:

@@ -1200,6 +1200,24 @@ void migrateModelPoseToTransform(QList<Track> &tracks, double width, double heig
     }
 }
 
+// Dafin: before version 23 a title played its In and Out at their authored lengths however short
+// the clip, so a 0.9 s clip with a 0.5 s zoom in and a 0.25 s fade out showed both in full. The
+// readability rules (In + Out within half the clip) are for titles made from now on; text from an
+// older file keeps its timing. A timing block a template wrote (a cap, or the fit switched off)
+// was a choice and stays.
+void keepAuthoredTextTiming(QList<Track> &tracks)
+{
+    for (Track &track : tracks) {
+        for (Clip &clip : track.clips) {
+            if (clip.type != ClipType::Text && clip.type != ClipType::Subtitle)
+                continue;
+            TextTimingFit &timing = clip.textStyle.animation.timing;
+            if (timing.isDefault())
+                timing.fitToWindow = false;
+        }
+    }
+}
+
 } // namespace
 
 Project Project::fromJson(const QJsonObject &object, QString *errorOut)
@@ -1367,6 +1385,8 @@ Project Project::fromJson(const QJsonObject &object, QString *errorOut)
             migrateCameraTo22(tracks, width, height);
         });
     }
+    if (version < 23)
+        project.forEachTrackList([](QList<Track> &tracks) { keepAuthoredTextTiming(tracks); });
     // A dangling span end has no earlier state to recover from here, so it is cleared.
     project.forEachTrackList([](QList<Track> &tracks) {
         normalizeTransformLayers(tracks);
@@ -1403,6 +1423,8 @@ Project Project::fromJson(const QJsonObject &object, QString *errorOut)
     // bump is a gate, as for versions 6 and 9. An older build would drop the marker and no longer
     // treat the mask as the clip's shape.
     // Version 22 moved the 3D world to After Effects' convention (migrateWorldTo22 above).
+    // Version 23 (Dafin) made titles readable fast on short clips: In + Out fit in half the clip.
+    // Text from older files keeps its authored timing (keepAuthoredTextTiming above).
     // Version 20 added stabilize tracker targets. Nothing to migrate; the bump is a gate, as for
     // versions 6 and 9. An older build would drop the targets and leave the clip unlocked.
 

@@ -4,8 +4,12 @@ For anyone making Dafin titles without the source code: an AI such as ChatGPT, o
 This file is meant to be enough on its own. Everything in it is checked by the validator and by
 Dafin's tests; where something is not supported it says so.
 
-Three commands complete it on the user's machine:
+Four commands complete it on the user's machine:
 
+- `dafin --check-template my-template.json --out check` runs the whole review round in one go
+  (section 8): the validator in normal and portable mode, every quick control, the timing at
+  24/30/60 fps, and five contact sheets, written to the folder `check` with a report
+  (`my-template-report.md`). It never approves a template: someone still has to look at the sheets.
 - `dafin --validate-template my-template.json` checks a file exactly the way installing it does
   (`--json` for machine-readable output, `--portable` for files meant for other machines).
 - `dafin --template-preview my-template.json --out sheet.png` renders the motion as a contact sheet:
@@ -15,7 +19,14 @@ Three commands complete it on the user's machine:
 - `dafin --template-guide` prints the live lists for that installation: presets, effects and the
   fonts actually installed.
 
-On Windows, add `--out report.txt` to the first and last if the console shows nothing.
+On Windows, add `--out report.txt` to `--validate-template` and `--template-guide` if the console
+shows nothing (`--check-template` always writes its report to the folder).
+
+The contact sheets are drawn by Dafin's own text painter on the CPU. The editor's preview and the
+exporter draw the same painter on the GPU; Dafin's tests compare the two frame by frame (Gold Pop:
+colours, gradient, outline, shadow, position, timing, loop, fade and transparency agree up to
+antialiasing), so what a sheet shows is what the user gets — except clip effects, which the sheets
+do not draw.
 
 ## 1. What a template is
 
@@ -182,7 +193,7 @@ it is a warning, not an error, because the user can install the add-on.
 "animation": {
   "in":   { "preset": "pop",     "params": { "duration": 0.12, "from": 70 } },
   "loop": { "preset": "breathe", "params": { "amount": 0.1, "speed": 0.5 } },
-  "out":  { "preset": "fade",    "params": { "duration": 0.15 } },
+  "out":  { "preset": "fade",    "params": { "duration": 0.15, "ease": "easeIn" } },
   "timing": { "maxReadMs": 150 }
 }
 ```
@@ -204,6 +215,20 @@ it is a warning, not an error, because the user can install the add-on.
 | `unit` | `block` · `character` · `word` · `line` | `block` | What moves together |
 | `order` | `forward` · `backward` · `centerOut` · `random` | `forward` | |
 | `ease` | `linear` · `easeIn` · `easeOut` · `easeInOut` · `back` · `bounce` · `smooth` | `easeOut` | `back` overshoots past full size before settling, inside the duration |
+
+**Exits run their curve from the clip's end.** An out slot is the entrance played backwards, ease
+included: with `easeOut` the text holds almost still and drops away in the last instant, so on a
+short exit the frames a viewer sees are barely faded. The clip's end is not a frame, so the last
+frame shown is one frame before it. A 100 ms `fade` exit, last frame shown:
+
+| `ease` on the exit | 24 fps | 30 fps | 60 fps |
+|---|---|---|---|
+| `easeOut` | 80 % opaque | 70 % | 42 % |
+| `linear` | 42 % | 33 % | 17 % |
+| `easeIn` | 7 % | 4 % | 0 % |
+
+For an exit that visibly fades, use `easeIn` (or `linear`); `easeOut` reads as a cut on 24 and
+30 fps timelines.
 
 **pop** in full: `from` (0–200 %, default 60) is the scale each unit starts at; opacity goes 0 → 1
 with it; `duration` defaults to 0.35 s and `ease` to `back`. With `unit: block` the whole title pops
@@ -371,7 +396,31 @@ needs `options` (values) and may give `optionLabels`. `group` folds controls int
 The validator rejects a binding that does not resolve on *this* style or would move nothing, says
 why, and suggests the nearest real path for a typo.
 
-## 8. The validator
+## 8. Checking a template
+
+### 8.1 The review round
+
+```
+dafin --check-template my-template.json --out check [--text "YOUR WORDS"]
+```
+
+Writes `check/my-template-report.md` and five sheets: `-30fps` and `-60fps` (a 3 s clip), `-24fps-short`
+(a 0.4 s clip, where the entrance and exit are fitted), `-two-lines` and `-long` (wrapping). The
+report has:
+
+1. **Validator**: normal and portable mode (8.2); with errors, nothing else runs.
+2. **Quick controls**: for each one, a different value is written and must change the template,
+   read back, leave the other controls alone, survive a save and reopen, and reset to the
+   template's value. A failing control names what went wrong.
+3. **Timing**: readable time, entrance and exit as played, at 24/30/60 fps on 0.4, 1 and 3 s clips.
+4. **Contact sheets**: what each file shows.
+
+Exit code 0 means the automated checks passed. It does not mean the template is approved: the
+report says "Visual review: not done" until a person (or you, shown the sheets) has looked at every
+sheet. To submit a template for review, send the JSON file, the report and the five PNGs. After a
+correction, send the whole corrected file (not a fragment) with the same `id`, and run the check again.
+
+### 8.2 The validator
 
 ```
 dafin --validate-template my-template.json [--json] [--portable] [--out report.txt]

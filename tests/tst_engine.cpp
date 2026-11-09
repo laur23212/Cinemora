@@ -20,6 +20,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QLineF>
 #include <QMatrix4x4>
 #include <QPainter>
 #include <QProcess>
@@ -33,11 +34,13 @@
 #include <QVariantMap>
 #include <QVector3D>
 #include <QVector4D>
+#include <algorithm>
 #include <atomic>
 
 #include <cmath>
 #include <complex>
 #include <cstring>
+#include <optional>
 #include <utility>
 #include <random>
 
@@ -128,6 +131,7 @@
 #ifdef DRIFT_WITH_SKIA
 #include "engine/render2d/skia/SkiaRuntime.h"
 #include "engine/render2d/text/SkiaTextPainter.h"
+#include "engine/render2d/text/TemplateContactSheet.h"
 #endif
 #include "engine/gpu/effects/GpuEffectExecutor.h"
 #include "engine/gpu/effects/LookupTextures.h"
@@ -405,6 +409,8 @@ private slots:
     void fontForStyleResolvesRequestedFace();
     void textRasterIsCached();
     void textDecorationsAreNotCropped();
+    void goldPopEditorFramesMatchTheContactSheet();
+    void goldPopExportMatchesThePreview();
     void wordAccentRecoloursChosenWords();
     void karaokeAccentFollowsThePlayhead();
     void accentSizeScaleWidensTheBlock();
@@ -11127,6 +11133,426 @@ void EngineTest::textDecorationsAreNotCropped()
     QCOMPARE(packed.image.width(), qRound(packed.rect.width()));
     QCOMPARE(packed.image.height(), qRound(packed.rect.height()));
     QVERIFY(litPixels(packed.image) > litPixels(plain.image));
+}
+
+#ifdef DRIFT_WITH_SKIA
+namespace {
+
+int channelDiff(QRgb a, QRgb b)
+{
+    return std::max({std::abs(qRed(a) - qRed(b)), std::abs(qGreen(a) - qGreen(b)), std::abs(qBlue(a) - qBlue(b)),
+                     std::abs(qAlpha(a) - qAlpha(b))});
+}
+
+// Two renders of one frame, premultiplied, measured inside the box where the reference shows
+// anything besides the backdrop (grown by 6 px for antialiasing and the soft shadow). With no box
+// the reference is all backdrop and the whole frame is measured.
+struct FrameDiff
+{
+    QRect box;
+    double mean = 0.0;   // largest channel difference per pixel, 0..255
+    double over64 = 0.0; // share of measured pixels off by more than 64
+    int max = 0;
+    QPointF inkReference, inkOther; // centres of everything that is not backdrop
+    QString describe() const
+    {
+        return QStringLiteral("box %1x%2+%3+%4 mean %5 max %6 >64 %7%% ink %8,%9 vs %10,%11")
+            .arg(box.width()).arg(box.height()).arg(box.x()).arg(box.y())
+            .arg(mean, 0, 'f', 2).arg(max).arg(over64 * 100.0, 0, 'f', 3)
+            .arg(inkReference.x(), 0, 'f', 2).arg(inkReference.y(), 0, 'f', 2)
+            .arg(inkOther.x(), 0, 'f', 2).arg(inkOther.y(), 0, 'f', 2);
+    }
+};
+
+// Weighted by how far each pixel is from the backdrop; the faint rest (antialiasing, a codec's
+// noise over the whole frame) would pull the centre toward the middle of the frame.
+QPointF inkCentre(const QImage &image, const QImage &backdrop)
+{
+    double sx = 0.0, sy = 0.0, sw = 0.0;
+    for (int y = 0; y < image.height(); ++y) {
+        const QRgb *p = reinterpret_cast<const QRgb *>(image.constScanLine(y));
+        const QRgb *b = reinterpret_cast<const QRgb *>(backdrop.constScanLine(y));
+        for (int x = 0; x < image.width(); ++x) {
+            const int w = channelDiff(p[x], b[x]);
+            if (w <= 8)
+                continue;
+            sx += w * x;
+            sy += w * y;
+            sw += w;
+        }
+    }
+    return sw > 0.0 ? QPointF(sx / sw, sy / sw) : QPointF(-1.0, -1.0);
+}
+
+FrameDiff frameDiff(const QImage &referenceIn, const QImage &otherIn, const QImage &backdropIn)
+{
+    const QImage reference = referenceIn.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+    const QImage other = otherIn.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+    const QImage backdrop = backdropIn.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+    FrameDiff d;
+    for (int y = 0; y < reference.height(); ++y) {
+        const QRgb *r = reinterpret_cast<const QRgb *>(reference.constScanLine(y));
+        const QRgb *b = reinterpret_cast<const QRgb *>(backdrop.constScanLine(y));
+        for (int x = 0; x < reference.width(); ++x) {
+            if (channelDiff(r[x], b[x]) > 2)
+                d.box |= QRect(x, y, 1, 1);
+        }
+    }
+    const QRect measured = d.box.isEmpty() ? reference.rect() : d.box.adjusted(-6, -6, 6, 6) & reference.rect();
+    double sum = 0.0;
+    int over = 0;
+    for (int y = measured.top(); y <= measured.bottom(); ++y) {
+        const QRgb *r = reinterpret_cast<const QRgb *>(reference.constScanLine(y));
+        const QRgb *o = reinterpret_cast<const QRgb *>(other.constScanLine(y));
+        for (int x = measured.left(); x <= measured.right(); ++x) {
+            const int diff = channelDiff(r[x], o[x]);
+            sum += diff;
+            over += diff > 64 ? 1 : 0;
+            d.max = std::max(d.max, diff);
+        }
+    }
+    const double n = double(measured.width()) * measured.height();
+    d.mean = sum / n;
+    d.over64 = over / n;
+    d.inkReference = inkCentre(reference, backdrop);
+    d.inkOther = inkCentre(other, backdrop);
+    return d;
+}
+
+// Fill pixels of a gold gradient: warm, light and well clear of the dark outline.
+bool isGoldFill(QRgb px)
+{
+    return qAlpha(px) > 200 && qRed(px) > 150 && qGreen(px) > 90 && qRed(px) - qBlue(px) > 50;
+}
+
+// Mean green (the channel that falls most from #fff3b0 to #c98a00) of the gold fill in the top
+// and bottom quarter of `rows`.
+QPair<double, double> goldTopAndBottom(const QImage &image, const QRect &rows)
+{
+    double top = 0.0, bottom = 0.0;
+    int nt = 0, nb = 0;
+    const int quarter = std::max(1, rows.height() / 4);
+    for (int y = rows.top(); y <= rows.bottom(); ++y) {
+        const QRgb *p = reinterpret_cast<const QRgb *>(image.constScanLine(y));
+        for (int x = rows.left(); x <= rows.right(); ++x) {
+            if (!isGoldFill(p[x]))
+                continue;
+            if (y < rows.top() + quarter) {
+                top += qGreen(p[x]);
+                ++nt;
+            } else if (y > rows.bottom() - quarter) {
+                bottom += qGreen(p[x]);
+                ++nb;
+            }
+        }
+    }
+    return {nt ? top / nt : -1.0, nb ? bottom / nb : -1.0};
+}
+
+// The rows that hold gold fill, split where a run of rows without any marks a gap between lines.
+QList<QRect> goldLines(const QImage &image)
+{
+    QList<QRect> lines;
+    QRect current;
+    for (int y = 0; y < image.height(); ++y) {
+        const QRgb *p = reinterpret_cast<const QRgb *>(image.constScanLine(y));
+        int left = image.width(), right = -1;
+        for (int x = 0; x < image.width(); ++x) {
+            if (isGoldFill(p[x])) {
+                left = std::min(left, x);
+                right = std::max(right, x);
+            }
+        }
+        if (right >= 0) {
+            current |= QRect(left, y, right - left + 1, 1);
+        } else if (!current.isEmpty()) {
+            lines.append(current);
+            current = QRect();
+        }
+    }
+    if (!current.isEmpty())
+        lines.append(current);
+    return lines;
+}
+
+std::optional<drift::TextPreset> goldPop()
+{
+    return drift::textPresetForId(QStringLiteral("chatgpt.gold-pop"));
+}
+
+} // namespace
+#endif
+
+// Dafin: Gold Pop was approved from its contact sheet, which is drawn on the CPU. The editor's
+// preview and the exporter draw through FrameCompositor: the painter rasterised by Skia on the GPU,
+// the pop and the breathing as motion on the GL layer. Same template, text and instants, so the
+// frames must agree — colours and gradient direction, outline, shadow, position, timing, the loop's
+// opacity, the fade out, and alpha over a transparent background — up to antialiasing (measured
+// locally on Mesa: Ganesh and the CPU raster differ only on glyph edges, about 2/255 on average).
+void EngineTest::goldPopEditorFramesMatchTheContactSheet()
+{
+#ifndef DRIFT_WITH_SKIA
+    QSKIP("text needs Skia");
+#else
+    if (!GpuCompositor::isAvailable())
+        QSKIP("No GPU compositor available");
+    const std::optional<drift::TextPreset> preset = goldPop();
+    QVERIFY(preset);
+    QVERIFY(preset->effects.isEmpty()); // nothing the sheet leaves out
+
+    // A sheet cell is a 1080 p frame shown at a third with the text box in its middle: the same
+    // project and preview scale here.
+    const QSize cell(640, 360);
+    drift::Project project;
+    project.setResolution(1920, 1080);
+    project.tracks().clear();
+    project.tracks().append(drift::Track{.type = drift::TrackType::Video});
+    project.tracks()[0].clips.append(
+        makeTextClip(QString(), QRectF(1920 * 0.08, 1080 * 0.25, 1920 * 0.84, 1080 * 0.5)));
+    drift::Clip &clip = project.tracks()[0].clips[0];
+    clip.textStyle = preset->style;
+    clip.effects = preset->effects;
+    FrameCompositor compositor;
+    compositor.setProject(&project);
+    FrameCompositor::RenderOptions third;
+    third.previewScale = 1.0 / 3.0;
+
+    struct Backdrop
+    {
+        QString name;
+        drift::Background background;
+        QImage image;
+    };
+    const auto solid = [&cell](const QString &name, const QColor &colour) {
+        Backdrop b{name, {}, QImage(cell, QImage::Format_ARGB32_Premultiplied)};
+        b.background.kind = drift::BackgroundKind::Color;
+        b.background.color = colour;
+        b.image.fill(colour);
+        return b;
+    };
+    QList<Backdrop> backdrops{solid(QStringLiteral("dark"), QColor(0x16, 0x19, 0x22)),
+                              solid(QStringLiteral("bright"), QColor(0xff, 0xf6, 0xdc))};
+    Backdrop clear{QStringLiteral("transparent"), {}, QImage(cell, QImage::Format_ARGB32_Premultiplied)};
+    clear.background.kind = drift::BackgroundKind::Transparent;
+    clear.image.fill(Qt::transparent);
+    backdrops.append(clear);
+
+    struct Case
+    {
+        QString text;
+        int fps;
+        drift::TimeUs duration;
+        QList<double> ms; // snapped to the frame the compositor shows
+    };
+    // A normal clip (the authored 120 ms pop and 100 ms fade), and a 400 ms one where both are
+    // fitted into half the clip and snapped to whole frames.
+    const QList<Case> cases{
+        {QStringLiteral("GOLD POP"), 60, drift::secondsToUs(3.0), {0, 60, 120, 150, 700, 1400, 2950, 2999}},
+        {QStringLiteral("LEVEL UP\nTONIGHT"), 60, drift::secondsToUs(3.0), {0, 60, 150, 1400, 2950}},
+        {QStringLiteral("GOLD POP"), 30, drift::secondsToUs(0.4), {0, 34, 100, 200, 300, 399}},
+    };
+
+    for (const Case &c : cases) {
+        project.setFps(c.fps);
+        clip.textContent = c.text;
+        clip.timelineDuration = c.duration;
+        clip.srcOut = c.duration;
+        const double frameUs = 1e6 / c.fps;
+        double holdInk = 0.0;
+        for (const Backdrop &backdrop : backdrops) {
+            project.setBackground(backdrop.background);
+            for (double ms : c.ms) {
+                const int frame = std::min(int(std::floor((c.duration - 1) / frameUs)), int(std::llround(ms * 1000.0 / frameUs)));
+                const drift::TimeUs t = drift::TimeUs(std::llround(frame * frameUs));
+                const QString label = QStringLiteral("%1 on %2, %3 fps %4 ms clip, frame %5 (%6 ms)")
+                                          .arg(QString(c.text).replace(QLatin1Char('\n'), QLatin1Char('/')), backdrop.name)
+                                          .arg(c.fps).arg(c.duration / 1000).arg(frame).arg(t / 1000.0, 0, 'f', 1);
+                const QImage gpu = compositor.compositeAt(t, third);
+                QVERIFY2(!gpu.isNull(), qPrintable(label));
+                QCOMPARE(gpu.size(), cell);
+                const QImage cpu = drift::skia::renderTemplateFrame(clip.textStyle, c.text, c.duration, cell, c.fps, t,
+                                                                    backdrop.image);
+                const FrameDiff d = frameDiff(cpu, gpu, backdrop.image);
+                const QString why = label + QStringLiteral(": ") + d.describe();
+                if (frame == 0) {
+                    // Hidden until the pop starts: the first frame is the backdrop and nothing else.
+                    QVERIFY2(d.box.isEmpty(), qPrintable(QStringLiteral("sheet draws the title on ") + why));
+                    QVERIFY2(d.max <= 2, qPrintable(QStringLiteral("editor draws the title on ") + why));
+                    continue;
+                }
+                QVERIFY2(!d.box.isEmpty(), qPrintable(QStringLiteral("nothing drawn on ") + why));
+                QVERIFY2(d.mean < 4.5, qPrintable(why));
+                QVERIFY2(d.over64 < 0.005, qPrintable(why));
+                QVERIFY2(QLineF(d.inkReference, d.inkOther).length() < 1.0, qPrintable(why));
+
+                // The fade out shows: on the 3 s clip the last frame carries well under the hold.
+                // (On the 400 ms clip the exit is two frames, so its last frame is only half way
+                // out; the comparison with the sheet above covers it.)
+                double ink = 0.0;
+                const QImage gpuPremul = gpu.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+                for (int y = d.box.top(); y <= d.box.bottom(); ++y)
+                    for (int x = d.box.left(); x <= d.box.right(); ++x)
+                        ink += channelDiff(gpuPremul.pixel(x, y), backdrop.image.pixel(x, y));
+                if (ms == 150 || ms == 200)
+                    holdInk = ink;
+                if (c.duration >= drift::secondsToUs(1.0) && frame == int(std::floor((c.duration - 1) / frameUs))
+                    && holdInk > 0.0)
+                    QVERIFY2(ink < 0.6 * holdInk,
+                             qPrintable(QStringLiteral("exit not fading (%1 of the hold): ").arg(ink / holdInk, 0, 'f', 2) + why));
+            }
+        }
+    }
+
+    // On the bright backdrop at rest: pale gold on top, deep gold at the bottom (angle 90), and in
+    // "line" space each line of a two-line title gets the whole ramp, so the second line starts as
+    // pale as the first. The dark outline frames the fill.
+    project.setBackground(backdrops.at(1).background);
+    project.setFps(60);
+    clip.timelineDuration = drift::secondsToUs(3.0);
+    clip.srcOut = clip.timelineDuration;
+    for (const QString &text : {QStringLiteral("GOLD POP"), QStringLiteral("LEVEL UP\nTONIGHT")}) {
+        clip.textContent = text;
+        const QImage rest = compositor.compositeAt(drift::TimeUs(150'000), third).convertToFormat(QImage::Format_ARGB32_Premultiplied);
+        const QList<QRect> lines = goldLines(rest);
+        QCOMPARE(lines.size(), int(text.count(QLatin1Char('\n'))) + 1);
+        QList<QPair<double, double>> ramps;
+        for (const QRect &line : lines) {
+            ramps.append(goldTopAndBottom(rest, line));
+            QVERIFY2(ramps.last().first - ramps.last().second > 40.0,
+                     qPrintable(QStringLiteral("%1: top %2 bottom %3").arg(text).arg(ramps.last().first).arg(ramps.last().second)));
+        }
+        if (ramps.size() == 2)
+            QVERIFY2(std::abs(ramps.at(0).first - ramps.at(1).first) < 20.0,
+                     qPrintable(QStringLiteral("line tops %1 vs %2").arg(ramps.at(0).first).arg(ramps.at(1).first)));
+        int gold = 0, outline = 0;
+        for (int y = 0; y < rest.height(); ++y) {
+            for (int x = 0; x < rest.width(); ++x) {
+                const QRgb px = rest.pixel(x, y);
+                gold += isGoldFill(px) ? 1 : 0;
+                outline += qRed(px) < 60 && qGreen(px) < 50 && qBlue(px) < 70 ? 1 : 0;
+            }
+        }
+        QVERIFY2(gold > 500 && outline > gold / 8,
+                 qPrintable(QStringLiteral("%1: %2 gold, %3 outline pixels").arg(text).arg(gold).arg(outline)));
+    }
+#endif
+}
+
+// The exporter renders each frame with FrameCompositor::compositeAt at full size and encodes it.
+// Decoded back, a Gold Pop export shows what the preview showed at those instants: nothing on the
+// first frame, the title at rest, and a fainter last frame — up to H.264's loss.
+void EngineTest::goldPopExportMatchesThePreview()
+{
+#ifndef DRIFT_WITH_SKIA
+    QSKIP("text needs Skia");
+#else
+    if (!GpuCompositor::isAvailable())
+        QSKIP("No GPU compositor available");
+    if (!Exporter::videoCodecById(QStringLiteral("h264")).value(QStringLiteral("available")).toBool())
+        QSKIP("No H.264 encoder available in this FFmpeg build");
+    const std::optional<drift::TextPreset> preset = goldPop();
+    QVERIFY(preset);
+
+    constexpr int fps = 30;
+    const QSize size(960, 540);
+    drift::Project project;
+    project.setResolution(size.width(), size.height());
+    project.setFps(fps);
+    project.tracks().clear();
+    project.tracks().append(drift::Track{.type = drift::TrackType::Video});
+    project.tracks()[0].clips.append(makeTextClip(QStringLiteral("GOLD POP"),
+                                                  QRectF(size.width() * 0.08, size.height() * 0.25,
+                                                         size.width() * 0.84, size.height() * 0.5)));
+    drift::Clip &clip = project.tracks()[0].clips[0];
+    clip.timelineDuration = drift::secondsToUs(2.0);
+    clip.srcOut = clip.timelineDuration;
+    clip.textStyle = preset->style;
+    clip.effects = preset->effects;
+    drift::Background background;
+    background.kind = drift::BackgroundKind::Color;
+    background.color = QColor(0x16, 0x19, 0x22);
+    project.setBackground(background);
+
+    ExportSettings settings = Exporter::defaultSettings();
+    settings.targetHeight = 0;
+    settings.videoCodecId = QStringLiteral("h264");
+    settings.audioCodecId = QStringLiteral("aac");
+    settings.rateControl = QStringLiteral("crf");
+    settings.crf = 12;
+    if (!Exporter::audioCodecById(settings.audioCodecId).value(QStringLiteral("available")).toBool())
+        QSKIP("No AAC encoder available in this FFmpeg build");
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString out = dir.filePath(QStringLiteral("gold-pop.") + Exporter::defaultSuffix(
+        Exporter::preferredContainer(settings.videoCodecId, settings.audioCodecId)));
+    QString error;
+    QVERIFY2(Exporter::run(project, settings, out, &error), qPrintable(error));
+
+    ClipReader reader;
+    QVERIFY(reader.open(out));
+    QVERIFY(reader.hasVideo());
+    FrameCompositor compositor;
+    compositor.setProject(&project);
+    QImage backdrop(size, QImage::Format_ARGB32_Premultiplied);
+    backdrop.fill(background.color);
+
+    const double frameUs = 1e6 / fps;
+    const int last = int(std::floor((clip.timelineDuration - 1) / frameUs));
+    // Exported frame i is the composition at llround(i * 1e6 / fps); asking the reader for the
+    // middle of the frame picks that frame and not a neighbour.
+    const auto exportedFrame = [&](int frame, QImage *out) {
+        const drift::TimeUs t = drift::TimeUs(std::llround(frame * frameUs));
+        return reader.readVideoFrameAt(t + drift::TimeUs(frameUs / 2), *out, size.width(), size.height());
+    };
+    const auto inkIn = [&backdrop](const QImage &image, const QRect &box) {
+        const QImage premul = image.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+        double ink = 0.0;
+        int max = 0;
+        for (int y = box.top(); y <= box.bottom(); ++y) {
+            for (int x = box.left(); x <= box.right(); ++x) {
+                const int d = channelDiff(premul.pixel(x, y), backdrop.pixel(x, y));
+                ink += d;
+                max = std::max(max, d);
+            }
+        }
+        return qMakePair(ink, max);
+    };
+
+    // The hold first: where the title sits, and how much of it there is.
+    QRect holdBox;
+    double holdInk = 0.0;
+    for (const int frame : {30, 15, 45, last}) {
+        const drift::TimeUs t = drift::TimeUs(std::llround(frame * frameUs));
+        QImage exported;
+        QVERIFY(exportedFrame(frame, &exported));
+        QCOMPARE(exported.size(), size);
+        const QImage preview = compositor.compositeAt(t);
+        const FrameDiff d = frameDiff(preview, exported, backdrop);
+        const QString why = QStringLiteral("frame %1: ").arg(frame) + d.describe();
+        QVERIFY2(!d.box.isEmpty(), qPrintable(why));
+        QVERIFY2(d.mean < 10.0, qPrintable(why));
+        QVERIFY2(QLineF(d.inkReference, d.inkOther).length() < 1.5, qPrintable(why));
+        if (frame == 30)
+            holdBox = d.box;
+        const double ink = inkIn(exported, holdBox).first;
+        if (frame == 30)
+            holdInk = ink;
+        // At 30 fps the 100 ms exit has three frames and the last one shown is still about 70 %
+        // opaque (the out curve runs from the clip's end, so easeOut drops fastest at the cut):
+        // this checks the fade has begun; the comparison above checks it is the preview's.
+        if (frame == last)
+            QVERIFY2(ink < 0.8 * holdInk, qPrintable(QStringLiteral("exit not fading in the export (%1 of the hold): ")
+                                                         .arg(ink / holdInk, 0, 'f', 2) + why));
+    }
+
+    // The first frame: the preview draws nothing, and the export holds only the backdrop where
+    // the title will be (YUV 4:2:0 moves a flat colour by a level or two).
+    QVERIFY(frameDiff(compositor.compositeAt(0), backdrop, backdrop).box.isEmpty());
+    QImage first;
+    QVERIFY(exportedFrame(0, &first));
+    const int firstMax = inkIn(first, holdBox).second;
+    QVERIFY2(firstMax <= 8, qPrintable(QStringLiteral("title visible on the first exported frame: %1").arg(firstMax)));
+#endif
 }
 
 namespace {

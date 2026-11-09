@@ -3,6 +3,7 @@
 #include "core/text/TextLook.h"
 #include "core/text/animation/TextAnimationPreset.h"
 
+#include <QColor>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -14,6 +15,7 @@
 #include <QStandardPaths>
 
 #include <algorithm>
+#include <cmath>
 #include <limits>
 
 // Static-library resources are only pulled into the link when something references them.
@@ -1437,6 +1439,115 @@ QString templateIssueToText(const TemplateIssue &i)
     return line;
 }
 
+QList<TemplateControlCheck> checkTemplateControls(const TextPreset &t, const TemplateEnvironment &env)
+{
+    const QString content = t.sampleText.isEmpty() ? QStringLiteral("Sample") : t.sampleText;
+    const auto sameValue = [](const QString &type, const QString &bind, const QVariant &a, const QVariant &b) {
+        if (type == QLatin1String("scalar"))
+            return std::abs(a.toDouble() - b.toDouble()) < 1e-6 || bind == QLatin1String("font.weight"); // snaps to a face
+        if (type == QLatin1String("color"))
+            return QColor(a.toString()) == QColor(b.toString());
+        return a.toString() == b.toString();
+    };
+
+    QList<TemplateControlCheck> out;
+    for (const TemplateControl &c : t.controls) {
+        TemplateControlCheck r;
+        r.controlId = c.id;
+        r.bind = c.bind;
+        r.type = c.type;
+        const auto fail = [&](const QString &why) {
+            r.problem = why;
+            out.append(r);
+        };
+
+        QString why;
+        QStringList enumValues;
+        const QString type = templateBindingType(c.bind, t.style, t.effects, env, &why, &enumValues);
+        if (type != c.type) {
+            fail(type.isEmpty() ? why : QStringLiteral("its binding holds a %1, not a %2").arg(type, c.type));
+            continue;
+        }
+        r.templateValue = readTemplateBinding(c.bind, t.style, t.effects, content);
+        if (!r.templateValue.isValid()) {
+            fail(QStringLiteral("its value cannot be read"));
+            continue;
+        }
+
+        // A value the control can reach that differs from the template's.
+        if (c.type == QLatin1String("scalar")) {
+            if (!(c.max > c.min)) {
+                fail(QStringLiteral("min and max are equal, so the slider cannot move"));
+                continue;
+            }
+            r.testValue = std::abs(r.templateValue.toDouble() - c.max) < 1e-9 ? c.min : c.max;
+        } else if (c.type == QLatin1String("bool")) {
+            r.testValue = !r.templateValue.toBool();
+        } else if (c.type == QLatin1String("color")) {
+            r.testValue = QColor(r.templateValue.toString()) == QColor(QStringLiteral("#123456")) ? QStringLiteral("#654321")
+                                                                                                  : QStringLiteral("#123456");
+        } else if (c.type == QLatin1String("font")) {
+            r.testValue = QStringLiteral("Some Other Font");
+        } else if (c.type == QLatin1String("text")) {
+            r.testValue = QStringLiteral("Changed");
+        } else if (c.type == QLatin1String("enum")) {
+            const QStringList options = c.options.isEmpty() ? enumValues : c.options;
+            if (options.size() < 2) {
+                fail(QStringLiteral("it offers fewer than two choices"));
+                continue;
+            }
+            r.testValue = options.value(options.indexOf(r.templateValue.toString()) == 0 ? 1 : 0);
+        }
+
+        TextStyle style = t.style;
+        QList<Effect> effects = t.effects;
+        QString text = content;
+        if (!writeTemplateBinding(c.bind, r.testValue, &style, &effects, &text)) {
+            fail(QStringLiteral("writing %1 to it failed").arg(r.testValue.toString()));
+            continue;
+        }
+        if (text == content && textStyleToJson(style) == textStyleToJson(t.style) && effectsToJson(effects) == effectsToJson(t.effects)) {
+            fail(QStringLiteral("changing it from %1 to %2 changes nothing in the template")
+                     .arg(r.templateValue.toString(), r.testValue.toString()));
+            continue;
+        }
+        const QVariant after = readTemplateBinding(c.bind, style, effects, text);
+        if (!sameValue(c.type, c.bind, after, r.testValue)) {
+            fail(QStringLiteral("%1 was written but %2 reads back").arg(r.testValue.toString(), after.toString()));
+            continue;
+        }
+        QString disturbed;
+        for (const TemplateControl &other : t.controls) {
+            if (other.id == c.id || other.bind == c.bind)
+                continue;
+            if (!sameValue(other.type, other.bind, readTemplateBinding(other.bind, style, effects, text),
+                           readTemplateBinding(other.bind, t.style, t.effects, content)))
+                disturbed = other.id;
+        }
+        if (!disturbed.isEmpty()) {
+            fail(QStringLiteral("it also changes the control \"%1\"").arg(disturbed));
+            continue;
+        }
+        const QVariant persisted = readTemplateBinding(c.bind, textStyleFromJson(textStyleToJson(style)),
+                                                       effectsFromJson(effectsToJson(effects)), text);
+        if (persisted.toString() != after.toString()) {
+            fail(QStringLiteral("the value is lost when the project is saved and reopened (%1 comes back as %2)")
+                     .arg(after.toString(), persisted.toString()));
+            continue;
+        }
+        if (c.type != QLatin1String("text")) {
+            const bool written = writeTemplateBinding(c.bind, r.templateValue, &style, &effects, &text);
+            if (!written || !sameValue(c.type, c.bind, readTemplateBinding(c.bind, style, effects, text), r.templateValue)) {
+                fail(QStringLiteral("reset does not bring back the template's %1").arg(r.templateValue.toString()));
+                continue;
+            }
+        }
+        r.ok = true;
+        out.append(r);
+    }
+    return out;
+}
+
 // ---------------------------------------------------------------------------------------------
 // Catalog
 
@@ -1495,7 +1606,8 @@ void TitleTemplateCatalog::ensureLoaded() const
     initTextStyleResources();
     loadDir(QStringLiteral(":/text-styles"), QStringLiteral("builtin"));
     const QString extra = qEnvironmentVariable("DAFIN_TEXT_STYLES");
-    for (const QString &dir : extra.split(QLatin1Char(':'), Qt::SkipEmptyParts))
+    // The platform's path-list separator: ';' on Windows, where ':' is part of "C:\…".
+    for (const QString &dir : extra.split(QDir::listSeparator(), Qt::SkipEmptyParts))
         loadDir(dir, QStringLiteral("installed"));
     if (!installedDir().isEmpty())
         loadDir(installedDir(), QStringLiteral("installed"));

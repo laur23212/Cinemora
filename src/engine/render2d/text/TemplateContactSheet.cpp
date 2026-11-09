@@ -35,8 +35,10 @@ QImage rasterize(const VectorPainter &painter)
     return image;
 }
 
+} // namespace
+
 // A dark and a bright, busy frame: the bright one is the hard case for light fills.
-QImage background(const QSize &size, bool light)
+QImage templateSheetBackground(const QSize &size, bool light)
 {
     QImage img(size, QImage::Format_ARGB32_Premultiplied);
     QPainter p(&img);
@@ -56,40 +58,52 @@ QImage background(const QSize &size, bool light)
     return img;
 }
 
-// One frame, as fillTextLayer + the compositor's block motion would show it.
-QImage renderFrame(const TextStyle &style, const QString &text, TimeUs durationUs, const QSize &size, int fps, TimeUs t,
-                   const QImage &bg)
+// One frame's text as fillTextLayer builds it for a text clip laid out like a sheet cell.
+TemplateFrame templateFrameAt(const TextStyle &style, const QString &text, TimeUs durationUs, const QSize &size, int fps,
+                              TimeUs t)
 {
-    QImage card = bg.copy();
-    const double renderScale = size.height() / 1080.0;
-    const QRectF layoutRect(size.width() * 0.08, size.height() * 0.25, size.width() * 0.84, size.height() * 0.5);
+    TemplateFrame out;
+    out.renderScale = size.height() / 1080.0;
+    out.layoutRect = QRectF(size.width() * 0.08, size.height() * 0.25, size.width() * 0.84, size.height() * 0.5);
     TextPaintRequest request;
     request.style = style.isAnimated() ? style.resolvedAt(t) : style;
     const ResolvedTextAnimation anim = resolveTextAnimation(request.style.animation);
-    request.set = text::fragmentsFor(text, request.style, layoutRect.width(), layoutRect.height(), renderScale, -1,
-                                     text::splitFor(anim.resolved, request.style));
+    request.set = text::fragmentsFor(text, request.style, out.layoutRect.width(), out.layoutRect.height(),
+                                     out.renderScale, -1, text::splitFor(anim.resolved, request.style));
     if (!request.set || request.set->frags.isEmpty())
-        return card;
-    textanim::EvalContext ctx = text::evalContextFor(request.style, layoutRect, renderScale, 0, durationUs, t, -1);
+        return out;
+    textanim::EvalContext ctx = text::evalContextFor(request.style, out.layoutRect, out.renderScale, 0, durationUs, t, -1);
     ctx.fps = fps;
     request.frame = textanim::evaluateTextAnimation(anim.set, anim.resolved, request.set->infos, request.set->domains, ctx);
     request.envelope = textanim::animationBounds(anim.resolved, ctx);
-    request.layoutRect = layoutRect;
-    request.renderScale = renderScale;
+    request.layoutRect = out.layoutRect;
+    request.renderScale = out.renderScale;
     request.timeSec = usToSeconds(t);
     request.frameRate = fps;
     request.anchorGrouping = anim.set.anchorGrouping;
     request.anchorAlignment = anim.set.anchorAlignment;
     const TextPainterResult painted = makeTextPainter(request);
-    if (!painted.painter)
+    out.painter = painted.painter;
+    out.rect = painted.rect;
+    out.block = request.frame.block;
+    return out;
+}
+
+// That frame over `bg`, with the compositor's block motion applied on the CPU.
+QImage renderTemplateFrame(const TextStyle &style, const QString &text, TimeUs durationUs, const QSize &size, int fps,
+                           TimeUs t, const QImage &bg)
+{
+    QImage card = bg.copy();
+    const TemplateFrame frame = templateFrameAt(style, text, durationUs, size, fps, t);
+    if (!frame.painter)
         return card;
-    const textanim::BlockProps &block = request.frame.block;
+    const textanim::BlockProps &block = frame.block;
     if (block.opacity <= 0.001)
         return card;
-    QImage raster = rasterize(*painted.painter);
+    QImage raster = rasterize(*frame.painter);
     if (block.blurPx > 0.5 && !raster.isNull()) {
         // The compositor blurs the layer on the GPU; a down/up-scale stands in, as on cards.
-        const double shrink = 1.0 + block.blurPx * renderScale / 2.0;
+        const double shrink = 1.0 + block.blurPx * frame.renderScale / 2.0;
         const QSize small(qMax(1, int(raster.width() / shrink)), qMax(1, int(raster.height() / shrink)));
         raster = raster.scaled(small, Qt::IgnoreAspectRatio, Qt::SmoothTransformation)
                      .scaled(raster.size(), Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
@@ -97,16 +111,14 @@ QImage renderFrame(const TextStyle &style, const QString &text, TimeUs durationU
     QPainter p(&card);
     p.setRenderHint(QPainter::SmoothPixmapTransform);
     p.setOpacity(block.opacity);
-    const QPointF centre = painted.rect.center() + QPointF(block.dx, block.dy);
+    const QPointF centre = frame.rect.center() + QPointF(block.dx, block.dy);
     p.translate(centre);
     p.rotate(block.rotation);
     p.scale(block.scale, block.scale);
-    p.translate(-painted.rect.center());
-    p.drawImage(painted.rect.topLeft(), raster);
+    p.translate(-frame.rect.center());
+    p.drawImage(frame.rect.topLeft(), raster);
     return card;
 }
-
-} // namespace
 
 ContactSheetResult renderTemplateContactSheet(const TextPreset &preset, const ContactSheetOptions &o)
 {
@@ -159,11 +171,11 @@ ContactSheetResult renderTemplateContactSheet(const TextPreset &preset, const Co
                    .arg(result.timing.outNaturalUs / 1000.0, 0, 'f', 1)
                    .arg(result.timing.fitted ? QStringLiteral(", fitted to the clip") : QString()));
     for (int row = 0; row < 2; ++row) {
-        const QImage bg = background(cell, row == 1);
+        const QImage bg = templateSheetBackground(cell, row == 1);
         for (int c = 0; c < cols; ++c) {
             const int x = c * cell.width();
             const int y = headerH + row * (cell.height() + labelH);
-            p.drawImage(x, y + labelH, renderFrame(preset.style, text, duration, cell, fps, result.times.at(c), bg));
+            p.drawImage(x, y + labelH, renderTemplateFrame(preset.style, text, duration, cell, fps, result.times.at(c), bg));
             p.setPen(QColor(0xdd, 0xdd, 0xdd));
             p.drawText(QRect(x + 6, y, cell.width() - 12, labelH), Qt::AlignVCenter,
                        QStringLiteral("%1 ms · frame %2").arg(result.times.at(c) / 1000.0, 0, 'f', 1).arg(result.frames.at(c)));

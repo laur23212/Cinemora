@@ -61,6 +61,8 @@ qt_add_executable(tst_editorstate
     ../src/app/online/marketplace/MarketSourceBrowser.cpp
     ../src/app/online/marketplace/MarketTransport.cpp
     ../src/app/online/market/MarketIdentity.cpp
+    # Dafin: the Titles tab's card renderer (image://textstyle), which the app compiles itself.
+    ../src/ui/imageproviders/TextStylePreviewImageProvider.cpp
 )
 target_include_directories(tst_editorstate PRIVATE ../src)
 # driftapp holds the multicam provider too, not just the store: the id QML addresses a tile by is

@@ -544,7 +544,7 @@ int main(int argc, char *argv[])
     // window (TemplateTool.h).
     for (int i = 1; i < argc; ++i) {
         if (qstrcmp(argv[i], "--validate-template") == 0 || qstrcmp(argv[i], "--template-guide") == 0
-            || qstrcmp(argv[i], "--template-preview") == 0)
+            || qstrcmp(argv[i], "--template-preview") == 0 || qstrcmp(argv[i], "--check-template") == 0)
             return drift::runTemplateTool(argc, argv);
     }
     // --headless is checked first: it also accepts --mcp-stdio, as the transport to serve
