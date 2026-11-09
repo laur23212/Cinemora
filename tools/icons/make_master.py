@@ -19,7 +19,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 from PIL import Image
-from scipy.ndimage import distance_transform_edt, maximum_filter
+from scipy.ndimage import distance_transform_edt
 from scipy.optimize import least_squares
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -89,12 +89,30 @@ def fit_tile(pts: np.ndarray, size: int):
 
 
 def bleed_rim(rgba: np.ndarray, d: np.ndarray, tile) -> np.ndarray:
-    """Replace background and half-blended edge pixels with the nearest real tile colour."""
+    """Replace background and half-blended edge pixels with the nearest real tile colour.
+
+    Near the edge, a pixel noticeably darker than the tile just inside it (along the edge's
+    normal) is the fade into the background, not part of the tile.
+    """
     n = rgba.shape[0]
+    reach = max(4, round(4 * n / 256))  # how far inside the edge to look, in source pixels
     ys, xs = np.mgrid[0:n, 0:n] + 0.5
     sd = rounded_rect_sdf(xs, ys, *tile)
-    bright_rim = (d >= 0.8 * maximum_filter(d, size=5)) & (d >= 20) & (sd <= 1.5)
-    trusted = (sd <= -2.5) | bright_rim
+    gy, gx = np.gradient(sd)
+    norm = np.hypot(gx, gy) + 1e-9
+    nx, ny = gx / norm, gy / norm  # outward normal
+
+    band = (sd > -reach) & (sd <= 0)
+    by, bx = np.nonzero(band)
+    inward_max = np.zeros(len(by))
+    for t in range(1, reach + 1):
+        sx = np.clip(np.round(bx - t * nx[by, bx]).astype(int), 0, n - 1)
+        sy = np.clip(np.round(by - t * ny[by, bx]).astype(int), 0, n - 1)
+        inward_max = np.maximum(inward_max, d[sy, sx])
+    fringe = np.zeros_like(band)
+    fringe[by, bx] = d[by, bx] < 0.8 * inward_max
+
+    trusted = (sd <= 0) & ~fringe
     iy, ix = distance_transform_edt(~trusted, return_distances=False, return_indices=True)
     return rgba[..., :3][iy, ix]
 
