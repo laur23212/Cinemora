@@ -496,3 +496,13 @@ qt_add_executable(tst_transform3d tst_transform3d.cpp)
 target_include_directories(tst_transform3d PRIVATE ../src)
 target_link_libraries(tst_transform3d PRIVATE Qt6::Test Qt6::Gui driftengine driftcore)
 add_test(NAME Transform3d COMMAND tst_transform3d)
+
+# Dafin: .mogrt template titles — the project-file state, reading a template's controls, and the
+# converter queue against a stand-in script (Unix only).
+qt_add_executable(tst_mogrt
+    tst_mogrt.cpp
+    ../src/app/online/library/MogrtInfo.cpp
+    ../src/app/online/library/MogrtRenderer.cpp)
+target_include_directories(tst_mogrt PRIVATE ../src)
+target_link_libraries(tst_mogrt PRIVATE Qt6::Test Qt6::Core Qt6::Gui driftcore ZLIB::ZLIB)
+add_test(NAME Mogrt COMMAND tst_mogrt)
