@@ -53,6 +53,7 @@
 #include "ui/imageproviders/LottieFramePreviewImageProvider.h"
 #include "app/online/library/AssetSearchService.h"
 #include "app/online/library/MogrtRenderer.h"
+#include "app/platform/CrashReport.h"
 #include "app/online/library/ThumbnailCache.h"
 #include "ui/imageproviders/TextStylePreviewImageProvider.h"
 #include "playback/stats/PerfLog.h"
@@ -530,6 +531,8 @@ private:
 
 int main(int argc, char *argv[])
 {
+    // Dafin: before anything can go wrong, so a crash leaves a report (Windows).
+    dafin::installCrashReport();
     forceStderrLogging();
     applyLogLevel(verboseLoggingRequested(argc, argv));
     // Per-frame polish/sync/render/swap from Qt's own render loop, next to DriftPerf's figures.

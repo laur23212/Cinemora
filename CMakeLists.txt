@@ -1451,8 +1451,15 @@ if(WIN32)
     # Dafin: the executable is dafin.exe. The CMake target keeps upstream's name, so every
     # $<TARGET_FILE:drift> and POST_BUILD step follows the rename on its own.
     set_target_properties(drift PROPERTIES WIN32_EXECUTABLE TRUE OUTPUT_NAME dafin)
-    target_sources(drift PRIVATE resources/windows/drift.rc src/app/platform/PrimaryDisplay_win.cpp)
+    target_sources(drift PRIVATE resources/windows/drift.rc src/app/platform/PrimaryDisplay_win.cpp
+        src/app/platform/CrashReport.h src/app/platform/CrashReport_win.cpp)
     target_link_libraries(drift PRIVATE shcore)
+    # Dafin: a dafin.pdb beside dafin.exe, so crash reports (CrashReport_win.cpp) can be read
+    # back as functions and lines. The objects already carry their debug info (/Z7, see the
+    # Windows job's configure step); Release only needs the linker to keep it. Not shipped.
+    if(MSVC)
+        target_link_options(drift PRIVATE $<$<CONFIG:Release>:/DEBUG:FULL /OPT:REF /OPT:ICF>)
+    endif()
     set_source_files_properties(resources/windows/drift.rc PROPERTIES
         OBJECT_DEPENDS "${CMAKE_SOURCE_DIR}/resources/windows/drift.ico")
 endif()

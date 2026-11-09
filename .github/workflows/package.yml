@@ -779,6 +779,18 @@ jobs:
         shell: pwsh
         run: cmake --build build --parallel 3
 
+      # Dafin: dafin.pdb reads a crash report's offsets back as functions and lines
+      # (CrashReport_win.cpp). Kept beside the build, never in the installer.
+      - name: Upload debug symbols
+        if: always() && hashFiles('build/dafin.pdb') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-symbols-${{ matrix.arch }}
+          path: |
+            build/dafin.pdb
+            build/dafin.exe
+          retention-days: 90
+
       - name: Save ccache
         if: always() && steps.build.outcome == 'success'
         uses: ./.github/actions/ccache
