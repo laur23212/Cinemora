@@ -1,0 +1,171 @@
+{
+  "format": 1,
+  "id": "chatgpt.gold-pop",
+  "label": "Gold Pop",
+  "description": "Bold YouTube title with a luminous gold gradient, dark outline, soft shadow, a 120 ms pop entrance, and subtle breathing motion.",
+  "category": "fast-titles",
+  "tags": [
+    "youtube",
+    "gold",
+    "bold",
+    "pop",
+    "gradient",
+    "fast"
+  ],
+  "kind": "title",
+  "sampleText": "LEVEL UP!",
+  "requires": {
+    "fonts": [
+      "Inter"
+    ]
+  },
+  "style": {
+    "fontFamily": "Inter",
+    "fontWeight": 700,
+    "pixelSize": 110,
+    "italic": false,
+    "align": "center",
+    "valign": "center",
+    "wordWrap": true,
+    "lineHeight": 1.1,
+    "letterSpacing": 1,
+    "textCase": "upper",
+    "layers": [
+      {
+        "id": "shadow",
+        "kind": "shadow",
+        "paint": {
+          "kind": "solid",
+          "color": "#000000"
+        },
+        "offsetX": 0,
+        "offsetY": 6,
+        "blur": 12,
+        "opacity": 0.45
+      },
+      {
+        "id": "outline",
+        "kind": "stroke",
+        "paint": {
+          "kind": "solid",
+          "color": "#17111f"
+        },
+        "width": 7,
+        "strokeAlign": "outside"
+      },
+      {
+        "id": "fill",
+        "kind": "fill",
+        "paint": {
+          "kind": "gradient",
+          "gradient": {
+            "kind": "linear",
+            "angle": 90,
+            "space": "line",
+            "stops": [
+              {
+                "pos": 0,
+                "color": "#fff3b0"
+              },
+              {
+                "pos": 1,
+                "color": "#c98a00"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "animation": {
+      "in": {
+        "preset": "pop",
+        "params": {
+          "duration": 0.12,
+          "from": 70,
+          "ease": "back",
+          "unit": "block",
+          "stagger": 0
+        }
+      },
+      "loop": {
+        "preset": "breathe",
+        "params": {
+          "amount": 0.08,
+          "speed": 0.4
+        }
+      },
+      "out": {
+        "preset": "fade",
+        "params": {
+          "duration": 0.1,
+          "unit": "block",
+          "ease": "easeOut"
+        }
+      },
+      "timing": {
+        "fit": true,
+        "maxReadMs": 150
+      }
+    }
+  },
+  "effects": [],
+  "controls": [
+    {
+      "id": "title",
+      "label": "Title text",
+      "type": "text",
+      "bind": "text"
+    },
+    {
+      "id": "size",
+      "label": "Text size",
+      "type": "scalar",
+      "bind": "font.size",
+      "min": 40,
+      "max": 220,
+      "step": 1,
+      "unit": "px"
+    },
+    {
+      "id": "goldhighlight",
+      "label": "Gold highlight",
+      "type": "color",
+      "bind": "layer.fill.gradient.stop.0.color",
+      "group": "Colours"
+    },
+    {
+      "id": "goldshadow",
+      "label": "Deep gold",
+      "type": "color",
+      "bind": "layer.fill.gradient.stop.1.color",
+      "group": "Colours"
+    },
+    {
+      "id": "outlinecolor",
+      "label": "Outline colour",
+      "type": "color",
+      "bind": "layer.outline.color",
+      "group": "Colours"
+    },
+    {
+      "id": "entrance",
+      "label": "Entrance duration",
+      "type": "scalar",
+      "bind": "animation.in.duration",
+      "min": 0,
+      "max": 0.15,
+      "step": 0.01,
+      "unit": "s",
+      "group": "Animation",
+      "description": "Controls the pop entrance. The title becomes fully readable within 150 ms."
+    },
+    {
+      "id": "subtlemotion",
+      "label": "Subtle motion",
+      "type": "bool",
+      "bind": "animation.loop.enabled",
+      "group": "Animation",
+      "description": "Enable or disable the gentle breathing animation while the title is visible."
+    }
+  ]
+}

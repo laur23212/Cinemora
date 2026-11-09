@@ -1532,6 +1532,14 @@ void TitleTemplateCatalog::reload()
     ensureLoaded();
 }
 
+void replaceTemplateEffects(QList<Effect> *clipEffects, const QList<Effect> &templateEffects)
+{
+    clipEffects->erase(std::remove_if(clipEffects->begin(), clipEffects->end(),
+                                      [](const Effect &e) { return !e.templateKey.isEmpty(); }),
+                       clipEffects->end());
+    *clipEffects += templateEffects;
+}
+
 QList<TextPreset> allTextTemplates()
 {
     QList<TextPreset> out;

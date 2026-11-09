@@ -77,10 +77,6 @@ int applyTitleTemplate(Clip &clip, const TextPreset &preset)
     clip.textStyle = preset.style;
     clip.textStyle.packId = preset.id;
     clip.textStyle.templateId = preset.id;
-    // The previous template's effects go; effects the user added themselves stay.
-    clip.effects.erase(std::remove_if(clip.effects.begin(), clip.effects.end(),
-                                      [](const Effect &e) { return !e.templateKey.isEmpty(); }),
-                       clip.effects.end());
     int missing = 0;
     QList<Effect> added;
     for (const Effect &spec : preset.effects) {
@@ -93,7 +89,8 @@ int applyTitleTemplate(Clip &clip, const TextPreset &preset)
     }
     if (preset.sourceDurationUs > 0)
         rescaleEffectKeyframes(added, preset.sourceDurationUs, clip.timelineDuration);
-    clip.effects += added;
+    // The previous template's effects go; effects the user added themselves stay.
+    replaceTemplateEffects(&clip.effects, added);
     return missing;
 }
 

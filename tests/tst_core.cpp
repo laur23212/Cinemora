@@ -142,6 +142,11 @@ private slots:
     void titleTemplateValidatorExplainsMistakes();
     void titleTemplateUserStoreKeepsEverything();
     void textAnimationParamsAcceptPlainValues();
+    void loopNeverRevealsHiddenText();
+    void goldPopControls();
+    void goldPopTiming();
+    void goldPopInstallsOverTheBundledCopy();
+    void templateEffectsReplaceWithoutDuplicates();
     void animationBoundsCoverTheEnvelope();
     void textStyleMigratesFromV6();
     void textStyleV7RoundTrip();
@@ -6882,6 +6887,249 @@ void CoreTest::textAnimationParamsAcceptPlainValues()
     e.catalogId = QStringLiteral("bling_sparkle");
     e.templateKey = QStringLiteral("sparks");
     QCOMPARE(effectsFromJson(effectsToJson({e})).first().templateKey, QStringLiteral("sparks"));
+}
+
+void CoreTest::loopNeverRevealsHiddenText()
+{
+    // A loop that dims (breathe) runs over the text as the In and Out leave it: before the
+    // entrance and at the end of the exit it must not pull the text back up.
+    TextAnimationSet set;
+    set.in.presetId = QStringLiteral("pop");
+    set.in.params.insert(QStringLiteral("duration"), VectorSlotValue::fromScalar(0.12));
+    set.out.presetId = QStringLiteral("fade");
+    set.out.params.insert(QStringLiteral("duration"), VectorSlotValue::fromScalar(0.1));
+    set.loop.presetId = QStringLiteral("breathe");
+    set.loop.params.insert(QStringLiteral("amount"), VectorSlotValue::fromScalar(0.3));
+    const ResolvedTextAnimation anim = resolveTextAnimation(set);
+    const QList<FragmentInfo> frags = charFragments(5);
+    const Domains domains = charDomains(5);
+    const TimeUs window = 3'000'000;
+    QCOMPARE(evaluateTextAnimation(anim.set, anim.resolved, frags, domains, windowAt(0, window, 30)).block.opacity, 0.0);
+    QVERIFY(evaluateTextAnimation(anim.set, anim.resolved, frags, domains, windowAt(window, window, 30)).block.opacity < 0.01);
+    // In the hold it still breathes: never brighter than full, never darker than 1 - amount.
+    double lo = 1.0, hi = 0.0;
+    for (TimeUs t = 200'000; t < 2'800'000; t += 33'333) {
+        const double o = evaluateTextAnimation(anim.set, anim.resolved, frags, domains, windowAt(t, window, 30)).block.opacity;
+        lo = std::min(lo, o);
+        hi = std::max(hi, o);
+    }
+    QVERIFY2(lo >= 0.7 - 1e-6 && hi <= 1.0 + 1e-6 && hi - lo > 0.05, qPrintable(QStringLiteral("%1..%2").arg(lo).arg(hi)));
+
+    // Per letter too: a typewriter's unrevealed letters stay hidden under a loop that sets
+    // fragment opacity.
+    TextAnimator type;
+    type.selectors = {stagger(100'000, 0)};
+    type.props.opacity = 0.0;
+    type.props.hasOpacity = true;
+    TextAnimator flicker;
+    TextRangeSelector everywhere = fullCoverage();
+    flicker.selectors = {everywhere};
+    flicker.props.opacity = 80.0;
+    flicker.props.hasOpacity = true;
+    ResolvedSlots resolved;
+    resolved.in = {type};
+    resolved.loop = {flicker};
+    TextAnimationSet raw;
+    raw.timing.fitToWindow = false;
+    const Frame f = evaluateTextAnimation(raw, resolved, frags, domains, windowAt(150'000, 10'000'000, 30));
+    QCOMPARE(f.props[4].opacity, 0.0);              // not typed yet
+    QVERIFY(std::abs(f.props[0].opacity - 0.8) < 1e-6); // typed, dimmed by the loop
+}
+
+namespace {
+
+TextPreset goldPop()
+{
+    const std::optional<TextPreset> p = textPresetForId(QStringLiteral("chatgpt.gold-pop"));
+    return p ? *p : TextPreset{};
+}
+
+} // namespace
+
+void CoreTest::goldPopControls()
+{
+    const TextPreset gold = goldPop();
+    QCOMPARE(gold.id, QStringLiteral("chatgpt.gold-pop"));
+    QCOMPARE(gold.label, QStringLiteral("Gold Pop"));
+    QCOMPARE(gold.style.fontFamily, QStringLiteral("Inter"));
+    QCOMPARE(gold.style.fontWeight, 700);
+    QCOMPARE(gold.requiredFonts, QStringList{QStringLiteral("Inter")});
+
+    // Exactly the seven controls asked for, each driving the property it names.
+    struct Expect { const char *id, *type, *bind; };
+    const QList<Expect> expected{{"title", "text", "text"},
+                                 {"size", "scalar", "font.size"},
+                                 {"goldhighlight", "color", "layer.fill.gradient.stop.0.color"},
+                                 {"goldshadow", "color", "layer.fill.gradient.stop.1.color"},
+                                 {"outlinecolor", "color", "layer.outline.color"},
+                                 {"entrance", "scalar", "animation.in.duration"},
+                                 {"subtlemotion", "bool", "animation.loop.enabled"}};
+    QCOMPARE(gold.controls.size(), expected.size());
+    for (int i = 0; i < expected.size(); ++i) {
+        QCOMPARE(gold.controls.at(i).id, QLatin1String(expected.at(i).id));
+        QCOMPARE(gold.controls.at(i).type, QLatin1String(expected.at(i).type));
+        QCOMPARE(gold.controls.at(i).bind, QLatin1String(expected.at(i).bind));
+    }
+
+    // Each one changes exactly its property, and the change survives a save and reload.
+    TextStyle style = gold.style;
+    QList<Effect> effects;
+    QString text = gold.sampleText;
+    QVERIFY(writeTemplateBinding(QStringLiteral("text"), QStringLiteral("NEW HIGH SCORE"), &style, &effects, &text));
+    QCOMPARE(text, QStringLiteral("NEW HIGH SCORE"));
+    QVERIFY(writeTemplateBinding(QStringLiteral("font.size"), 150.0, &style, &effects, &text));
+    QVERIFY(writeTemplateBinding(QStringLiteral("layer.fill.gradient.stop.0.color"), QStringLiteral("#ffffff"), &style, &effects, &text));
+    QVERIFY(writeTemplateBinding(QStringLiteral("layer.fill.gradient.stop.1.color"), QStringLiteral("#7a4a00"), &style, &effects, &text));
+    QVERIFY(writeTemplateBinding(QStringLiteral("layer.outline.color"), QStringLiteral("#0033aa"), &style, &effects, &text));
+    QVERIFY(writeTemplateBinding(QStringLiteral("animation.in.duration"), 0.08, &style, &effects, &text));
+    QVERIFY(writeTemplateBinding(QStringLiteral("animation.loop.enabled"), false, &style, &effects, &text));
+    const TextStyle reloaded = textStyleFromJson(textStyleToJson(style));
+    QCOMPARE(reloaded.pixelSize, 150);
+    const TextShadingLayer *fill = findTextLayer(reloaded.layers, QStringLiteral("fill"));
+    const TextShadingLayer *outline = findTextLayer(reloaded.layers, QStringLiteral("outline"));
+    const TextShadingLayer *shadow = findTextLayer(reloaded.layers, QStringLiteral("shadow"));
+    QCOMPARE(fill->paint.gradient.stops.at(0).color, QColor(QStringLiteral("#ffffff")));
+    QCOMPARE(fill->paint.gradient.stops.at(1).color, QColor(QStringLiteral("#7a4a00")));
+    QCOMPARE(outline->paint.color, QColor(QStringLiteral("#0033aa")));
+    QCOMPARE(shadow->paint.color, QColor(QStringLiteral("#000000"))); // untouched
+    QCOMPARE(reloaded.animation.in.params.value(QStringLiteral("duration")).scalar, 0.08);
+    QVERIFY(!reloaded.animation.loop.enabled);
+    QVERIFY(reloaded.animation.out.isActive()); // the exit is not what the motion switch turns off
+
+    // Reordering the layers never re-targets a control: they are bound by id.
+    TextStyle reordered = gold.style;
+    std::reverse(reordered.layers.begin(), reordered.layers.end());
+    for (const TemplateControl &c : gold.controls)
+        QCOMPARE(templateBindingType(c.bind, reordered, {}, TemplateEnvironment{}), c.type);
+    QVERIFY(writeTemplateBinding(QStringLiteral("layer.outline.color"), QStringLiteral("#ff0000"), &reordered, &effects));
+    QCOMPARE(findTextLayer(reordered.layers, QStringLiteral("outline"))->paint.color, QColor(Qt::red));
+    QCOMPARE(findTextLayer(reordered.layers, QStringLiteral("fill"))->paint.kind, TextPaintKind::Gradient);
+
+    // Reset: writing the template's own value back (what the reset button does) restores each
+    // property, and resetting all seven restores the template's style exactly.
+    TextStyle edited = style;
+    for (const TemplateControl &c : gold.controls) {
+        if (c.bind == QLatin1String("text"))
+            continue;
+        QVERIFY(writeTemplateBinding(c.bind, readTemplateBinding(c.bind, gold.style, {}), &edited, &effects));
+    }
+    // Writing a param the template left at its preset default stores it explicitly; compare values.
+    for (const TemplateControl &c : gold.controls)
+        QCOMPARE(readTemplateBinding(c.bind, edited, {}).toString(), readTemplateBinding(c.bind, gold.style, {}).toString());
+    TextStyle normalised = gold.style;
+    for (const TemplateControl &c : gold.controls)
+        if (c.bind != QLatin1String("text"))
+            QVERIFY(writeTemplateBinding(c.bind, readTemplateBinding(c.bind, gold.style, {}), &normalised, &effects));
+    QVERIFY(textStyleToJson(edited) == textStyleToJson(normalised));
+}
+
+void CoreTest::goldPopTiming()
+{
+    const TextPreset gold = goldPop();
+    const ResolvedTextAnimation anim = resolveTextAnimation(gold.style.animation);
+    ResolvedSlots entranceOnly = anim.resolved;
+    entranceOnly.loop.clear();
+    Domains lines;
+    const QList<FragmentInfo> twoLines = lineFragments(&lines); // three lines of four words
+    const QStringList texts{QStringLiteral("LEVEL UP!"), QStringLiteral("THE BEST GAMING SETUP OF 2026 IS FINALLY HERE"),
+                            QStringLiteral("LEVEL UP\nTONIGHT")};
+    for (int fps : {24, 30, 60}) {
+        for (TimeUs window : {TimeUs(300'000), TimeUs(400'000), TimeUs(1'000'000), TimeUs(3'000'000)}) {
+            for (const QString &text : texts) {
+                const QString label = QStringLiteral("%1 fps, %2 ms, \"%3\"").arg(fps).arg(window / 1000).arg(text);
+                const Domains domains = estimateDomains(text);
+                const FittedTiming fit = fittedTiming(anim.set, anim.resolved, domains, window, fps);
+                QVERIFY2(fit.readableAtUs <= 150'000, qPrintable(label));
+                QVERIFY2(fit.inUs + fit.outUs <= window / 2, qPrintable(label));
+                // Readable at that moment: every fragment and the block at rest (loop aside).
+                QVERIFY2(allAtRest(evaluateTextAnimation(anim.set, entranceOnly, twoLines, lines,
+                                                         windowAt(fit.readableAtUs, window, fps))),
+                         qPrintable(label));
+                // The first frame shows nothing, loop included: below half an 8-bit step. (A fitted
+                // one-frame entrance starts a microsecond in, which the end-of-reveal margin buys.)
+                QVERIFY2(evaluateTextAnimation(anim.set, anim.resolved, twoLines, lines, windowAt(0, window, fps)).block.opacity
+                             < 1.0 / 512.0,
+                         qPrintable(label));
+            }
+        }
+    }
+    // On a normal clip the authored timing plays untouched: readable at 120 ms.
+    FittedTiming fit = fittedTiming(anim.set, anim.resolved, estimateDomains(QStringLiteral("LEVEL UP!")), 3'000'000, 30);
+    QVERIFY(!fit.fitted);
+    QCOMPARE(fit.readableAtUs, TimeUs(120'000));
+
+    // maxReadMs is a hard cap: a hand-edited half-second entrance still lands by 150 ms.
+    TextStyle slow = gold.style;
+    QList<Effect> none;
+    QVERIFY(writeTemplateBinding(QStringLiteral("animation.in.duration"), 0.5, &slow, &none));
+    const ResolvedTextAnimation slowAnim = resolveTextAnimation(slow.animation);
+    for (int fps : {24, 30, 60}) {
+        fit = fittedTiming(slowAnim.set, slowAnim.resolved, estimateDomains(QStringLiteral("LEVEL UP!")), 3'000'000, fps);
+        QVERIFY(fit.readableAtUs <= 150'000);
+        ResolvedSlots in = slowAnim.resolved;
+        in.loop.clear();
+        QVERIFY(allAtRest(evaluateTextAnimation(slowAnim.set, in, twoLines, lines, windowAt(fit.readableAtUs, 3'000'000, fps))));
+    }
+
+    // The breathing never costs more than 8 % opacity or 2 % size while the title is up.
+    double lowest = 1.0, smallest = 1.0;
+    for (TimeUs t = 150'000; t < 2'900'000; t += 16'667) {
+        const Frame f = evaluateTextAnimation(anim.set, anim.resolved, twoLines, lines, windowAt(t, 3'000'000, 60));
+        lowest = std::min(lowest, f.block.opacity);
+        smallest = std::min(smallest, f.block.scale);
+    }
+    QVERIFY2(lowest >= 0.92 - 1e-6, qPrintable(QString::number(lowest)));
+    QVERIFY2(smallest >= 0.98 - 1e-6, qPrintable(QString::number(smallest)));
+    // And the exit really fades out.
+    QVERIFY(evaluateTextAnimation(anim.set, anim.resolved, twoLines, lines, windowAt(3'000'000, 3'000'000, 60)).block.opacity < 0.01);
+}
+
+void CoreTest::goldPopInstallsOverTheBundledCopy()
+{
+    // Installing a file with the same id (a fixed version from its author) replaces the bundled
+    // one; taking it away brings the bundled one back.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QFile bundled(goldPop().sourcePath);
+    QVERIFY(bundled.open(QIODevice::ReadOnly));
+    QJsonObject json = QJsonDocument::fromJson(bundled.readAll()).object();
+    json.insert(QStringLiteral("label"), QStringLiteral("Gold Pop v2"));
+    QFile installed(dir.filePath(QStringLiteral("chatgpt.gold-pop.json")));
+    QVERIFY(installed.open(QIODevice::WriteOnly));
+    installed.write(QJsonDocument(json).toJson());
+    installed.close();
+
+    qputenv("DAFIN_TEXT_STYLES", dir.path().toUtf8());
+    TitleTemplateCatalog::instance().reload();
+    QCOMPARE(goldPop().label, QStringLiteral("Gold Pop v2"));
+    QCOMPARE(goldPop().origin, QStringLiteral("installed"));
+    int copies = 0;
+    for (const TextPreset &p : allTextTemplates())
+        copies += p.id == QLatin1String("chatgpt.gold-pop") ? 1 : 0;
+    QCOMPARE(copies, 1);
+    qunsetenv("DAFIN_TEXT_STYLES");
+    TitleTemplateCatalog::instance().reload();
+    QCOMPARE(goldPop().label, QStringLiteral("Gold Pop"));
+    QCOMPARE(goldPop().origin, QStringLiteral("builtin"));
+}
+
+void CoreTest::templateEffectsReplaceWithoutDuplicates()
+{
+    Effect mine;
+    mine.catalogId = QStringLiteral("color_grade"); // the user's own: no key
+    Effect sparks;
+    sparks.catalogId = QStringLiteral("bling_sparkle");
+    sparks.templateKey = QStringLiteral("sparks");
+    QList<Effect> clip{mine};
+    replaceTemplateEffects(&clip, {sparks});
+    replaceTemplateEffects(&clip, {sparks}); // re-applying the same template
+    QCOMPARE(clip.size(), 2);
+    QCOMPARE(clip.at(0).catalogId, QStringLiteral("color_grade"));
+    QCOMPARE(clip.at(1).templateKey, QStringLiteral("sparks"));
+    // Switching to Gold Pop (no effects) takes the sparks away and leaves the user's grade.
+    replaceTemplateEffects(&clip, goldPop().effects);
+    QCOMPARE(clip.size(), 1);
+    QCOMPARE(clip.at(0).catalogId, QStringLiteral("color_grade"));
 }
 
 void CoreTest::animationBoundsCoverTheEnvelope()

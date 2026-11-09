@@ -148,4 +148,10 @@ private:
 // lists. User saves are separate (TextPresetStore).
 QList<TextPreset> allTextTemplates();
 
+// A clip's effects once a template is applied: every effect an earlier template added (one with
+// a templateKey) is removed, the user's own effects stay in place, and `templateEffects` (built
+// from the catalog by the caller) are appended. Re-applying a template therefore never
+// duplicates its effects.
+void replaceTemplateEffects(QList<Effect> *clipEffects, const QList<Effect> &templateEffects);
+
 } // namespace drift

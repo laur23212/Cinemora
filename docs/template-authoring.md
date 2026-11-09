@@ -132,7 +132,7 @@ simplest is an opaque colour (`#rrggbb`) and `opacity` for the strength, e.g. a 
 | `kind` | `linear` | `linear` · `radial` · `sweep` |
 | `angle` | `90` | Degrees, **clockwise**. `0`: stop 0 on the left → stop 1 on the right. `90`: stop 0 at the **top** → stop 1 at the bottom. `180`: right → left. `270`: bottom → top |
 | `stops` | — | 2 or more, `pos` 0–1 ascending, each with a `color` |
-| `space` | `block` | The box the gradient spans: `block` (the whole text) · `line` · `word` · `glyph` |
+| `space` | `block` | The box the gradient spans: `block` (the whole text) · `line` · `word` · `glyph`. For titles that may wrap, use `line`: with `block` one gradient spreads over all lines, so the top line comes out light and the bottom line dark |
 | `offset` | `0` | Slides the gradient along its direction, in box widths |
 | `offsetSpeed` | `0` | Box widths per second: a moving gradient (sheen) |
 | `scale` | `1` | |
@@ -142,7 +142,8 @@ simplest is an opaque colour (`#rrggbb`) and `opacity` for the strength, e.g. a 
 
 The angle is applied in the box's own unit square, then stretched to the box. `0`, `90`, `180`
 and `270` are exact; other angles tilt less than their number on a wide box. A gold title is
-`angle: 90` with the light stop first: highlight at the top, deeper gold at the bottom.
+`angle: 90`, `space: "line"`, with the light stop first: highlight at the top of every line,
+deeper gold at the bottom (Gold Pop in section 9).
 
 **Effect**: `{ "kind": "effect", "effect": { "id": "shine", "params": { "speed": 0.5 } } }`, one of
 these built-in text shaders (you cannot ship your own):
@@ -188,6 +189,8 @@ it is a warning, not an error, because the user can install the add-on.
 
 - **in**: the entrance. **loop**: decoration while the text is readable. **out**: the exit. Leave a
   slot out to have none; `"enabled": false` keeps a slot but turns it off.
+- The loop works on the text as the in and out leave it: its opacity *scales* theirs. A breathing
+  loop never shows the title before its entrance and never holds it up during the exit fade.
 - `preset` must be one that plays in that slot (table in 4.5).
 - Params can be plain values (`0.12`, `"word"`, `"#ff0000"`, `true`) or Dafin's typed form
   (`{ "type": "scalar", "value": 0.12 }`). Types and ranges are checked.
@@ -475,6 +478,184 @@ with room to draw and its controls.
     { "id": "sparks", "label": "Sparkles", "type": "bool", "bind": "effect.sparks.enabled" },
     { "id": "sparkAmount", "label": "Sparkle amount", "type": "scalar", "bind": "effect.sparks.intensity", "min": 0, "max": 1, "step": 0.01 },
     { "id": "entrance", "label": "Entrance", "type": "scalar", "bind": "animation.in.duration", "min": 0, "max": 0.5, "step": 0.01, "unit": "s", "group": "Timing" }
+  ]
+}
+```
+
+**Gold Pop**: written by ChatGPT from this guide alone and accepted after one visual change
+(`space: "line"`). A two-stop gold gradient with both stops as controls, an outline, a soft
+shadow, a 120 ms pop under a 150 ms cap, a subtle breathe and a short fade.
+
+```json
+{
+  "format": 1,
+  "id": "chatgpt.gold-pop",
+  "label": "Gold Pop",
+  "description": "Bold YouTube title with a luminous gold gradient, dark outline, soft shadow, a 120 ms pop entrance, and subtle breathing motion.",
+  "category": "fast-titles",
+  "tags": [
+    "youtube",
+    "gold",
+    "bold",
+    "pop",
+    "gradient",
+    "fast"
+  ],
+  "kind": "title",
+  "sampleText": "LEVEL UP!",
+  "requires": {
+    "fonts": [
+      "Inter"
+    ]
+  },
+  "style": {
+    "fontFamily": "Inter",
+    "fontWeight": 700,
+    "pixelSize": 110,
+    "italic": false,
+    "align": "center",
+    "valign": "center",
+    "wordWrap": true,
+    "lineHeight": 1.1,
+    "letterSpacing": 1,
+    "textCase": "upper",
+    "layers": [
+      {
+        "id": "shadow",
+        "kind": "shadow",
+        "paint": {
+          "kind": "solid",
+          "color": "#000000"
+        },
+        "offsetX": 0,
+        "offsetY": 6,
+        "blur": 12,
+        "opacity": 0.45
+      },
+      {
+        "id": "outline",
+        "kind": "stroke",
+        "paint": {
+          "kind": "solid",
+          "color": "#17111f"
+        },
+        "width": 7,
+        "strokeAlign": "outside"
+      },
+      {
+        "id": "fill",
+        "kind": "fill",
+        "paint": {
+          "kind": "gradient",
+          "gradient": {
+            "kind": "linear",
+            "angle": 90,
+            "space": "line",
+            "stops": [
+              {
+                "pos": 0,
+                "color": "#fff3b0"
+              },
+              {
+                "pos": 1,
+                "color": "#c98a00"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "animation": {
+      "in": {
+        "preset": "pop",
+        "params": {
+          "duration": 0.12,
+          "from": 70,
+          "ease": "back",
+          "unit": "block",
+          "stagger": 0
+        }
+      },
+      "loop": {
+        "preset": "breathe",
+        "params": {
+          "amount": 0.08,
+          "speed": 0.4
+        }
+      },
+      "out": {
+        "preset": "fade",
+        "params": {
+          "duration": 0.1,
+          "unit": "block",
+          "ease": "easeOut"
+        }
+      },
+      "timing": {
+        "fit": true,
+        "maxReadMs": 150
+      }
+    }
+  },
+  "effects": [],
+  "controls": [
+    {
+      "id": "title",
+      "label": "Title text",
+      "type": "text",
+      "bind": "text"
+    },
+    {
+      "id": "size",
+      "label": "Text size",
+      "type": "scalar",
+      "bind": "font.size",
+      "min": 40,
+      "max": 220,
+      "step": 1,
+      "unit": "px"
+    },
+    {
+      "id": "goldhighlight",
+      "label": "Gold highlight",
+      "type": "color",
+      "bind": "layer.fill.gradient.stop.0.color",
+      "group": "Colours"
+    },
+    {
+      "id": "goldshadow",
+      "label": "Deep gold",
+      "type": "color",
+      "bind": "layer.fill.gradient.stop.1.color",
+      "group": "Colours"
+    },
+    {
+      "id": "outlinecolor",
+      "label": "Outline colour",
+      "type": "color",
+      "bind": "layer.outline.color",
+      "group": "Colours"
+    },
+    {
+      "id": "entrance",
+      "label": "Entrance duration",
+      "type": "scalar",
+      "bind": "animation.in.duration",
+      "min": 0,
+      "max": 0.15,
+      "step": 0.01,
+      "unit": "s",
+      "group": "Animation",
+      "description": "Controls the pop entrance. The title becomes fully readable within 150 ms."
+    },
+    {
+      "id": "subtlemotion",
+      "label": "Subtle motion",
+      "type": "bool",
+      "bind": "animation.loop.enabled",
+      "group": "Animation",
+      "description": "Enable or disable the gentle breathing animation while the title is visible."
+    }
   ]
 }
 ```

@@ -774,7 +774,29 @@ Frame evaluateTextAnimation(const TextAnimationSet &set, const ResolvedSlots &re
     };
     runSlot(resolved.in, inTime);
     runSlot(resolved.out, outTime);
-    runSlot(resolved.loop, loopTime);
+    if (loopTime.active) {
+        // Loop motion is decoration over the text as the In and Out leave it: its opacities scale
+        // what is there rather than pulling toward their own value. Lerping instead let a
+        // breathing loop pull a title up from the In's 0 % before its entrance and back up during
+        // its exit fade (Dafin).
+        struct Opacities { double opacity, fill, stroke; };
+        QList<Opacities> before(n);
+        for (int i = 0; i < n; ++i) {
+            FragmentProps &p = frame.props[i];
+            before[i] = {p.opacity, p.fillOpacity, p.strokeOpacity};
+            p.opacity = p.fillOpacity = p.strokeOpacity = 1.0;
+        }
+        const double blockBefore = frame.block.opacity;
+        frame.block.opacity = 1.0;
+        runSlot(resolved.loop, loopTime);
+        frame.block.opacity *= blockBefore;
+        for (int i = 0; i < n; ++i) {
+            FragmentProps &p = frame.props[i];
+            p.opacity *= before[i].opacity;
+            p.fillOpacity *= before[i].fill;
+            p.strokeOpacity *= before[i].stroke;
+        }
+    }
 
     for (FragmentProps &p : frame.props) {
         p.opacity = clamp01(p.opacity);
