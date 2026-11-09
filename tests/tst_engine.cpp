@@ -11276,6 +11276,17 @@ QList<QRect> goldLines(const QImage &image)
     return lines;
 }
 
+// A frame as base64 PNG for the test log: when the comparison fails on a CI machine, the log
+// carries the pictures to look at (decode with base64 -d).
+QByteArray pngBase64(const QImage &image)
+{
+    QByteArray bytes;
+    QBuffer buffer(&bytes);
+    buffer.open(QIODevice::WriteOnly);
+    image.save(&buffer, "PNG");
+    return bytes.toBase64();
+}
+
 std::optional<drift::TextPreset> goldPop()
 {
     return drift::textPresetForId(QStringLiteral("chatgpt.gold-pop"));
@@ -11356,6 +11367,7 @@ void EngineTest::goldPopEditorFramesMatchTheContactSheet()
     // Every frame is measured before anything is asserted, so a failure shows the whole picture:
     // the pixels against the sheet, and the GPU layer's own placement against the sheet's.
     QStringList problems;
+    QStringList pictures; // the at-rest frames, logged only when something is off
     for (const Case &c : cases) {
         project.setFps(c.fps);
         clip.textContent = c.text;
@@ -11406,6 +11418,11 @@ void EngineTest::goldPopEditorFramesMatchTheContactSheet()
                         problems << QStringLiteral("layer placed apart from the sheet: ") + why;
                 }
                 qInfo().noquote() << why;
+                if (c.fps == 60 && frame == 9 && backdrop.name != QLatin1String("dark")) {
+                    const QRect crop = d.box.adjusted(-8, -8, 8, 8) & gpu.rect();
+                    pictures << QStringLiteral("PNG gpu %1: ").arg(label) + QString::fromLatin1(pngBase64(gpu.copy(crop)))
+                             << QStringLiteral("PNG cpu %1: ").arg(label) + QString::fromLatin1(pngBase64(cpu.copy(crop)));
+                }
 
                 if (frame == 0) {
                     // Hidden until the pop starts: the first frame is the backdrop and nothing else.
@@ -11434,6 +11451,9 @@ void EngineTest::goldPopEditorFramesMatchTheContactSheet()
             }
         }
     }
+    if (!problems.isEmpty())
+        for (const QString &picture : std::as_const(pictures))
+            qInfo().noquote() << picture;
     QVERIFY2(problems.isEmpty(), qPrintable(problems.join(QLatin1Char('\n'))));
 
     // On the bright backdrop at rest: pale gold on top, deep gold at the bottom (angle 90), and in
