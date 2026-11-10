@@ -24,9 +24,11 @@ shows nothing (`--check-template` always writes its report to the folder).
 
 The contact sheets are drawn by Dafin's own text painter on the CPU. The editor's preview and the
 exporter draw the same painter on the GPU; Dafin's tests compare the two frame by frame (Gold Pop:
-colours, gradient, outline, shadow, position, timing, loop, fade and transparency agree up to
-antialiasing), so what a sheet shows is what the user gets — except clip effects, which the sheets
-do not draw.
+colours, gradient, outline, shadow, position, timing, loop, fade and transparency agree), so what a
+sheet shows is what the user gets — except clip effects, which the sheets do not draw. The one
+difference is the antialiasing of letter and outline edges: the GPU uses 4 coverage samples per
+pixel, the sheet exact coverage, so edges on a sheet are a touch smoother than in the editor. Judge
+shapes and colours on the sheet, not edge softness.
 
 ## 1. What a template is
 
@@ -349,6 +351,27 @@ stretch with the clip.
   `effectPadding` (px) for sparks or particles around the letters; the validator warns when a
   template has effects and no padding.
 - Card thumbnails and the preview sheet show the text only, not clip effects.
+
+Effects that suit titles (they run on the text's own image; generated from the effect packages —
+`dafin --template-guide` prints every effect a template may name):
+
+| effect | name | parameters: range (default) |
+|---|---|---|
+| `bling_sparkle` | Bling | `intensity` 0–1 (0.6); `threshold` 0–1 (0.7); `density` 0–1 (0.5); `size` 0–1 (0.5); `twinkleSpeed` 0–4 (1); `points` 4–8 (4); `colorize` 0–1 (0.3) |
+| `bloom_glow` | Bloom / Glow | `threshold` 0–1 (0.75); `intensity` 0–2 (0.6); `blurRadius` 1–30 (8); `tint` color |
+| `star_filter` | Star Filter | `intensity` 0–2 (0.8); `threshold` 0–1 (0.75); `spikeLength` 0–1 (0.4); `points` 2–6 (4); `rotation` 0–1 (0); `rainbow` 0–1 (0.25) |
+| `halation` | Halation | `intensity` 0–2 (0.7); `threshold` 0–1 (0.65); `blurRadius` 1–30 (14); `warmth` 0–1 (0.8); `grain` 0–1 (0.15) |
+| `edge_neon` | Edge Glow / Neon | `threshold` 0–1 (0.25); `intensity` 0–2 (0.8); `radius` 1–20 (4) |
+| `rgb_split` | RGB Split | `amount` 0–50 (8); `angle` 0–360 (0); `animated` bool; `speed` 0–10 (1) |
+| `chromatic_aberration` | Chromatic Aberration | `amount` 0–1 (0.4); `falloff` 0–1 (0.7); `centerX` 0–1 (0.5); `centerY` 0–1 (0.5) |
+| `digital_glitch` | Digital Glitch | `intensity` 0–1 (0.5); `frequency` 0–1 (0.35); `rgbAmount` 0–40 (8); `blockAmount` 0–1 (0.4); `flashAmount` 0–1 (0.15); `seed` 0–999999 (1) |
+| `block_glitch` | Block Glitch | `intensity` 0–1 (0.35); `blockSize` 4–128 (32); `shiftAmount` 0–100 (24); `frequency` 0–1 (0.25); `seed` 0–999999 (1) |
+| `scanline_glitch` | Scanline Glitch | `jitter` 0–1 (0.25); `lineStrength` 0–1 (0.35); `colorShift` 0–20 (4); `speed` 0–10 (2) |
+| `stylize.vhs` | VHS | `noise` 0–80 (28); `chroma` 0–12 (3); `saturation` 0.2–1.2 (0.85) |
+| `motion_trail` | Motion Trail | `amount` 0–1 (0.45); `angle` 0–1 (0.25); `length` 0–1 (0.5) |
+| `wave_warp` | Wave Warp | `amount` 0–1 (0.35); `frequency` 1–20 (6); `speed` 0–4 (1); `axis` 0–1 (0) |
+| `beat_shake` | Beat Shake | `amount` 0–1 (0); `rotation` 0–1 (0.35); `seed` 0–1 (0.5) |
+| `strobe_flash` | Strobe | `flash` 0–1 (0); `tint` 0–1 (0.15) |
 
 ## 7. Quick controls
 

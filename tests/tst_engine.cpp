@@ -11154,16 +11154,48 @@ struct FrameDiff
     double mean = 0.0;   // largest channel difference per pixel, 0..255
     double over64 = 0.0; // share of measured pixels off by more than 64
     int max = 0;
+    // The same, with each pixel compared against the range of the other render's 3x3
+    // neighbourhood (both ways): an edge drawn with another antialiasing (4-sample GPU coverage
+    // against exact CPU coverage) or a fraction of a pixel over stays within that range; a wrong
+    // colour, opacity, missing layer or a shift of a pixel or more does not.
+    double nearMean = 0.0;
+    double nearOver16 = 0.0;
+    int nearMax = 0;
     QPointF inkReference, inkOther; // centres of everything that is not backdrop
     QString describe() const
     {
-        return QStringLiteral("box %1x%2+%3+%4 mean %5 max %6 >64 %7%% ink %8,%9 vs %10,%11")
+        return QStringLiteral("box %1x%2+%3+%4 mean %5 max %6 >64 %7%% near mean %12 max %13 >16 %14%% ink %8,%9 vs %10,%11")
             .arg(box.width()).arg(box.height()).arg(box.x()).arg(box.y())
             .arg(mean, 0, 'f', 2).arg(max).arg(over64 * 100.0, 0, 'f', 3)
             .arg(inkReference.x(), 0, 'f', 2).arg(inkReference.y(), 0, 'f', 2)
-            .arg(inkOther.x(), 0, 'f', 2).arg(inkOther.y(), 0, 'f', 2);
+            .arg(inkOther.x(), 0, 'f', 2).arg(inkOther.y(), 0, 'f', 2)
+            .arg(nearMean, 0, 'f', 2).arg(nearMax).arg(nearOver16 * 100.0, 0, 'f', 3);
     }
 };
+
+// How far pixel (x, y) of `a` lies outside the per-channel range of `b` around (x, y).
+int outsideNeighbourhood(const QImage &a, const QImage &b, int x, int y)
+{
+    const QRgb pa = a.pixel(x, y);
+    const int va[4] = {qRed(pa), qGreen(pa), qBlue(pa), qAlpha(pa)};
+    int lo[4] = {255, 255, 255, 255}, hi[4] = {0, 0, 0, 0};
+    for (int dy = -1; dy <= 1; ++dy) {
+        for (int dx = -1; dx <= 1; ++dx) {
+            const int nx = std::clamp(x + dx, 0, b.width() - 1);
+            const int ny = std::clamp(y + dy, 0, b.height() - 1);
+            const QRgb pb = b.pixel(nx, ny);
+            const int vb[4] = {qRed(pb), qGreen(pb), qBlue(pb), qAlpha(pb)};
+            for (int c = 0; c < 4; ++c) {
+                lo[c] = std::min(lo[c], vb[c]);
+                hi[c] = std::max(hi[c], vb[c]);
+            }
+        }
+    }
+    int out = 0;
+    for (int c = 0; c < 4; ++c)
+        out = std::max({out, va[c] - hi[c], lo[c] - va[c]});
+    return out;
+}
 
 // Weighted by how far each pixel is from the backdrop; the faint rest (antialiasing, a codec's
 // noise over the whole frame) would pull the centre toward the middle of the frame.
@@ -11202,6 +11234,8 @@ FrameDiff frameDiff(const QImage &referenceIn, const QImage &otherIn, const QIma
     const QRect measured = d.box.isEmpty() ? reference.rect() : d.box.adjusted(-6, -6, 6, 6) & reference.rect();
     double sum = 0.0;
     int over = 0;
+    double nearSum = 0.0;
+    int nearOver = 0;
     for (int y = measured.top(); y <= measured.bottom(); ++y) {
         const QRgb *r = reinterpret_cast<const QRgb *>(reference.constScanLine(y));
         const QRgb *o = reinterpret_cast<const QRgb *>(other.constScanLine(y));
@@ -11210,11 +11244,18 @@ FrameDiff frameDiff(const QImage &referenceIn, const QImage &otherIn, const QIma
             sum += diff;
             over += diff > 64 ? 1 : 0;
             d.max = std::max(d.max, diff);
+            const int apart = std::max(outsideNeighbourhood(reference, other, x, y),
+                                       outsideNeighbourhood(other, reference, x, y));
+            nearSum += apart;
+            nearOver += apart > 16 ? 1 : 0;
+            d.nearMax = std::max(d.nearMax, apart);
         }
     }
     const double n = double(measured.width()) * measured.height();
     d.mean = sum / n;
     d.over64 = over / n;
+    d.nearMean = nearSum / n;
+    d.nearOver16 = nearOver / n;
     d.inkReference = inkCentre(reference, backdrop);
     d.inkOther = inkCentre(other, backdrop);
     return d;
@@ -11299,14 +11340,15 @@ std::optional<drift::TextPreset> goldPop()
 // preview and the exporter draw through FrameCompositor: the painter rasterised by Skia on the GPU,
 // the pop and the breathing as motion on the GL layer. Same template, text and instants, so the
 // frames must agree — colours and gradient direction, outline, shadow, position, timing, the loop's
-// opacity, the fade out, and alpha over a transparent background — up to antialiasing (measured
-// locally on Mesa: Ganesh and the CPU raster differ only on glyph edges, about 2/255 on average).
+// opacity, the fade out, and alpha over a transparent background — up to antialiasing.
+// The antialiasing differs on purpose: Ganesh draws the glyph outlines and strokes with 4-sample
+// coverage (GrContextOptions::fInternalMultisampleCount), the sheet with exact coverage, so an
+// edge pixel can be up to half a coverage step apart (CI, Linux and Windows: raw differences on
+// 0.5-2.7 % of the box, up to 141/255, all on edges). Pixels are therefore judged against the other
+// render's 3x3 neighbourhood (FrameDiff::near*), the layer's placement and opacity exactly, and the
+// position by the ink centre.
 void EngineTest::goldPopEditorFramesMatchTheContactSheet()
 {
-    // Dafin: parked while the editor-vs-sheet difference at frame 4 (anti-aliased edge, max 109
-    // over ~1% of the box) is looked into; it was holding up every installer build. Remove this
-    // line to check again (f92eec7 writes the two frames as PNG when it fails).
-    QSKIP("Gold Pop editor/contact-sheet pixel match parked; see the comment above.");
 #ifndef DRIFT_WITH_SKIA
     QSKIP("text needs Skia");
 #else
@@ -11436,7 +11478,9 @@ void EngineTest::goldPopEditorFramesMatchTheContactSheet()
                         problems << QStringLiteral("editor draws the title on ") + why;
                     continue;
                 }
-                if (d.box.isEmpty() || d.mean >= 4.5 || d.over64 >= 0.005
+                // Measured on CI at frame 9: near mean 0.5-0.7, >16 on at most 0.8 %, max 40. A 2 px
+                // shift gives mean 10, opacity 0.9x gives 5 % over 16, a 10 % colour change 65 %.
+                if (d.box.isEmpty() || d.nearMean >= 1.5 || d.nearOver16 >= 0.02 || d.nearMax >= 80
                     || QLineF(d.inkReference, d.inkOther).length() >= 1.0)
                     problems << why;
 
