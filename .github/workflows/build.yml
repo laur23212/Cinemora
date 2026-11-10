@@ -19,17 +19,30 @@ on:
           - macos
           - arch
           - android
+          - crash-report
+      crash:
+        description: "crash-report only: paste the crash-<time>.txt text (or just its Stack lines)"
+        required: false
+        default: ""
+        type: string
+      build_run:
+        description: "crash-report only: the Build number the crash came from (empty: the one the report names, else the newest Windows build of this branch)"
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
 
+# A crash-report run has its own group, so it never cancels a build (or is cancelled by one).
 concurrency:
-  group: build-${{ github.ref }}
+  group: ${{ inputs.platforms == 'crash-report' && format('crash-report-{0}', github.run_id) || format('build-{0}', github.ref) }}
   cancel-in-progress: true
 
 jobs:
   meta:
     name: Compute metadata
+    if: inputs.platforms != 'crash-report'
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.meta.outputs.version }}
@@ -41,6 +54,7 @@ jobs:
 
   package:
     name: Package
+    if: inputs.platforms != 'crash-report'
     permissions:
       contents: read
       actions: write
@@ -51,3 +65,84 @@ jobs:
       platforms: ${{ inputs.platforms }}
       android_identity: ci
     secrets: inherit
+
+  # Dafin: reads a Windows crash report (CrashReport_win.cpp) back as functions, files and lines,
+  # with the dafin.pdb that build uploaded (windows-symbols-x64). The result is in the run's
+  # summary and as a notice on the run, so it can be read without downloading the symbols.
+  crash:
+    name: Read a crash report
+    if: inputs.platforms == 'crash-report'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Read the offsets back
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          CRASH: ${{ inputs.crash }}
+          BUILD_RUN: ${{ inputs.build_run }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          arch=x64
+          if grep -qi 'arm64' <<<"$CRASH"; then arch=arm64; fi
+          artifact="windows-symbols-$arch"
+          number="$BUILD_RUN"
+          # Reports from builds that print it say "build <number> (<commit>)".
+          if [ -z "$number" ]; then
+            number=$(grep -oE 'build [0-9]+' <<<"$CRASH" | head -n1 | grep -oE '[0-9]+' || true)
+          fi
+          runs=$(gh api "repos/$GH_REPO/actions/workflows/build.yml/runs?per_page=100" \
+                   --jq '.workflow_runs[] | [.id, .run_number, .head_branch, .head_sha[0:7]] | @tsv')
+          run=""; label=""
+          while IFS=$'\t' read -r id num branch sha; do
+            [ -n "$id" ] || continue
+            if [ -n "$number" ]; then
+              [ "$num" = "$number" ] || continue
+            else
+              [ "$branch" = "$BRANCH" ] || continue
+            fi
+            has=$(gh api "repos/$GH_REPO/actions/runs/$id/artifacts" \
+                    --jq "[.artifacts[] | select(.name == \"$artifact\" and (.expired | not))] | length" </dev/null)
+            if [ "$has" != "0" ]; then run=$id; label="build $num ($sha)"; break; fi
+            [ -z "$number" ] || break
+          done <<<"$runs"
+          if [ -z "$run" ]; then
+            echo "::error::No $artifact artifact for ${number:+build $number}${number:-the newest build of $BRANCH} (expired after 90 days, or that build had no Windows side)."
+            exit 1
+          fi
+          gh run download "$run" -n "$artifact" -D syms
+          symbolizer=$(command -v llvm-symbolizer || ls /usr/lib/llvm-*/bin/llvm-symbolizer 2>/dev/null | sort -V | tail -n1 || true)
+          if [ -z "$symbolizer" ]; then sudo apt-get install -y -qq llvm >/dev/null; symbolizer=$(command -v llvm-symbolizer); fi
+
+          out=report.txt
+          echo "Symbols: $label" > "$out"
+          # "#01  dafin.exe+0x272ed": #01 is where it stopped, every later frame is a return
+          # address, so one byte back is the call that is still running.
+          frames=$(grep -oE '#[0-9]+ +[^ ]+\+0x[0-9a-fA-F]+' <<<"$CRASH" || true)
+          if [ -z "$frames" ]; then
+            frames=$(grep -oE '[^ ]+\+0x[0-9a-fA-F]+' <<<"$CRASH" | awk '{ printf "#%02d %s\n", NR, $0 }' || true)
+          fi
+          while read -r index where; do
+            [ -n "$where" ] || continue
+            module=${where%%+*}
+            offset=${where##*+}
+            n=$((10#${index#\#}))
+            if [ "${module,,}" != "dafin.exe" ]; then
+              echo "$index $where" >> "$out"
+              continue
+            fi
+            address=$offset
+            if [ "$n" -gt 1 ]; then address=$(printf '0x%x' $((offset - 1))); fi
+            echo "$index $where" >> "$out"
+            "$symbolizer" --obj=syms/dafin.exe --relative-address --inlines --relativenames "$address" </dev/null \
+              | awk 'NF { if (NR % 2) fn = $0; else printf "      %s  %s\n", fn, $0 }' >> "$out"
+          done <<<"$frames"
+
+          cat "$out"
+          { echo '### Crash report'; echo '```'; cat "$out"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          body=$(sed -e 's/%/%25/g' "$out" | awk 'BEGIN { ORS = "%0A" } { print }')
+          echo "::notice title=Crash report::$body"
