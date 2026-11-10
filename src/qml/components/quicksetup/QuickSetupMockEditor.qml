@@ -37,7 +37,7 @@ Rectangle {
             anchors.left: parent.left
             anchors.leftMargin: root.gap * 2
             anchors.verticalCenter: parent.verticalCenter
-            text: qsTr("Drift")
+            text: qsTr("Dafin")
             color: Theme.c.quickSetupMockEditor.text
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontSizeTiny

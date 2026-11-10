@@ -5,7 +5,7 @@ import Drift
 QuickSetupPage {
     id: root
 
-    title: qsTr("Welcome to Drift")
+    title: qsTr("Welcome to Dafin")
     subtitle: qsTr("Let's get you set up. First, pick your language.")
     glyph: Theme.icons.languages
     contentMaxWidth: 520

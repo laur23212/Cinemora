@@ -71,7 +71,7 @@ QuickSetupPage {
     readonly property var tip: tips[Math.min(current, tips.length - 1)]
 
     title: qsTr("A few tips before you start")
-    subtitle: qsTr("Quick pointers to the parts of Drift people tend to miss.")
+    subtitle: qsTr("Quick pointers to the parts of Dafin people tend to miss.")
     glyph: Theme.icons.sparkles
     contentMaxWidth: 640
 

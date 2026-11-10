@@ -47,7 +47,7 @@ QuickSetupPage {
     }
 
     title: qsTr("Install the essentials")
-    subtitle: qsTr("Drift's basic effects, transitions, audio effects, fonts and looks come as add-ons. Without them the editor will be missing most of what you expect, so they are installed now.")
+    subtitle: qsTr("Dafin's basic effects, transitions, audio effects, fonts and looks come as add-ons. Without them the editor will be missing most of what you expect, so they are installed now.")
     glyph: Theme.icons.package
     canAdvance: allDone
     contentMaxWidth: 760
@@ -79,7 +79,7 @@ QuickSetupPage {
 
     function rowError(e) {
         if (e.state === "needs-newer-app")
-            return qsTr("Needs a newer version of Drift.")
+            return qsTr("Needs a newer version of Dafin.")
         if (e.missing)
             return qsTr("Not available in the download store.")
         return e.error.length > 0 ? e.error : qsTr("The download failed.")

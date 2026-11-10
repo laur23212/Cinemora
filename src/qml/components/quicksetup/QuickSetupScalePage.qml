@@ -99,6 +99,6 @@ QuickSetupPage {
         horizontalAlignment: Text.AlignHCenter
         visible: EditorState.preferences.uiScaleNeedsRestart
         size: "sm"
-        text: qsTr("Drift will restart when you finish setup to apply this size.")
+        text: qsTr("Dafin will restart when you finish setup to apply this size.")
     }
 }

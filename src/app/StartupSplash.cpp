@@ -94,6 +94,18 @@ void StartupSplash::finishOn(QQuickWindow *window)
     }, static_cast<Qt::ConnectionType>(Qt::QueuedConnection | Qt::SingleShotConnection));
 }
 
+#ifndef DAFIN_BUILD_LABEL
+#define DAFIN_BUILD_LABEL ""
+#endif
+
+// "Version 0.9.1 · build 412 (a1b2c3d)", so a screenshot says exactly which build it was.
+QString StartupSplash::versionLine()
+{
+    const QString build = QStringLiteral(DAFIN_BUILD_LABEL);
+    const QString version = tr("Version %1").arg(QStringLiteral(DRIFT_VERSION));
+    return build.isEmpty() ? version : version + QStringLiteral(" · ") + build;
+}
+
 void StartupSplash::drawContents(QPainter *painter)
 {
     painter->setRenderHint(QPainter::Antialiasing);
@@ -111,11 +123,11 @@ void StartupSplash::drawContents(QPainter *painter)
     painter->setFont(m_titleFont);
     painter->setPen(m_foreground);
     painter->drawText(QRectF(textX, kMargin, kWidth - textX - kMargin, 32), Qt::AlignLeft | Qt::AlignVCenter,
-                      QStringLiteral("Drift"));
+                      QStringLiteral("Dafin"));
     painter->setFont(m_bodyFont);
     painter->setPen(m_foregroundMuted);
     painter->drawText(QRectF(textX, kMargin + 32, kWidth - textX - kMargin, 20), Qt::AlignLeft | Qt::AlignVCenter,
-                      tr("Version %1").arg(QStringLiteral(DRIFT_VERSION)));
+                      versionLine());
 
     const qreal barY = kHeight - kMargin - 3;
     const QRectF statusRect(kMargin, barY - 28, kWidth - 2 * kMargin, 20);

@@ -2940,6 +2940,34 @@ target_compile_definitions(drift PRIVATE
     DRIFT_DISTRIBUTION="${DRIFT_DISTRIBUTION}"
 )
 
+# Dafin: which build this is, for the splash screen: the GitHub Actions run number and commit
+# when built there, else the local commit. Only StartupSplash.cpp gets it, so a new number does
+# not rebuild everything else.
+set(DAFIN_BUILD_LABEL "")
+if(DEFINED ENV{GITHUB_RUN_NUMBER} AND NOT "$ENV{GITHUB_RUN_NUMBER}" STREQUAL "")
+    set(DAFIN_BUILD_LABEL "build $ENV{GITHUB_RUN_NUMBER}")
+endif()
+set(_dafin_sha "")
+if(DEFINED ENV{GITHUB_SHA} AND NOT "$ENV{GITHUB_SHA}" STREQUAL "")
+    string(SUBSTRING "$ENV{GITHUB_SHA}" 0 7 _dafin_sha)
+else()
+    find_package(Git QUIET)
+    if(GIT_FOUND)
+        execute_process(COMMAND "${GIT_EXECUTABLE}" rev-parse --short=7 HEAD
+                        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}" OUTPUT_VARIABLE _dafin_sha
+                        OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+    endif()
+endif()
+if(NOT _dafin_sha STREQUAL "")
+    if(DAFIN_BUILD_LABEL STREQUAL "")
+        set(DAFIN_BUILD_LABEL "${_dafin_sha}")
+    else()
+        string(APPEND DAFIN_BUILD_LABEL " (${_dafin_sha})")
+    endif()
+endif()
+set_property(SOURCE src/app/StartupSplash.cpp APPEND PROPERTY COMPILE_DEFINITIONS
+             DAFIN_BUILD_LABEL="${DAFIN_BUILD_LABEL}")
+
 if(DRIFT_PCH)
     foreach(_t driftcore driftengine driftapp drift)
         target_precompile_headers(${_t} PRIVATE

@@ -48,8 +48,51 @@ ApplicationWindow {
     // Left at the expanded-layout floor on purpose. Lowering it is a prerequisite for the
     // single-pane collapse below 600dp, which is not built yet — until it is, a narrower window
     // would only let the desktop arrangement be squashed into a size it cannot lay out in.
-    minimumWidth: Theme.windowMinimumWidth
-    minimumHeight: Theme.windowMinimumHeight
+    minimumWidth: window.startCompact ? 820 : Theme.windowMinimumWidth
+    minimumHeight: window.startCompact ? 560 : Theme.windowMinimumHeight
+
+    // Dafin: the start screen (New project / Open) opens in a compact centred window, like
+    // Filmora's launcher, and the editor gets its own size and maximized state back when a
+    // project opens. The compact size is never saved as the editor's.
+    readonly property bool wantsCompactStart: window.showStartScreen && Qt.platform.os !== "android"
+                                              && Qt.platform.os !== "ios" && Qt.platform.os !== "wasm"
+    property bool startCompact: false
+    onWantsCompactStartChanged: {
+        if (window.visibility === Window.Hidden)
+            return  // showRestored() decides at launch
+        if (window.wantsCompactStart)
+            window.enterCompactStart()
+        else
+            window.leaveCompactStart()
+    }
+    function enterCompactStart() {
+        if (window.startCompact)
+            return
+        window.startCompact = true
+        const w = Math.min(1100, Screen.width - 80)
+        const h = Math.min(700, Screen.height - 80)
+        window.visibility = Window.Windowed
+        window.width = w
+        window.height = h
+        window.x = Screen.virtualX + Math.round((Screen.width - w) / 2)
+        window.y = Screen.virtualY + Math.round((Screen.height - h) / 2)
+    }
+    function leaveCompactStart() {
+        if (!window.startCompact)
+            return
+        window.startCompact = false
+        const g = window.windowedGeometry
+        const stored = g && g.width > 0 && g.height > 0
+        if (stored) {
+            window.x = g.x
+            window.y = g.y
+            window.width = g.width
+            window.height = g.height
+        }
+        // Nothing stored yet (first launch): the editor opens maximized.
+        window.visibility = !stored || LayoutMemory.savedWindowMaximized() ? Window.Maximized : Window.Windowed
+        geometrySettleTimer.restart()
+    }
 
     // Shown from Component.onCompleted, once the stored geometry is in place:
     // assigning it to a window that is already up makes it jump across the screen,
@@ -156,6 +199,9 @@ ApplicationWindow {
         id: geometrySettleTimer
         interval: 250
         onTriggered: {
+            // Dafin: the compact start window is not the editor's size.
+            if (window.startCompact)
+                return
             // Tested by exclusion rather than against Window.Windowed: a window shown
             // via AutomaticVisibility can report that instead of Windowed, and that is
             // an ordinary window — it is only the three modes below that are not.
@@ -214,6 +260,10 @@ ApplicationWindow {
             window.visibility = Window.Maximized
             return
         }
+        if (window.wantsCompactStart) {
+            window.enterCompactStart()
+            return
+        }
         // Assigning visibility shows the window too, so a session that was left
         // maximized never appears at its windowed size on the way there.
         window.visibility = LayoutMemory.savedWindowMaximized()
@@ -246,7 +296,7 @@ ApplicationWindow {
     // a teardown handler, and losing the layout to that is exactly the annoyance this
     // is here to remove.
     function persistWindowState() {
-        if (Qt.platform.os === "android")
+        if (Qt.platform.os === "android" || window.startCompact)
             return
         const maximized = window.restoreModeIsMaximized()
         if (maximized < 0)

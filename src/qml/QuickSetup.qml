@@ -16,8 +16,9 @@ ApplicationWindow {
         { id: "theme", page: themePage },
         { id: "scale", page: scalePage },
         { id: "addons", page: addonsPage },
-        { id: "tips", page: tipsPage },
-        { id: "community", page: communityPage }
+        { id: "tips", page: tipsPage }
+        // Dafin: Drift's "You're all set" page (Drift's contact address and community links)
+        // is left out; the tips page is the last one.
     ].filter(p => !(mobile && p.id === "scale"))
 
     property int step: 0
@@ -52,7 +53,7 @@ ApplicationWindow {
     x: Screen.width / 2 - width / 2
     y: Screen.height / 2 - height / 2
     visible: true
-    title: qsTr("Drift setup")
+    title: qsTr("Dafin setup")
     color: Theme.c.quickSetup.background
 
     Connections {

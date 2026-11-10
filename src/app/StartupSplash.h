@@ -29,6 +29,7 @@ protected:
     void mousePressEvent(QMouseEvent *event) override;
 
 private:
+    static QString versionLine();
     QString m_status;
     double m_progress = 0.0;
     QPixmap m_logo;

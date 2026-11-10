@@ -6,7 +6,7 @@ QuickSetupPage {
     id: root
 
     title: qsTr("Pick a look")
-    subtitle: qsTr("Choose how Drift looks. You can change this any time in Settings.")
+    subtitle: qsTr("Choose how Dafin looks. You can change this any time in Settings.")
     glyph: Theme.icons.sun
     contentMaxWidth: 900
 

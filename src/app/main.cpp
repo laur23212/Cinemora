@@ -93,6 +93,8 @@
 #include <QNetworkAccessManager>
 #include <QNetworkDiskCache>
 #include <QQmlApplicationEngine>
+#include <QQmlComponent>
+#include <QQmlError>
 #include <QQmlContext>
 #include <QQmlNetworkAccessManagerFactory>
 #include <QSettings>
@@ -110,6 +112,7 @@
 #include <condition_variable>
 #include <QElapsedTimer>
 #include <QTimer>
+#include <cstdlib>
 #include <memory>
 #include <mutex>
 #include <thread>
@@ -1026,7 +1029,32 @@ int main(int argc, char *argv[])
     };
     const auto loadShell = [&engine, resolvedShell, windowOf, hookWindow](bool first) {
         engine.setInitialProperties({{QStringLiteral("shellPreference"), resolvedShell}});
+        const qsizetype rootsBefore = engine.rootObjects().size();
         engine.loadFromModule("Drift", "Shell");
+        // Dafin: the shell failed to build. Say why instead of reading past the empty list
+        // (which crashed with nothing in the log): the QML errors, logged and shown.
+        if (engine.rootObjects().size() <= rootsBefore) {
+            QStringList lines;
+            QQmlComponent probe(&engine);
+            probe.loadFromModule("Drift", "Shell");
+            for (const QQmlError &e : probe.errors())
+                lines << e.toString();
+            if (lines.isEmpty() && probe.isReady()) {
+                std::unique_ptr<QObject> made(probe.create());
+                for (const QQmlError &e : probe.errors())
+                    lines << e.toString();
+                if (lines.isEmpty())
+                    lines << QStringLiteral("Shell was created on a second try, but not by the engine's load.");
+            }
+            if (lines.isEmpty())
+                lines << QStringLiteral("No error was reported.");
+            qCritical("Dafin could not build its interface:\n%s", qUtf8Printable(lines.join(QLatin1Char('\n'))));
+            QMessageBox::critical(nullptr, QStringLiteral("Dafin"),
+                                  QStringLiteral("Dafin could not build its interface.\n\n%1")
+                                      .arg(lines.mid(0, 12).join(QLatin1Char('\n'))));
+            QCoreApplication::exit(1);
+            std::exit(1);
+        }
         hookWindow(windowOf(engine.rootObjects().constLast()), first, true);
     };
 
