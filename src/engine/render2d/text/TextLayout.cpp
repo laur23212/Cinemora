@@ -1138,6 +1138,10 @@ WordSplit splitFor(const drift::textanim::ResolvedSlots &resolved, const drift::
         for (const drift::TextAnimator &a : animators) {
             if (!a.enabled)
                 continue;
+            // Tracking on an animator that picks no domain (tracking-drift) is letter spacing: it
+            // needs one piece per character, or it only widens the gaps between words.
+            if (a.selectors.isEmpty() && a.props.tracking.maxAbs() > 0.0)
+                return true;
             for (const drift::TextRangeSelector &s : a.selectors) {
                 if (s.domain == drift::TextSelectorDomain::Chars
                     || s.domain == drift::TextSelectorDomain::CharsExcludingSpaces)

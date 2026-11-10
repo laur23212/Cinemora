@@ -118,8 +118,9 @@ std::shared_ptr<const FragmentSet> fragmentsFor(const QString &text, const TextS
                                                 WordSplit split);
 void clearLayoutCache();
 
-// The split the animators need: characters when any selector works per character (or the line
-// is bent, which places glyphs one at a time), else whole words.
+// The split the animators need: characters when any selector works per character, when an
+// animator without selectors changes the tracking (letter spacing), or when the line is bent
+// (glyphs are placed one at a time); else whole words.
 WordSplit splitFor(const textanim::ResolvedSlots &resolved, const TextStyle &style);
 // The evaluation context for one text window (a clip, or a subtitle cue) at `timelineUs`.
 textanim::EvalContext evalContextFor(const TextStyle &style, const QRectF &layoutRect, double renderScale,

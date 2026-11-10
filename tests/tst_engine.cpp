@@ -411,6 +411,7 @@ private slots:
     void textRasterIsCached();
     void textDecorationsAreNotCropped();
     void goldPopEditorFramesMatchTheContactSheet();
+    void trackingDriftSpacesLettersNotWords();
     void goldPopExportMatchesThePreview();
     void wordAccentRecoloursChosenWords();
     void karaokeAccentFollowsThePlayhead();
@@ -11335,6 +11336,48 @@ std::optional<drift::TextPreset> goldPop()
 
 } // namespace
 #endif
+
+// Dafin: tracking-drift is letter spacing. Its animator picks no selector domain, so the layout
+// used to stay in whole words and the drift only widened the gaps between words: a one-word title
+// did not move at all, and Cinematic Reveal grew 1.7 % instead of ~13 % over its clip.
+void EngineTest::trackingDriftSpacesLettersNotWords()
+{
+    using namespace drift;
+    TextStyle style;
+    style.animation.loop.presetId = QStringLiteral("tracking-drift");
+    QCOMPARE(text::splitFor(resolveTextAnimation(style.animation).resolved, style),
+             text::WordSplit::Characters);
+    // A whole-title fade alone still lays out whole words.
+    TextStyle plain;
+    plain.animation.in.presetId = QStringLiteral("fade");
+    QCOMPARE(text::splitFor(resolveTextAnimation(plain.animation).resolved, plain),
+             text::WordSplit::Whole);
+
+#ifndef DRIFT_WITH_SKIA
+    QSKIP("needs Skia");
+#else
+    // One word widens: measured on frames of a 3 s clip, early and late in the hold.
+    const QSize cell(960, 540);
+    QImage backdrop(cell, QImage::Format_ARGB32_Premultiplied);
+    backdrop.fill(Qt::black);
+    const auto inkWidth = [&](TimeUs t) {
+        const QImage f = skia::renderTemplateFrame(style, QStringLiteral("DRIFT"), 3000000, cell, 30, t, backdrop)
+                             .convertToFormat(QImage::Format_ARGB32_Premultiplied);
+        int x0 = f.width(), x1 = -1;
+        for (int y = 0; y < f.height(); ++y)
+            for (int x = 0; x < f.width(); ++x)
+                if (qGray(f.pixel(x, y)) > 64) {
+                    x0 = std::min(x0, x);
+                    x1 = std::max(x1, x);
+                }
+        return x1 - x0;
+    };
+    const int early = inkWidth(300000), late = inkWidth(2700000);
+    QVERIFY2(early > 0 && late > early * 1.05,
+             qPrintable(QStringLiteral("DRIFT %1 px wide at 0.3 s, %2 px at 2.7 s").arg(early).arg(late)));
+#endif
+}
+
 
 // Dafin: Gold Pop was approved from its contact sheet, which is drawn on the CPU. The editor's
 // preview and the exporter draw through FrameCompositor: the painter rasterised by Skia on the GPU,
