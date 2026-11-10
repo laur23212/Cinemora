@@ -1,0 +1,185 @@
+{
+  "format": 1,
+  "id": "chatgpt.cinematic-reveal",
+  "label": "Cinematic Reveal",
+  "description": "Elegant cinematic typography with a warm ivory-to-gold gradient, restrained golden glow, fast fade-in, slowly expanding letter spacing, and a graceful fade-out.",
+  "category": "cinematic",
+  "tags": ["essentials-vol1"],
+  "kind": "title",
+  "sampleText": "THE NEXT CHAPTER",
+  "requires": {
+    "fonts": ["Cinzel"]
+  },
+  "style": {
+    "fontFamily": "Cinzel",
+    "fontWeight": 600,
+    "pixelSize": 98,
+    "italic": false,
+    "align": "center",
+    "valign": "center",
+    "wordWrap": true,
+    "lineHeight": 1.18,
+    "letterSpacing": 4,
+    "textCase": "upper",
+    "layers": [
+      {
+        "id": "shadow",
+        "kind": "shadow",
+        "paint": {
+          "kind": "solid",
+          "color": "#080B11"
+        },
+        "offsetX": 0,
+        "offsetY": 5,
+        "blur": 13,
+        "opacity": 0.62
+      },
+      {
+        "id": "aura",
+        "kind": "glow",
+        "paint": {
+          "kind": "solid",
+          "color": "#E3B76B"
+        },
+        "offsetX": 0,
+        "offsetY": 0,
+        "blur": 20,
+        "spread": 1,
+        "opacity": 0.28
+      },
+      {
+        "id": "outline",
+        "kind": "stroke",
+        "paint": {
+          "kind": "solid",
+          "color": "#241E1A"
+        },
+        "width": 3.5,
+        "strokeAlign": "outside",
+        "opacity": 0.9
+      },
+      {
+        "id": "fill",
+        "kind": "fill",
+        "paint": {
+          "kind": "gradient",
+          "gradient": {
+            "kind": "linear",
+            "angle": 90,
+            "space": "line",
+            "stops": [
+              {
+                "pos": 0,
+                "color": "#FFF6E3"
+              },
+              {
+                "pos": 1,
+                "color": "#D9B179"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "animation": {
+      "in": {
+        "preset": "fade",
+        "params": {
+          "duration": 0.16,
+          "unit": "block",
+          "stagger": 0,
+          "ease": "easeOut"
+        }
+      },
+      "loop": {
+        "preset": "tracking-drift",
+        "params": {
+          "from": 2,
+          "to": 15,
+          "zoom": 100,
+          "period": 0
+        }
+      },
+      "out": {
+        "preset": "fade",
+        "params": {
+          "duration": 0.28,
+          "unit": "block",
+          "ease": "easeIn"
+        }
+      },
+      "timing": {
+        "fit": true,
+        "maxReadMs": 200
+      }
+    }
+  },
+  "effects": [],
+  "controls": [
+    {
+      "id": "text",
+      "label": "Title text",
+      "type": "text",
+      "bind": "text"
+    },
+    {
+      "id": "size",
+      "label": "Text size",
+      "type": "scalar",
+      "bind": "font.size",
+      "min": 48,
+      "max": 170,
+      "step": 1,
+      "unit": "px"
+    },
+    {
+      "id": "highlight",
+      "label": "Ivory highlight",
+      "type": "color",
+      "bind": "layer.fill.gradient.stop.0.color",
+      "group": "Colours"
+    },
+    {
+      "id": "gold",
+      "label": "Warm gold",
+      "type": "color",
+      "bind": "layer.fill.gradient.stop.1.color",
+      "group": "Colours"
+    },
+    {
+      "id": "glow",
+      "label": "Glow strength",
+      "type": "scalar",
+      "bind": "layer.aura.opacity",
+      "min": 0,
+      "max": 0.65,
+      "step": 0.01,
+      "group": "Appearance",
+      "description": "Adjust the soft golden glow behind the lettering. Keep it restrained for a cinematic look."
+    },
+    {
+      "id": "tracking",
+      "label": "Tracking expansion",
+      "type": "scalar",
+      "bind": "animation.loop.param.to",
+      "min": 3,
+      "max": 18,
+      "step": 1,
+      "unit": "%",
+      "group": "Motion",
+      "description": "Controls how widely the letters spread during the hold. For long titles, use lower values to prevent text from approaching the frame edges."
+    },
+    {
+      "id": "entrance",
+      "label": "Entrance duration",
+      "type": "scalar",
+      "bind": "animation.in.duration",
+      "min": 0,
+      "max": 0.2,
+      "step": 0.01,
+      "unit": "s",
+      "group": "Motion",
+      "description": "Controls the opening fade. The complete title remains readable within 200 ms."
+    }
+  ]
+}
