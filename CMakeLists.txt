@@ -2940,9 +2940,9 @@ target_compile_definitions(drift PRIVATE
     DRIFT_DISTRIBUTION="${DRIFT_DISTRIBUTION}"
 )
 
-# Dafin: which build this is, for the splash screen: the GitHub Actions run number and commit
-# when built there, else the local commit. Only StartupSplash.cpp gets it, so a new number does
-# not rebuild everything else.
+# Dafin: which build this is, for the splash screen and Windows crash reports: the GitHub Actions
+# run number and commit when built there, else the local commit. Only StartupSplash.cpp and
+# CrashReport_win.cpp get it, so a new number does not rebuild everything else.
 set(DAFIN_BUILD_LABEL "")
 if(DEFINED ENV{GITHUB_RUN_NUMBER} AND NOT "$ENV{GITHUB_RUN_NUMBER}" STREQUAL "")
     set(DAFIN_BUILD_LABEL "build $ENV{GITHUB_RUN_NUMBER}")
@@ -2965,8 +2965,8 @@ if(NOT _dafin_sha STREQUAL "")
         string(APPEND DAFIN_BUILD_LABEL " (${_dafin_sha})")
     endif()
 endif()
-set_property(SOURCE src/app/StartupSplash.cpp APPEND PROPERTY COMPILE_DEFINITIONS
-             DAFIN_BUILD_LABEL="${DAFIN_BUILD_LABEL}")
+set_property(SOURCE src/app/StartupSplash.cpp src/app/platform/CrashReport_win.cpp APPEND PROPERTY
+             COMPILE_DEFINITIONS DAFIN_BUILD_LABEL="${DAFIN_BUILD_LABEL}")
 
 if(DRIFT_PCH)
     foreach(_t driftcore driftengine driftapp drift)

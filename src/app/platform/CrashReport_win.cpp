@@ -1,7 +1,8 @@
 // Dafin: on Windows, a crash leaves %LOCALAPPDATA%\Dafin\crash\crash-<time>.txt behind: the
 // exception, where it happened and the call stack, each frame as module + offset. With the
 // dafin.pdb of the same build (the windows-symbols-<arch> artifact) the offsets read back as
-// function, file and line, e.g. llvm-symbolizer --obj=dafin.exe 0x140000000+<offset>.
+// function, file and line: run the Build workflow with platforms=crash-report and the report's
+// text, or llvm-symbolizer --obj=dafin.exe --relative-address <offset> beside the .pdb.
 // The last Qt messages before the crash go to dafin-log.txt beside it, rewritten every start.
 
 #include "app/platform/CrashReport.h"
@@ -20,6 +21,12 @@
 #include <cstring>
 #include <cwchar>
 #include <mutex>
+
+// "build 33 (abc1234)" from CMakeLists.txt, so a report names the dafin.pdb that reads it back
+// (Build workflow, platforms=crash-report).
+#ifndef DAFIN_BUILD_LABEL
+#define DAFIN_BUILD_LABEL ""
+#endif
 
 namespace {
 
@@ -76,7 +83,10 @@ LONG WINAPI onCrash(EXCEPTION_POINTERS *info)
         return EXCEPTION_CONTINUE_SEARCH;
 
     const EXCEPTION_RECORD *record = info->ExceptionRecord;
-    writeLine(file, "Dafin %s crashed", DRIFT_VERSION);
+    if (DAFIN_BUILD_LABEL[0])
+        writeLine(file, "Dafin %s, %s, crashed", DRIFT_VERSION, DAFIN_BUILD_LABEL);
+    else
+        writeLine(file, "Dafin %s crashed", DRIFT_VERSION);
     writeLine(file, "Exception 0x%08lx at 0x%p, thread %lu", record->ExceptionCode, record->ExceptionAddress,
               GetCurrentThreadId());
     if (record->ExceptionCode == EXCEPTION_ACCESS_VIOLATION && record->NumberParameters >= 2) {
