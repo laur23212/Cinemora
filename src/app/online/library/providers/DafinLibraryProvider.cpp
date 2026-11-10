@@ -21,7 +21,7 @@ QUrl DafinLibraryProvider::defaultRemoteIndex()
     const QString custom = QSettings().value(QStringLiteral("AssetProviders/dafinLibraryIndex")).toString();
     if (!custom.isEmpty())
         return QUrl(custom);
-    return QUrl(QStringLiteral("https://raw.githubusercontent.com/laur23212/Cinemora/filmora-edition/asset-library/index.json"));
+    return QUrl(QStringLiteral("https://raw.githubusercontent.com/laur23212/Dafin/dafin-edition/asset-library/index.json"));
 }
 
 ProviderInfo DafinLibraryProvider::info() const
@@ -32,7 +32,7 @@ ProviderInfo DafinLibraryProvider::info() const
     i.kinds = {AssetKind::Sticker, AssetKind::Title};
     i.description = QObject::tr("Animated stickers and title templates that come with Dafin (CC0 and Apache-2.0).");
     i.license = QObject::tr("Per item (CC0 1.0 or Apache-2.0)");
-    i.homepage = QUrl(QStringLiteral("https://github.com/laur23212/Cinemora"));
+    i.homepage = QUrl(QStringLiteral("https://github.com/laur23212/Dafin"));
     i.requiresAccount = false;
     i.responseCacheSeconds = 3600;
     return i;

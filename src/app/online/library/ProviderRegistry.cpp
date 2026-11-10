@@ -113,7 +113,7 @@ void ProviderRegistry::reportAuthFailure(const QString &providerId, const Provid
 QByteArray ProviderRegistry::userAgent() const
 {
     const QString version = QCoreApplication::applicationVersion();
-    return QStringLiteral("Dafin/%1 (+https://github.com/laur23212/Cinemora)")
+    return QStringLiteral("Dafin/%1 (+https://github.com/laur23212/Dafin)")
         .arg(version.isEmpty() ? QStringLiteral("dev") : version).toUtf8();
 }
 
