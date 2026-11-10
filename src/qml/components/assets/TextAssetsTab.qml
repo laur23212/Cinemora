@@ -417,19 +417,20 @@ Item {
     // template's author (ChatGPT, a designer) without retelling it.
     ThemedDialog {
         id: reportDialog
-        property var result: ({})
-        title: result.ok === true ? qsTr("Template installed") : qsTr("This template can't be installed yet")
+        // Not "result": Dialog.result is FINAL in Qt 6.10, and overriding it failed the whole UI.
+        property var checkResult: ({})
+        title: checkResult.ok === true ? qsTr("Template installed") : qsTr("This template can't be installed yet")
         acceptText: qsTr("Copy report")
         rejectText: qsTr("Close")
         preferredWidth: Theme.dialogWidthMd
         acceptOnReturn: false
 
         function openWith(r) {
-            result = r
+            checkResult = r
             open()
         }
 
-        onAccepted: EditorState.copyPlainTextToClipboard(result.report || "")
+        onAccepted: EditorState.copyPlainTextToClipboard(checkResult.report || "")
 
         contentItem: Column {
             width: parent ? parent.width : 420
@@ -437,8 +438,8 @@ Item {
             Text {
                 width: parent.width
                 wrapMode: Text.WordWrap
-                text: reportDialog.result.ok === true
-                      ? qsTr("“%1” is in Installed. Notes from the check:").arg(reportDialog.result.label || "")
+                text: reportDialog.checkResult.ok === true
+                      ? qsTr("“%1” is in Installed. Notes from the check:").arg(reportDialog.checkResult.label || "")
                       : qsTr("Copy the report and send it to whoever made the template, so they can fix it:")
                 color: Theme.panelForeground
                 font.family: Theme.fontFamily
@@ -457,7 +458,7 @@ Item {
                     readOnly: true
                     selectByMouse: true
                     wrapMode: Text.Wrap
-                    text: reportDialog.result.report || ""
+                    text: reportDialog.checkResult.report || ""
                     color: Theme.mutedForeground
                     font.family: Theme.monoFontFamily
                     font.pixelSize: Theme.fontSizeXs
