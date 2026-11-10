@@ -1,0 +1,152 @@
+{
+  "format": 1,
+  "id": "chatgpt.clean-minimal",
+  "label": "Clean Minimal",
+  "description": "Airy, understated white typography with a quick fade and a fine mint underline that draws on during the hold.",
+  "category": "minimal",
+  "tags": ["essentials-vol1"],
+  "kind": "title",
+  "sampleText": "Less is more.",
+  "requires": {
+    "fonts": ["Inter"]
+  },
+  "style": {
+    "fontFamily": "Inter",
+    "fontWeight": 500,
+    "pixelSize": 86,
+    "italic": false,
+    "align": "center",
+    "valign": "center",
+    "wordWrap": true,
+    "lineHeight": 1.18,
+    "letterSpacing": 2,
+    "textCase": "none",
+    "underlineEnabled": true,
+    "underlineColor": "#258F8A",
+    "underlineWidth": 4,
+    "underlineOffset": 11,
+    "underlineReveal": 1,
+    "layers": [
+      {
+        "id": "shadow",
+        "kind": "shadow",
+        "paint": {
+          "kind": "solid",
+          "color": "#000000"
+        },
+        "offsetX": 0,
+        "offsetY": 4,
+        "blur": 10,
+        "opacity": 0.3
+      },
+      {
+        "id": "halo",
+        "kind": "glow",
+        "paint": {
+          "kind": "solid",
+          "color": "#17232C"
+        },
+        "offsetX": 0,
+        "offsetY": 0,
+        "blur": 6,
+        "spread": 1.5,
+        "opacity": 0.7
+      },
+      {
+        "id": "fill",
+        "kind": "fill",
+        "paint": {
+          "kind": "solid",
+          "color": "#FFFFFF"
+        }
+      }
+    ],
+    "animation": {
+      "in": {
+        "preset": "fade",
+        "params": {
+          "duration": 0.16,
+          "unit": "block",
+          "stagger": 0,
+          "ease": "easeOut"
+        }
+      },
+      "out": {
+        "preset": "fade",
+        "params": {
+          "duration": 0.18,
+          "unit": "block",
+          "ease": "easeIn"
+        }
+      },
+      "timing": {
+        "fit": true,
+        "maxReadMs": 200
+      }
+    },
+    "keyframes": {
+      "underlineReveal": {
+        "keyframes": [
+          {
+            "timeUs": 0,
+            "value": 0
+          },
+          {
+            "timeUs": 280000,
+            "value": 1
+          }
+        ]
+      }
+    }
+  },
+  "effects": [],
+  "controls": [
+    {
+      "id": "text",
+      "label": "Title text",
+      "type": "text",
+      "bind": "text"
+    },
+    {
+      "id": "size",
+      "label": "Text size",
+      "type": "scalar",
+      "bind": "font.size",
+      "min": 36,
+      "max": 160,
+      "step": 1,
+      "unit": "px"
+    },
+    {
+      "id": "textcolor",
+      "label": "Text colour",
+      "type": "color",
+      "bind": "layer.fill.color"
+    },
+    {
+      "id": "underline",
+      "label": "Underline",
+      "type": "bool",
+      "bind": "underline.enabled",
+      "group": "Accent"
+    },
+    {
+      "id": "underlinecolor",
+      "label": "Underline colour",
+      "type": "color",
+      "bind": "underline.color",
+      "group": "Accent"
+    },
+    {
+      "id": "entrance",
+      "label": "Entrance duration",
+      "type": "scalar",
+      "bind": "animation.in.duration",
+      "min": 0,
+      "max": 0.2,
+      "step": 0.01,
+      "unit": "s",
+      "group": "Motion"
+    }
+  ]
+}
