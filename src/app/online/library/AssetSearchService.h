@@ -69,6 +69,7 @@ public:
                 WidthRole, HeightRole, ProviderNameRole, DownloadableRole, AuthorRole, LicenseRole };
 
     explicit AssetSearchModel(QObject *parent = nullptr);
+    ~AssetSearchModel() override;
 
     // Set once by the app before QML creates any model.
     static void setService(AssetSearchService *service);

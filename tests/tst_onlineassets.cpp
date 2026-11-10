@@ -104,6 +104,43 @@ private:
     bool m_requires;
 };
 
+// A provider that answers only when the test says so, like one still waiting on the network.
+class SlowProvider : public AssetProvider
+{
+public:
+    explicit SlowProvider(ProviderContext *ctx) : AssetProvider(ctx) {}
+
+    ProviderInfo info() const override
+    {
+        ProviderInfo i;
+        i.id = QStringLiteral("slow");
+        i.name = QStringLiteral("Slow");
+        i.kinds = {AssetKind::Sticker};
+        return i;
+    }
+    RequestHandle search(const SearchRequest &, SearchCallback cb) override
+    {
+        RequestHandle handle;
+        waiting.append({handle.flag(), std::move(cb)});
+        return handle;
+    }
+    void answerAll()
+    {
+        const auto pending = std::exchange(waiting, {});
+        for (const Waiting &w : pending) {
+            if (!*w.cancelled)
+                w.callback({}, ProviderError::none());
+        }
+    }
+
+    struct Waiting
+    {
+        std::shared_ptr<bool> cancelled;
+        SearchCallback callback;
+    };
+    QList<Waiting> waiting;
+};
+
 } // namespace
 
 class TstOnlineAssets : public QObject
@@ -390,6 +427,77 @@ private slots:
         service.search(QStringLiteral("busy"), r, [&](const SearchPage &, const ProviderError &e) { seen = e; });
         QCOMPARE(seen.code, ProviderError::Code::RateLimited);
         QCOMPARE(fp->calls, calls); // not asked again while blocked
+    }
+
+    // A tab's grid (its model) goes away when another tab opens, often while a provider is still
+    // waiting on the network. Its searches are cancelled then, so the late answer is dropped instead
+    // of landing in a deleted model (the Windows crash of 2026-11-10, build 32).
+    void modelCancelsItsSearchesWhenDestroyed()
+    {
+        QTemporaryDir dir;
+        QNetworkAccessManager net;
+        AuthManager auth(SecretStore::createFileStore(dir.path()));
+        ProviderRegistry registry(&net, &auth);
+        auth.setRegistry(&registry);
+        auto p = std::make_unique<SlowProvider>(&registry);
+        SlowProvider *slow = p.get();
+        registry.add(std::move(p));
+        auth.restore();
+        AssetSearchService service(&registry, &auth);
+        AssetSearchModel::setService(&service);
+
+        auto model = std::make_unique<AssetSearchModel>();
+        model->setKinds({QStringLiteral("sticker")});
+        model->refresh();
+        QVERIFY(model->loading());
+        QCOMPARE(slow->waiting.size(), qsizetype(1));
+
+        model.reset();
+        QVERIFY(*slow->waiting.first().cancelled);
+        slow->answerAll(); // what every provider does with a cancelled request: nothing
+        AssetSearchModel::setService(nullptr);
+    }
+
+    // The same with the real Dafin library, whose index comes from the network: the tab closes
+    // before the index arrives.
+    void libraryIndexArrivingAfterTheTabClosed()
+    {
+        QTemporaryDir dir;
+        const QString indexPath = dir.path() + QStringLiteral("/index.json");
+        {
+            QFile f(indexPath);
+            QVERIFY(f.open(QIODevice::WriteOnly));
+            f.write(kDafinIndex);
+        }
+        QNetworkAccessManager net;
+        AuthManager auth(SecretStore::createFileStore(dir.path()));
+        ProviderRegistry registry(&net, &auth);
+        auth.setRegistry(&registry);
+        auto p = std::make_unique<DafinLibraryProvider>(&registry, QUrl::fromLocalFile(indexPath));
+        DafinLibraryProvider *library = p.get();
+        registry.add(std::move(p));
+        auth.restore();
+        AssetSearchService service(&registry, &auth);
+        AssetSearchModel::setService(&service);
+
+        auto model = std::make_unique<AssetSearchModel>();
+        model->setKinds({QStringLiteral("sticker")});
+        model->refresh();
+        QVERIFY(model->loading());
+        model.reset();
+
+        // Once the index is in, the library answers at once; by then the late answer for the
+        // closed tab has been delivered (and dropped).
+        bool answered = false;
+        QTRY_VERIFY_WITH_TIMEOUT(([&] {
+                                     SearchRequest r;
+                                     r.kind = AssetKind::Sticker;
+                                     answered = false;
+                                     library->search(r, [&](const SearchPage &, const ProviderError &) { answered = true; });
+                                     return answered;
+                                 }()),
+                                 5000);
+        AssetSearchModel::setService(nullptr);
     }
 
     // ─── downloads & database ────────────────────────────────────────────────────────────────

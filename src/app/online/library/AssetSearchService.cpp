@@ -119,6 +119,14 @@ AssetSearchModel::AssetSearchModel(QObject *parent)
     }
 }
 
+// A model lives as long as its tab (AssetsPanel loads one for the open tab only), so it often goes
+// while a provider still waits on the network, e.g. the Dafin library on its index. Its requests
+// are cancelled then: an answer that comes later is dropped instead of reaching a deleted model.
+AssetSearchModel::~AssetSearchModel()
+{
+    cancelAll();
+}
+
 int AssetSearchModel::rowCount(const QModelIndex &parent) const
 {
     return parent.isValid() ? 0 : int(m_items.size());
@@ -294,9 +302,12 @@ void AssetSearchModel::startRound()
         r.page = s.nextPage;
         r.pageSize = m_pageSize;
         const QString providerId = s.providerId;
-        m_handles.append(s_service->search(providerId, r, [this, i, generation, providerId](const SearchPage &page,
-                                                                                            const ProviderError &error) {
-            if (generation != m_generation || i >= m_streams.size())
+        // Besides the cancel in ~AssetSearchModel: a provider that answers a cancelled request
+        // anyway still finds the model gone.
+        const QPointer<AssetSearchModel> self(this);
+        m_handles.append(s_service->search(providerId, r, [this, self, i, generation, providerId](
+                                                                  const SearchPage &page, const ProviderError &error) {
+            if (!self || generation != m_generation || i >= m_streams.size())
                 return;
             Stream &st = m_streams[i];
             if (error.ok()) {
