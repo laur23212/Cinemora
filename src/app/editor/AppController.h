@@ -250,6 +250,9 @@ class AppController : public QObject
     Q_PROPERTY(bool autoKeyEnabled READ autoKeyEnabled WRITE setAutoKeyEnabled NOTIFY autoKeyEnabledChanged)
     Q_PROPERTY(bool positionLinked READ positionLinked WRITE setPositionLinked NOTIFY positionLinkedChanged)
     Q_PROPERTY(bool sizeLinked READ sizeLinked WRITE setSizeLinked NOTIFY sizeLinkedChanged)
+    // Dafin: where the preview screenshot button saves. Empty / reset = Pictures/Dafin Screenshots.
+    Q_PROPERTY(QString screenshotFolder READ screenshotFolder WRITE setScreenshotFolder
+                   NOTIFY screenshotFolderChanged)
     Q_PROPERTY(double masterVolume READ masterVolume
                    WRITE setMasterVolume NOTIFY masterVolumeChanged)
     Q_PROPERTY(bool masterMuted READ masterMuted
@@ -468,6 +471,9 @@ public:
     void setPositionLinked(bool linked);
     bool sizeLinked() const { return m_sizeLinked; }
     void setSizeLinked(bool linked);
+    QString screenshotFolder() const;
+    void setScreenshotFolder(const QString &folder);
+    Q_INVOKABLE QString defaultScreenshotFolder() const;
     double masterVolume() const;
     void setMasterVolume(double volume);
     bool masterMuted() const;
@@ -1713,6 +1719,10 @@ public:
     Q_INVOKABLE QString exportPreferredAudioOnlyContainer(const QString &audioCodecId) const;
     Q_INVOKABLE QStringList exportSaveFilters(const QString &container, bool audioOnly = false) const;
     Q_INVOKABLE QString exportDefaultSuffix(const QString &container, bool audioOnly = false) const;
+    // Dafin: saves the picture the preview shows at the playhead as a PNG at the project's full
+    // resolution (not the preview's reduced quality), into Pictures/Dafin Screenshots. Only the
+    // picture: no guides, handles or transport. Reports the file through the toast.
+    Q_INVOKABLE void savePreviewScreenshot();
     Q_INVOKABLE void exportProject(const QUrl &outputUrl);
     Q_INVOKABLE void exportWithPreset(const QUrl &outputUrl, const QString &presetId);
     // `rememberChoice` is what keeps an agent export out of the export dialog's memory: the GUI
@@ -1793,6 +1803,7 @@ signals:
     void positionLinkedChanged();
     void sizeLinkedChanged();
     void masterVolumeChanged();
+    void screenshotFolderChanged();
     void masterMutedChanged();
     // Carries the finished benchmark, merged into whatever the dialog already collected.
     void playbackBenchmarkFinished(const QVariantMap &info);

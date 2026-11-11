@@ -206,6 +206,7 @@ PlaybackEngine::PlaybackEngine(QObject *parent)
     m_hwFallbackCount = ClipReader::hardwareFallbackCount();
 
     QSettings settings;
+    m_pausedUsesOriginal = settings.value(QStringLiteral("preview/pausedUsesOriginal"), true).toBool();
     drift::ReverseProxyCache::previewProxiesEnabled =
         settings.value(QStringLiteral("preview/useProxies"), true).toBool();
     if (const int size = settings.value(QStringLiteral("preview/proxySize")).toInt();
@@ -454,6 +455,16 @@ QImage PlaybackEngine::previewImage() const
 QString PlaybackEngine::previewQuality() const
 {
     return m_previewQuality;
+}
+
+void PlaybackEngine::setPausedUsesOriginal(bool original)
+{
+    if (m_pausedUsesOriginal == original)
+        return;
+    m_pausedUsesOriginal = original;
+    QSettings().setValue(QStringLiteral("preview/pausedUsesOriginal"), original);
+    emit pausedUsesOriginalChanged();
+    refreshFrame();
 }
 
 void PlaybackEngine::setPreviewQuality(const QString &quality)
@@ -1061,7 +1072,7 @@ FrameCompositor::RenderOptions PlaybackEngine::playbackRenderOptions(PreviewStre
     if (!m_playing)
         options.textEdit = m_textEditDecor;
 
-    options.allowProxies = true;
+    options.allowProxies = m_playing || !m_pausedUsesOriginal;
     options.deferAudioAnalysis = true;
     options.editor = streamState.editorView;
     options.maskView = m_maskView;

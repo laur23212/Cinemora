@@ -40,6 +40,8 @@
 #include <QSettings>
 #include <QStandardPaths>
 #include <QDir>
+#include <QDateTime>
+#include <QRegularExpression>
 using namespace drift::appdetail;
 using drift::mcpdetail::findClipById;
 using drift::mcpdetail::runBeatAnalysis;
@@ -499,6 +501,82 @@ void AppController::cancelExport()
 {
     if (m_exportInProgress)
         m_exportCancel.storeRelaxed(1);
+}
+
+QString AppController::defaultScreenshotFolder() const
+{
+    QString dir = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation);
+    if (dir.isEmpty())
+        dir = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
+    return QDir(dir).filePath(QStringLiteral("Dafin Screenshots"));
+}
+
+QString AppController::screenshotFolder() const
+{
+    const QString saved = QSettings().value(QStringLiteral("preview/screenshotFolder")).toString().trimmed();
+    return saved.isEmpty() ? defaultScreenshotFolder() : QDir::fromNativeSeparators(saved);
+}
+
+void AppController::setScreenshotFolder(const QString &folder)
+{
+    QString clean = QDir::fromNativeSeparators(folder.trimmed());
+    // A file:// URL from the folder picker, or the default again, both mean a plain path / reset.
+    if (clean.startsWith(QStringLiteral("file:")))
+        clean = QUrl(clean).toLocalFile();
+    if (clean == defaultScreenshotFolder())
+        clean.clear();
+    QSettings settings;
+    if (settings.value(QStringLiteral("preview/screenshotFolder")).toString() == clean)
+        return;
+    if (clean.isEmpty())
+        settings.remove(QStringLiteral("preview/screenshotFolder"));
+    else
+        settings.setValue(QStringLiteral("preview/screenshotFolder"), clean);
+    emit screenshotFolderChanged();
+}
+
+void AppController::savePreviewScreenshot()
+{
+    if (m_project.width() <= 0 || m_project.height() <= 0) {
+        setLastMessage(tr("Nothing to capture yet."), QStringLiteral("warning"));
+        return;
+    }
+    const drift::Project snapshot = m_project;
+    const drift::TimeUs at = m_playheadUs;
+    const QString dir = screenshotFolder();
+    QString base = snapshot.name().trimmed();
+    base.replace(QRegularExpression(QStringLiteral("[\\\\/:*?\"<>|]")), QStringLiteral("_"));
+    if (base.isEmpty())
+        base = QStringLiteral("Dafin");
+    const QString file = QStringLiteral("%1 %2.png")
+                             .arg(base, QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd HH.mm.ss.zzz")));
+    const QString path = QDir(dir).filePath(file);
+    QPointer<AppController> self(this);
+    // Off the GUI thread: compositing a 4K frame takes a moment and must not stall playback.
+    (void)QtConcurrent::run([self, snapshot, at, dir, path]() {
+        FrameCompositor compositor;
+        compositor.setProject(&snapshot);
+        // Default options: scale 1 = the project's own pixels, and no proxies, so the picture is
+        // what an export of this frame would contain.
+        const QImage frame = compositor.compositeAt(at);
+        QString message;
+        QString severity = QStringLiteral("info");
+        if (frame.isNull()) {
+            message = QCoreApplication::translate("AppController", "Could not capture the preview.");
+            severity = QStringLiteral("error");
+        } else if (!QDir().mkpath(dir) || !frame.save(path, "PNG")) {
+            message = QCoreApplication::translate("AppController", "Could not save the screenshot to %1.").arg(dir);
+            severity = QStringLiteral("error");
+        } else {
+            message = QCoreApplication::translate("AppController", "Screenshot saved: %1 (%2×%3)")
+                          .arg(QDir::toNativeSeparators(path)).arg(frame.width()).arg(frame.height());
+        }
+        if (self)
+            QMetaObject::invokeMethod(self.data(), [self, message, severity]() {
+                if (self)
+                    self->setLastMessage(message, severity);
+            }, Qt::QueuedConnection);
+    });
 }
 
 void AppController::exportProject(const QUrl &outputUrl)

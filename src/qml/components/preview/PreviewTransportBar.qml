@@ -12,6 +12,8 @@ Item {
     property real currentSeconds: 0
     property real durationSeconds: 0
     property bool fullscreen: false
+    // The PreviewPanel, for the gear menu (zoom, safe zones, ruler, size dialog).
+    property var panel: null
     // Formats seconds as the panel's timecode.
     property var formatTimecode: function (seconds) { return "" }
     signal fullscreenRequested()
@@ -43,7 +45,7 @@ Item {
             "start": ["timecode"],
             "transport": ["goToStart", "rewind", "stepBack", "play", "stepForward", "loop",
                           "fastForward", "goToEnd"],
-            "end": ["fullscreen"]
+            "end": ["gear", "screenshot", "volume", "fullscreen"]
         })
         stored: EditorState.preferences.barLayouts["transport"]
         layer: reorderLayer
@@ -60,6 +62,9 @@ Item {
         "loop": loopComponent,
         "fastForward": fastForwardComponent,
         "goToEnd": goToEndComponent,
+        "gear": gearComponent,
+        "screenshot": screenshotComponent,
+        "volume": volumeComponent,
         "fullscreen": fullscreenComponent
     })
 
@@ -100,6 +105,9 @@ Item {
             shortcutTip: bar.withShortcut(qsTr("Go to end"), "goToEnd")
         }
     }
+    Component { id: volumeComponent; PreviewTransportVolumeButton { } }
+    Component { id: screenshotComponent; PreviewTransportScreenshotButton { } }
+    Component { id: gearComponent; PreviewTransportGearButton { panel: bar.panel } }
     Component {
         id: fullscreenComponent
         PreviewTransportFullscreenButton {

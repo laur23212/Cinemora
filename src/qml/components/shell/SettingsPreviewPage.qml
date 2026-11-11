@@ -348,4 +348,37 @@ SettingsPage {
             }
         }
     }
+
+    SettingsGroupHeader {
+        text: qsTr("Screenshots")
+        query: page.query
+    }
+
+    SettingsRow {
+        title: qsTr("Screenshot folder")
+        searchId: "preview-screenshot-folder"
+        description: qsTr("Where the camera button under the preview saves its pictures. %1").arg(EditorState.screenshotFolder)
+        keywords: "screenshot picture capture image save location directory"
+        stacked: true
+        query: page.query
+
+        Row {
+            spacing: Theme.spacingSm
+
+            ThemedButton {
+                variant: "secondary"
+                text: qsTr("Change folder…")
+                onClicked: Qt.callLater(() => {
+                    const url = FileDialogs.openDirectory(qsTr("Screenshot folder"))
+                    if (url && url.toString() !== "")
+                        EditorState.screenshotFolder = url.toString()
+                })
+            }
+            ThemedButton {
+                variant: "ghost"
+                text: qsTr("Use default")
+                onClicked: EditorState.screenshotFolder = EditorState.defaultScreenshotFolder()
+            }
+        }
+    }
 }

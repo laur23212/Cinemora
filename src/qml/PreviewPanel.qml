@@ -8,6 +8,26 @@ PanelFrame {
     // The crop overlay's gesture hint, dismissed once per session rather than per crop.
     property bool cropHintDismissed: false
 
+    // Dafin: the gear menu's view aids, drawn over the picture, and the viewport its zoom acts on.
+    property bool showSafeZones: false
+    property bool showRuler: false
+    readonly property var viewportItem: panelViewport
+    function openVideoSizeDialog() { videoSizeLoader.ensure().openDialog() }
+
+    LazyLoader {
+        id: videoSizeLoader
+        sourceComponent: Component { VideoSizeDialog { } }
+    }
+
+    Shortcut {
+        sequence: "Ctrl+P"
+        onActivated: root.showRuler = !root.showRuler
+    }
+    Shortcut {
+        sequence: "Ctrl+;"
+        onActivated: EditorState.preview.guidesEnabled = !EditorState.preview.guidesEnabled
+    }
+
     HoverHandler {
         onHoveredChanged: ShellBridge.previewHovered = hovered
     }
@@ -44,13 +64,44 @@ PanelFrame {
     border.width: previewFullscreen ? Theme.c.previewPanel.borderWidthFullscreen : Theme.c.previewPanel.borderWidth
     radius: previewFullscreen ? Theme.c.previewPanel.radiusFullscreen : Theme.c.previewPanel.radius
 
+    // Dafin: the quality dropdown above the picture, as in Filmora. Lower qualities render fewer
+    // pixels to spare the processor and graphics card; the export is never affected.
     Item {
-        id: viewportOuter
+        id: qualityBar
         anchors.top: parent.top
         anchors.topMargin: root.border.width
         anchors.horizontalCenter: parent.horizontalCenter
         width: parent.width - root.border.width * 2
-        height: (root.previewFullscreen ? parent.height : parent.height - bottomBar.height) - root.border.width * 2
+        height: root.previewFullscreen ? 0 : Theme.controlHeight + Theme.spacingMd * 2
+        visible: !root.previewFullscreen
+
+        ThemedComboBox {
+            id: qualityCombo
+            anchors.right: parent.right
+            anchors.rightMargin: Theme.spacing2xl + Theme.spacingSm
+            anchors.verticalCenter: parent.verticalCenter
+            implicitHeight: Theme.controlHeightSm
+            leftPadding: Theme.spacingMd
+            rightPadding: Theme.spacing2xl
+            font.pixelSize: Theme.fontSizeXs
+            readonly property var values: ["full", "half", "quarter", "eighth", "auto"]
+            model: [qsTr("Full Quality"), qsTr("1/2 Quality"), qsTr("1/4 Quality"),
+                    qsTr("1/8 Quality (Eco)"), qsTr("Auto Quality")]
+            width: Math.max(implicitWidth, widestContentWidth + leftPadding + rightPadding)
+            tooltip: qsTr("Preview quality. Lower is smoother and spares the processor and graphics "
+                          + "card while editing; the export is never affected.")
+            currentIndex: Math.max(0, values.indexOf(EditorState.playback.previewQuality))
+            onActivated: EditorState.playback.previewQuality = values[currentIndex]
+        }
+    }
+
+    Item {
+        id: viewportOuter
+        anchors.top: qualityBar.bottom
+        anchors.horizontalCenter: parent.horizontalCenter
+        width: parent.width - root.border.width * 2
+        height: (root.previewFullscreen ? parent.height : parent.height - bottomBar.height - qualityBar.height)
+                - root.border.width * 2
         clip: true
 
         PreviewViewport {
@@ -72,6 +123,22 @@ PanelFrame {
                 tracker: trackerTool
             })
             toolHost.companion: transformCompanion
+
+            // Dafin view aids, parented to the canvas so they follow zoom and pan with the picture.
+            Loader {
+                active: root.showSafeZones
+                parent: panelViewport.canvas
+                anchors.fill: parent
+                z: 5
+                sourceComponent: PreviewSafeZonesOverlay { }
+            }
+            Loader {
+                active: root.showRuler
+                parent: panelViewport.canvas
+                anchors.fill: parent
+                z: 6
+                sourceComponent: PreviewRulerOverlay { }
+            }
 
             // Under the canvas, as navigation always was: it only takes the buttons and wheel
             // events the tools leave alone.
@@ -197,6 +264,7 @@ PanelFrame {
             currentSeconds: root.currentSeconds
             durationSeconds: root.durationSeconds
             fullscreen: root.previewFullscreen
+            panel: root
             formatTimecode: root.formatTimecode
             onFullscreenRequested: root.fullscreenRequested()
         }

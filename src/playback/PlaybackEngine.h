@@ -45,6 +45,10 @@ class PlaybackEngine : public QObject
     Q_PROPERTY(QString decodeMode READ decodeMode WRITE setDecodeMode NOTIFY decodeModeChanged)
     Q_PROPERTY(QVariantList decodeModes READ decodeModes NOTIFY decodeModesChanged)
     Q_PROPERTY(bool useProxies READ useProxies WRITE setUseProxies NOTIFY useProxiesChanged)
+    // Dafin: while paused, draw from the original media instead of the preview proxies (on by
+    // default, like Filmora's "Use Original Media When Paused"). Playback is unaffected.
+    Q_PROPERTY(bool pausedUsesOriginal READ pausedUsesOriginal WRITE setPausedUsesOriginal
+                   NOTIFY pausedUsesOriginalChanged)
     Q_PROPERTY(int proxySize READ proxySize WRITE setProxySize NOTIFY proxySizeChanged)
     // Live playback counters for the diagnostics report and the preview overlay. Constant
     // because the block itself is owned here for the engine's lifetime; its contents change.
@@ -132,6 +136,8 @@ public:
     // Preview proxies (ReverseProxyCache preview entries). proxySize is the proxy's short side:
     // 360, 540, 720 or 1080. Proxies built at another size stop matching until rebuilt.
     bool useProxies() const;
+    bool pausedUsesOriginal() const { return m_pausedUsesOriginal; }
+    void setPausedUsesOriginal(bool original);
     void setUseProxies(bool use);
     int proxySize() const;
     void setProxySize(int shortSide);
@@ -218,6 +224,7 @@ signals:
     void decodeModeChanged();
     void decodeModesChanged();
     void useProxiesChanged();
+    void pausedUsesOriginalChanged();
     void proxySizeChanged();
     void playheadUsChanged(quint64 us);
 
@@ -292,6 +299,7 @@ private:
     // found the setting, so a machine that could not keep up simply stuttered instead of
     // degrading. A saved preference still wins; only fresh installs move.
     QString m_previewQuality = QStringLiteral("auto");
+    bool m_pausedUsesOriginal = true;
     QString m_decodeMode = QStringLiteral("auto");
     // Baseline for ClipReader's process-wide fallback counter, so the notice fires on
     // a new fallback rather than on every frame after the first one.

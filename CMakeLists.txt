@@ -2325,6 +2325,11 @@ qt_add_qml_module(drift
         src/qml/components/preview/transport/PreviewTransportPlayButton.qml
         src/qml/components/preview/transport/PreviewTransportLoopButton.qml
         src/qml/components/preview/transport/PreviewTransportFullscreenButton.qml
+        src/qml/components/preview/transport/PreviewTransportVolumeButton.qml
+        src/qml/components/preview/transport/PreviewTransportScreenshotButton.qml
+        src/qml/components/preview/transport/PreviewTransportGearButton.qml
+        src/qml/components/preview/PreviewSafeZonesOverlay.qml
+        src/qml/components/preview/PreviewRulerOverlay.qml
         src/qml/components/preview/transport/PreviewTransportFastForwardButton.qml
         src/qml/components/preview/transport/PreviewTransportGoToStartButton.qml
         src/qml/components/preview/transport/PreviewTransportGoToEndButton.qml
