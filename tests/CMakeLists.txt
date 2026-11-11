@@ -307,6 +307,7 @@ qt_add_executable(tst_mcp
     ../src/app/editor/ProjectFileController.cpp
     ../src/app/platform/DiagnosticsLog.cpp
     ../src/app/editor/ProjectSafety.cpp
+    ../src/app/editor/ProjectScanner.cpp
     ../src/app/bin/AssetPreviewController.cpp
     ../src/app/editor/sessions/SpeedCurveController.cpp
     ../src/app/editor/sessions/CurveEditorController.cpp
