@@ -17,9 +17,16 @@ class AppController;
 class StabilizeController : public QObject
 {
     Q_OBJECT
+    // False when the FFmpeg this build runs on lacks libvidstab (the vidstabdetect and
+    // vidstabtransform filters); the inspector then disables Stabilize and says why.
+    Q_PROPERTY(bool available READ available CONSTANT)
+    Q_PROPERTY(QString unavailableReason READ unavailableReason CONSTANT)
 
 public:
     explicit StabilizeController(AppController *app, QObject *parent = nullptr);
+
+    static bool available();
+    QString unavailableReason() const; // empty when available
 
     Q_INVOKABLE void run(int trackIndex, int clipIndex);
     Q_INVOKABLE void cancel(int trackIndex, int clipIndex);

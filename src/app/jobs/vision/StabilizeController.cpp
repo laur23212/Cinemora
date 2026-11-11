@@ -51,6 +51,17 @@ std::optional<StabilizeOrigin> stabilizeOrigin(const drift::Project &project, co
 
 } // namespace
 
+bool StabilizeController::available()
+{
+    static const bool ok = drift::hasVideoFilter("vidstabdetect") && drift::hasVideoFilter("vidstabtransform");
+    return ok;
+}
+
+QString StabilizeController::unavailableReason() const
+{
+    return available() ? QString() : tr("This build of Drift has no video stabilization support");
+}
+
 QString StabilizeController::detectFilter()
 {
     return QStringLiteral("vidstabdetect=shakiness=5:accuracy=15");
@@ -210,9 +221,8 @@ void StabilizeController::run(int trackIndex, int clipIndex)
 
     m_app->setPlaying(false);
 
-    if (!drift::hasVideoFilter("vidstabdetect") || !drift::hasVideoFilter("vidstabtransform")) {
-        m_app->setLastMessage(tr("This build of Drift has no video stabilization support"),
-                       QStringLiteral("error"));
+    if (!available()) {
+        m_app->setLastMessage(unavailableReason(), QStringLiteral("error"));
         return;
     }
 

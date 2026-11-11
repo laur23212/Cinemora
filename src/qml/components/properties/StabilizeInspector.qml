@@ -171,6 +171,16 @@ Item {
             }
         }
 
+        Text {
+            width: parent.width
+            wrapMode: Text.WordWrap
+            visible: !EditorState.stabilize.available
+            text: EditorState.stabilize.unavailableReason
+            color: Theme.c.stabilizeInspector.warning
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSizeXs
+        }
+
         Row {
             width: parent.width
             spacing: Theme.spacingSm
@@ -203,6 +213,7 @@ Item {
 
             ThemedButton {
                 text: root.actionLabel
+                enabled: EditorState.stabilize.available
                 variant: (root.stabilized && !root.stale) ? "secondary" : "primary"
                 onClicked: EditorState.stabilize.run(
                                EditorState.selectedTrack, EditorState.selectedClip)
