@@ -368,6 +368,34 @@ void AppController::toggleKeyframeAtPlayhead()
         addTransformKeyframes(trackIndex, clipIndex, at);
 }
 
+void AppController::splitAtPlayheadKnob()
+{
+    const drift::TimeUs now = m_playheadUs;
+    QSet<QString> selectedHere;
+    for (const QPair<int, int> &ref : std::as_const(m_selection)) {
+        if (!isValidClipIndex(ref.first, ref.second))
+            continue;
+        const drift::Clip &clip = m_project.tracks().at(ref.first).clips.at(ref.second);
+        if (clip.containsTime(now) && now != clip.timelineStart)
+            selectedHere.insert(clip.id);
+    }
+    const QStringList tails = splitAtPlayheadOnly(selectedHere);
+    if (tails.isEmpty())
+        return;
+
+    // The right-hand pieces become the selection (with their linked partners).
+    QVariantList pairs;
+    const QList<drift::Track> &tracks = m_project.tracks();
+    for (int t = 0; t < tracks.size(); ++t) {
+        for (int c = 0; c < tracks.at(t).clips.size(); ++c) {
+            if (tails.contains(tracks.at(t).clips.at(c).id))
+                pairs.append(QVariantMap{{QStringLiteral("track"), t}, {QStringLiteral("clip"), c}});
+        }
+    }
+    if (!pairs.isEmpty())
+        setSelection(pairs);
+}
+
 void AppController::addTemplateTitle(const QString &text, const QString &presetId, double durationSeconds,
                                      const QString &name)
 {

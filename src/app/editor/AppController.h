@@ -893,6 +893,7 @@ public:
     Q_INVOKABLE void splitSelectedClipLeft();
     Q_INVOKABLE void splitSelectedClipRight();
     Q_INVOKABLE void splitAtPlayhead();
+    QStringList splitAtPlayheadOnly(const QSet<QString> &onlyClipIds);
     Q_INVOKABLE void splitClipAt(int trackIndex, int clipIndex, double seconds);
     Q_INVOKABLE void splitClipLeftAt(int trackIndex, int clipIndex, double seconds);
     Q_INVOKABLE void splitClipRightAt(int trackIndex, int clipIndex, double seconds);
@@ -1317,6 +1318,10 @@ public:
     // playhead on the selected clip (or the topmost clip under the playhead), or removes the
     // keyframe there when the playhead already sits on one.
     Q_INVOKABLE void toggleKeyframeAtPlayhead();
+    // Dafin: the scissors on the playhead. Cuts the selected clips the playhead crosses, or
+    // every clip under it when none of the selection is there, and selects the right-hand
+    // pieces, so moving on and clicking again keeps cutting the same clip (Filmora's way).
+    Q_INVOKABLE void splitAtPlayheadKnob();
     Q_INVOKABLE bool addTransformKeyframes(int trackIndex, int clipIndex, double atSeconds);
     // Seconds from the clip's start of each keyframe the timeline draws on it. Volume keys are
     // left out: the volume line shows those.

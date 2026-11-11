@@ -522,6 +522,7 @@ PanelFrame {
                             onAnimCategoryChanged: inspectorUi.animCategory = animCategory
                             onExpandedLayerIdsChanged: inspectorUi.textExpandedLayerIds = expandedLayerIds
                             onContentFieldHeightChanged: inspectorUi.contentFieldHeight = contentFieldHeight
+                            onAdvancedRequested: (track, clip) => advancedTextDialog.openFor(track, clip)
                         }
                     }
                 }
@@ -673,6 +674,11 @@ PanelFrame {
                 }
             }
         }
+    }
+
+    // Dafin: Filmora's Advanced Text Edit, opened from the Text tab.
+    AdvancedTextEditDialog {
+        id: advancedTextDialog
     }
 
     NameDialog {

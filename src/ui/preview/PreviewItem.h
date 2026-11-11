@@ -5,6 +5,9 @@
 #include <QQuickItem>
 #include <QQuickWindow>
 #include <QSize>
+#include <QVector>
+
+#include <memory>
 
 class PlaybackEngine;
 
@@ -24,6 +27,9 @@ class PreviewItem : public QQuickItem
     // PreviewStream: 0 is the scene camera's picture, 1 the editor's free viewpoint. Only a
     // Camera item paces the engine to the display.
     Q_PROPERTY(int stream READ stream WRITE setStream NOTIFY streamChanged)
+    // Dafin: false for a second picture of the same stream (the Advanced Text Edit window), so
+    // only one item paces the engine to the display; two would count every refresh twice.
+    Q_PROPERTY(bool pacesDisplay READ pacesDisplay WRITE setPacesDisplay NOTIFY pacesDisplayChanged)
     Q_PROPERTY(int textureId READ textureId WRITE setTextureId NOTIFY frameChanged)
     Q_PROPERTY(QSize textureSize READ textureSize WRITE setTextureSize NOTIFY frameChanged)
     Q_PROPERTY(QImage image READ image WRITE setImage NOTIFY frameChanged)
@@ -38,6 +44,9 @@ public:
     int stream() const { return m_stream; }
     void setStream(int stream);
 
+    bool pacesDisplay() const { return m_pacesDisplay; }
+    void setPacesDisplay(bool paces);
+
     int textureId() const { return m_textureId; }
     void setTextureId(int id);
 
@@ -51,6 +60,7 @@ signals:
     void frameChanged();
     void playbackChanged();
     void streamChanged();
+    void pacesDisplayChanged();
 
 protected:
     QSGNode *updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *data) override;
@@ -64,6 +74,20 @@ private:
     void bindDisplayCadence();
     void reportRefreshRate();
 
+    // Dafin: the texture this item holds a claim on (PresentClaims.h) — the frame it pulled
+    // last — and whether a sync has bound it, i.e. whether the render thread may be drawing it.
+    // A claim superseded before any sync bound it is dropped at once; one that was drawn is
+    // handed to the render thread at the next sync and dropped after that frame's swap, with a
+    // fence, so the compositor never redraws a texture the GPU is still sampling.
+    void bindSwapRelease();
+    void releaseAllClaims();
+    struct SwapRelease;
+    std::shared_ptr<SwapRelease> m_swapRelease;
+    QMetaObject::Connection m_swapReleaseConn;
+    unsigned m_claimed = 0;
+    bool m_claimSynced = false;
+    QVector<unsigned> m_pendingRelease;
+
     QPointer<PlaybackEngine> m_playback;
     // Held so the connections can be dropped when the item moves to another window; the
     // window itself may be gone by then, so the QMetaObject::Connection is what we keep
@@ -74,6 +98,7 @@ private:
     QMetaObject::Connection m_refreshRateConn;
     QPointer<QQuickWindow> m_cadenceWindow;
     int m_stream = 0;
+    bool m_pacesDisplay = true;
     int m_textureId = 0;
     QSize m_textureSize;
     QImage m_image;

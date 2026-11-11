@@ -1,4 +1,5 @@
 #include "engine/gpu/GlRuntime.h"
+#include "engine/gpu/PresentClaims.h"
 #include "engine/EngineTuning.h"
 #include "engine/gpu/effects/LookupTextures.h"
 #include "engine/color/CubeLut.h"
@@ -31,6 +32,7 @@
 #include <QScopeGuard>
 #include <QSettings>
 #include <QSurfaceFormat>
+#include <QThread>
 #include <QVector2D>
 #include <QVector3D>
 
@@ -1415,6 +1417,7 @@ void GlRuntime::shutdown()
             }
 #endif
             if (auto *gl = context->extraFunctions()) {
+                drift::gl::present::clearFences();
                 for (int i = 0; i < kPresentStreams * kPresentRingSize; ++i) {
                     if (m_presentFence[i]) {
                         gl->glDeleteSync(m_presentFence[i]);
@@ -1950,6 +1953,7 @@ bool GlRuntime::waitPresentFence(int slotIndex, GLuint64 timeoutNs)
     // Anything else consumed the fence, including GL_WAIT_FAILED. Report the slot as
     // reusable: the sync object is gone either way, so refusing it would take the slot
     // out of the ring for good and a broken driver would stall the preview permanently.
+    drift::gl::present::clearProducerFence(m_presentRing[slotIndex].texture());
     gl->glDeleteSync(fence);
     fence = nullptr;
     return true;
@@ -1959,6 +1963,14 @@ GlTarget &GlRuntime::preparePresentSlot(int slotIndex, int width, int height)
 {
     GlTarget &slot = m_presentRing[slotIndex];
     const int stream = slotIndex / kPresentRingSize;
+    // The render thread may have sampled this texture in commands the GPU has not run yet; its
+    // fences make this context wait for them (on the GPU, not here) before the clear below.
+    if (auto *gl = functions()) {
+        for (void *f : drift::gl::present::takeConsumerFences(slot.texture())) {
+            gl->glWaitSync(static_cast<GLsync>(f), 0, GL_TIMEOUT_IGNORED);
+            gl->glDeleteSync(static_cast<GLsync>(f));
+        }
+    }
     m_presentNext[stream] = (slotIndex % kPresentRingSize + 1) % kPresentRingSize;
     if (!slot.isValid() || slot.width != width || slot.height != height) {
         QOpenGLFramebufferObjectFormat fmt;
@@ -2985,20 +2997,37 @@ GlTarget &GlRuntime::acquirePresentTarget(int stream, int width, int height)
     const int w = qMax(1, width);
     const int h = qMax(1, height);
 
-    // Never redraw the slot the scene graph is still sampling. Poll first so a
-    // ready slot is not blocked behind a slow one; if every candidate is busy,
-    // wait a full second (the export path's budget) rather than the old 100 ms
-    // that HD 2500-class GPUs miss. A timeout leaves the last good frame up.
+    // Never redraw the slot the scene graph is still sampling: neither the newest published one
+    // nor any a holder has claimed (the frame the engine keeps, the one a preview is drawing or
+    // has just swapped away from — PresentClaims.h). Poll first so a ready slot is not blocked
+    // behind a slow one; if every candidate is busy, wait a full second (the export path's
+    // budget) rather than the old 100 ms that HD 2500-class GPUs miss. A timeout leaves the
+    // last good frame up.
+    const auto busy = [&](int slotIndex) {
+        return slotIndex == base + m_presentDisplayed[stream]
+            || drift::gl::present::isClaimed(m_presentRing[slotIndex].texture());
+    };
     for (int i = 0; i < kPresentRingSize; ++i) {
         const int slotIndex = base + (m_presentNext[stream] + i) % kPresentRingSize;
-        if (slotIndex == base + m_presentDisplayed[stream])
+        if (busy(slotIndex))
             continue;
         if (waitPresentFence(slotIndex, 0))
             return preparePresentSlot(slotIndex, w, h);
     }
+    // Every free slot is claimed: a claim ends at the preview's next buffer swap, so a frame
+    // or two of waiting frees one. Skipping the composite instead would leave the picture a
+    // step behind an edit that nothing redraws afterwards.
+    for (int attempt = 0; attempt < 100; ++attempt) {
+        QThread::msleep(1);
+        for (int i = 0; i < kPresentRingSize; ++i) {
+            const int slotIndex = base + (m_presentNext[stream] + i) % kPresentRingSize;
+            if (!busy(slotIndex) && waitPresentFence(slotIndex, 0))
+                return preparePresentSlot(slotIndex, w, h);
+        }
+    }
     for (int i = 0; i < kPresentRingSize; ++i) {
         const int slotIndex = base + (m_presentNext[stream] + i) % kPresentRingSize;
-        if (slotIndex == base + m_presentDisplayed[stream])
+        if (busy(slotIndex))
             continue;
         if (waitPresentFence(slotIndex, GLuint64(1'000'000'000)))
             return preparePresentSlot(slotIndex, w, h);
@@ -3025,19 +3054,31 @@ void GlRuntime::markPresentReady(GlTarget &presentTarget)
     // Publish without a client wait: Qt Quick draws on the next vsync. The ring
     // waits this fence in acquirePresentTarget before reuse of the same slot.
     if (m_presentFence[slotIndex]) {
+        drift::gl::present::clearProducerFence(presentTarget.texture());
         gl->glDeleteSync(m_presentFence[slotIndex]);
         m_presentFence[slotIndex] = nullptr;
     }
     gl->glFlush();
     m_presentFence[slotIndex] = gl->glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+    // The render thread waits on this (on the GPU) before it samples the frame: flushed is not
+    // finished, and another context may otherwise read a half-drawn or still-cleared texture.
+    drift::gl::present::setProducerFence(presentTarget.texture(), m_presentFence[slotIndex]);
     const int stream = slotIndex / kPresentRingSize;
     m_presentDisplayed[stream] = slotIndex % kPresentRingSize;
 
     ++m_presentPublished[stream];
     // Every slot has been published at least once since these left the ring, so no scene-graph
     // node can still name their textures.
-    std::erase_if(m_retiredPresent, [this](const RetiredPresent &entry) {
-        return m_presentPublished[entry.stream] - entry.publishedAt >= quint64(kPresentRingSize);
+    std::erase_if(m_retiredPresent, [this, gl](const RetiredPresent &entry) {
+        const GLuint texture = entry.fbo ? entry.fbo->texture() : 0;
+        if (m_presentPublished[entry.stream] - entry.publishedAt < quint64(kPresentRingSize)
+            || drift::gl::present::isClaimed(texture))
+            return false;
+        for (void *f : drift::gl::present::takeConsumerFences(texture)) {
+            gl->glWaitSync(static_cast<GLsync>(f), 0, GL_TIMEOUT_IGNORED);
+            gl->glDeleteSync(static_cast<GLsync>(f));
+        }
+        return true;
     });
 }
 

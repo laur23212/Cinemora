@@ -135,6 +135,7 @@ class EditorStateTest : public QObject
 
 private slots:
     void snapTimeEnabled();
+    void scissorsKnobCutsTheSelectedClipAndKeepsTheRightPiece();
     void compositeFromSelectionUndoRedo();
     void compositeClipGetsAPreviewBox();
     void cameraMovesThePreviewOverlayWithThePicture();
@@ -8366,6 +8367,56 @@ void EditorStateTest::trimClipRightRejectsANoOpMove()
 
     QCOMPARE(spy.count(), 0);
     QCOMPARE(drift::usToSeconds(state.project()->tracks()[0].clips[0].timelineDuration), 10.0);
+}
+
+// Dafin: the scissors on the playhead. With a clip selected under the playhead only that clip is
+// cut, and its right-hand piece is selected, so moving on and clicking again keeps cutting it.
+// With nothing selected there, every clip under the playhead is cut, as Split at playhead does.
+void EditorStateTest::scissorsKnobCutsTheSelectedClipAndKeepsTheRightPiece()
+{
+    AssetLibrary library;
+    AppController state(&library);
+    state.setSnapEnabled(false);
+    state.setAllowClipOverlap(true);
+
+    state.project()->tracks().clear();
+    for (int t = 0; t < 2; ++t) {
+        drift::Track track{.type = drift::TrackType::Video};
+        drift::Clip clip;
+        clip.id = QStringLiteral("clip-%1").arg(t);
+        clip.type = drift::ClipType::Shape;
+        clip.timelineStart = 0;
+        clip.timelineDuration = drift::secondsToUs(10.0);
+        track.clips.append(clip);
+        state.project()->tracks().append(track);
+    }
+    state.project()->ensureTrackIds();
+
+    auto clipCount = [&state](int track) { return state.project()->tracks().at(track).clips.size(); };
+
+    state.selectClip(0, 0);
+    state.setPlayheadSeconds(4.0);
+    state.splitAtPlayheadKnob();
+    QCOMPARE(clipCount(0), 2);
+    QCOMPARE(clipCount(1), 1);
+    QCOMPARE(state.selectedTrack(), 0);
+    QCOMPARE(state.selectedClip(), 1);
+
+    state.setPlayheadSeconds(7.0);
+    state.splitAtPlayheadKnob();
+    QCOMPARE(clipCount(0), 3);
+    QCOMPARE(clipCount(1), 1);
+    QCOMPARE(state.selectedClip(), 2);
+
+    state.clearSelection();
+    state.setPlayheadSeconds(8.0);
+    state.splitAtPlayheadKnob();
+    QCOMPARE(clipCount(0), 4);
+    QCOMPARE(clipCount(1), 2);
+
+    state.undo();
+    QCOMPARE(clipCount(0), 3);
+    QCOMPARE(clipCount(1), 1);
 }
 
 void EditorStateTest::tracksCacheIsInvalidatedByEveryMutation()

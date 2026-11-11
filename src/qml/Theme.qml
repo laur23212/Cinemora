@@ -702,6 +702,11 @@ QtObject {
         alignLeft: "text-align-start",
         alignCenter: "text-align-center",
         alignRight: "text-align-end",
+        // Dafin: the Advanced Text Edit toolbar.
+        bold: "bold",
+        italic: "italic",
+        underline: "underline",
+        caseSensitive: "case-sensitive",
         // Lucide names these *-horizontal, but they are the correct valign glyphs.
         alignTop: "align-start-horizontal",
         alignMiddle: "align-center-horizontal",

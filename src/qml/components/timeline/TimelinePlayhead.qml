@@ -8,7 +8,7 @@ Item {
     property var panel
     property Flickable view
     property var interpolator
-    readonly property bool headDragging: playheadDragArea.drag.active
+    readonly property bool headDragging: playheadDragArea.drag.active || scissors.scrubbing
     y: 0
     // Above the seek strip (z: 2), otherwise the scrub area
     // covers the handle and swallows the press before drag starts.
@@ -89,5 +89,13 @@ Item {
             playhead.finishSeek()
             panel.endPlayheadSeek()
         }
+    }
+
+    // Dafin: Filmora's scissors knob (click to cut here, drag to scrub).
+    TimelinePlayheadScissors {
+        id: scissors
+        panel: playhead.panel
+        view: playhead.view
+        playhead: playhead
     }
 }

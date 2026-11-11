@@ -369,11 +369,30 @@ Item {
             inspector: root
         }
 
-        TextInspectorTabBar {
+        // Dafin: the tabs, and Filmora's Advanced button beside them.
+        Item {
             width: parent.width
+            height: textTabBar.height
             visible: root.mode === ""
-            textTab: root.textTab
-            onTabSelected: function(tabId) { root.textTab = tabId }
+
+            TextInspectorTabBar {
+                id: textTabBar
+                width: parent.width - advancedButton.width - Theme.spacingSm
+                textTab: root.textTab
+                onTabSelected: function(tabId) { root.textTab = tabId }
+            }
+            ThemedButton {
+                id: advancedButton
+                anchors.right: parent.right
+                anchors.verticalCenter: textTabBar.verticalCenter
+                visible: root.clipKind === "text"
+                width: visible ? 104 : 0
+                variant: "primary"
+                glyph: Theme.icons.sliders
+                text: qsTr("Advanced")
+                tooltip: qsTr("Open the text in a big editor: font and spacing toolbar, live picture, fill, outline, shadow, background and animation")
+                onClicked: root.openAdvanced()
+            }
         }
 
         TextInspectorTextPage {
@@ -397,6 +416,15 @@ Item {
 
     SaveTemplateDialog {
         id: saveTemplateDialog
+    }
+
+    // Dafin: Filmora's Advanced Text Edit. The window lives in the Properties panel (it holds a
+    // TextInspector of its own for its Styles and Animation tabs, so it cannot live in here).
+    signal advancedRequested(int track, int clip)
+    function openAdvanced() {
+        if (root.contentDirty)
+            root.applyText()
+        root.advancedRequested(EditorState.selectedTrack, EditorState.selectedClip)
     }
 
     VoiceoverDialog {

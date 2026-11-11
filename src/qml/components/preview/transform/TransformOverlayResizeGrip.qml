@@ -13,7 +13,9 @@ Item {
     required property var target
     required property var overlay
 
-    readonly property real hs: Theme.spacingLg
+    // A round dot big enough to hit at a glance (Filmora's are about this size); the
+    // invisible hit area around it is bigger still.
+    readonly property real hs: 14
     // Corners drive both axes, edges only one — so an edge drag
     // is the deliberate way to stretch and corners are free to
     // keep the ratio.
@@ -27,6 +29,9 @@ Item {
 
     width: hs
     height: hs
+    // On a small box the edge dots would cover most of it and leave nothing to drag the
+    // box by: only the corners stay, and they resize in both axes anyway.
+    visible: grip.isCorner || (grip.modelData.dx !== 0 ? grip.target.height >= 72 : grip.target.width >= 72)
 
     ThemeSlot {
         anchors.fill: parent
@@ -35,11 +40,15 @@ Item {
         fallback: Component {
             Rectangle {
                 anchors.fill: parent
-                radius: Theme.c.transformOverlayResizeGrip.radius
+                radius: width / 2
                 color: gripArea.containsMouse || gripArea.pressed
                        ? Theme.c.transformOverlayResizeGrip.backgroundHover
                        : Theme.c.transformOverlayResizeGrip.background
-                border.width: Theme.c.transformOverlayResizeGrip.borderWidth
+                border.width: Math.max(1.5, Theme.c.transformOverlayResizeGrip.borderWidth)
+                scale: gripArea.containsMouse || gripArea.pressed ? 1.25 : 1
+                Behavior on scale {
+                    NumberAnimation { duration: Theme.durationFast; easing.type: Theme.easing }
+                }
                 border.color: gripArea.containsMouse || gripArea.pressed
                               ? Theme.c.transformOverlayResizeGrip.borderHover
                               : Theme.c.transformOverlayResizeGrip.border
@@ -188,7 +197,7 @@ Item {
         anchors.fill: parent
         // Generous invisible margin: the visible dot stays small
         // enough not to hide the box edge it sits on.
-        anchors.margins: -Theme.spacingMd
+        anchors.margins: -10
         hoverEnabled: true
         cursorShape: grip.modelData.cursor
         // The delegate's body DragHandler would otherwise take the

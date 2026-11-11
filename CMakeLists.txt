@@ -863,6 +863,8 @@ add_library(driftengine STATIC
     src/engine/EngineTuning.h
     src/engine/gpu/GlRuntime.h
     src/engine/gpu/GlRuntime.cpp
+    src/engine/gpu/PresentClaims.h
+    src/engine/gpu/PresentClaims.cpp
     src/engine/gpu/device/GpuStatus.h
     src/engine/gpu/device/GpuStatus.cpp
     src/engine/decode/hw/VaapiZeroCopy.h
@@ -1811,6 +1813,7 @@ qt_add_qml_module(drift
         src/qml/MediaPreviewWindow.qml
         src/qml/PropertiesPanel.qml
         src/qml/components/properties/GeneralInspector.qml
+        src/qml/components/properties/AdvancedTextEditDialog.qml
         src/qml/components/properties/TextInspector.qml
         src/qml/components/properties/TextParamSlots.qml
         src/qml/components/properties/PaintEditor.qml
@@ -2175,6 +2178,7 @@ qt_add_qml_module(drift
         src/qml/components/timeline/TimelinePlayheadTip.qml
         src/qml/components/timeline/TimelinePlayheadLine.qml
         src/qml/components/timeline/TimelinePlayheadHead.qml
+        src/qml/components/timeline/TimelinePlayheadScissors.qml
         src/qml/components/timeline/TimelinePlayhead.qml
         src/qml/components/timeline/TimelineOverviewShade.qml
         src/qml/components/timeline/TimelineOverviewPlayhead.qml

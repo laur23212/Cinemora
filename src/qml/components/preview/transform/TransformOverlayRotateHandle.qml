@@ -10,8 +10,8 @@ Item {
     required property var overlay
 
     visible: rotateHandle.target.selected && !rotateHandle.overlay.mode3d && !rotateHandle.overlay.groupMode
-    width: 14
-    height: 14
+    width: 18
+    height: 18
     x: rotateHandle.target.width / 2 - width / 2
 
     // Above the box, unless that would leave the viewport (the handle would be cut off and
@@ -45,9 +45,28 @@ Item {
     Rectangle {
         anchors.fill: parent
         radius: width / 2
+        scale: rotateHover.hovered || rotateDrag.active ? 1.2 : 1
+        Behavior on scale {
+            NumberAnimation { duration: Theme.durationFast; easing.type: Theme.easing }
+        }
         color: Theme.c.transformOverlayRotateHandle.background
         border.width: Theme.c.transformOverlayRotateHandle.borderWidth
         border.color: Theme.c.transformOverlayRotateHandle.border
+    }
+
+    // The dot is easy to see but a pointer only needs to come near it.
+    containmentMask: QtObject {
+        function contains(point: point): bool {
+            const r = rotateHandle.width / 2 + 10
+            const dx = point.x - rotateHandle.width / 2
+            const dy = point.y - rotateHandle.height / 2
+            return dx * dx + dy * dy <= r * r
+        }
+    }
+
+    HoverHandler {
+        id: rotateHover
+        cursorShape: Qt.CrossCursor
     }
 
     DragHandler {

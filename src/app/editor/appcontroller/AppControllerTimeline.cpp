@@ -1627,6 +1627,14 @@ void AppController::closeGap(int trackIndex, double gapStartSeconds)
 
 void AppController::splitAtPlayhead()
 {
+    splitAtPlayheadOnly({});
+}
+
+// Dafin: `onlyClipIds` limits the cut to those clips (their linked partners and pinned
+// adjustments still follow); empty cuts everything under the playhead. Returns the tails' ids.
+QStringList AppController::splitAtPlayheadOnly(const QSet<QString> &onlyClipIds)
+{
+    QStringList tailIds;
     const drift::Project before = m_project;
     bool splitAny = false;
     QSet<QString> handledLinkIds;
@@ -1655,6 +1663,8 @@ void AppController::splitAtPlayhead()
             // claiming the same clip.
             if (!clip.linkedClipId.isEmpty())
                 continue;
+            if (!onlyClipIds.isEmpty() && !onlyClipIds.contains(clip.id))
+                continue;
 
             const drift::TimeUs offset = m_playheadUs - clip.timelineStart;
             drift::Clip tail;
@@ -1669,6 +1679,7 @@ void AppController::splitAtPlayhead()
             splitLinkedPartnerAt(m_project, clip, m_playheadUs, tailLinkId);
             track.clips.insert(clipIndex + 1, tail);
             pendingAdjustmentSplits.append({trackIndex, headId, tail.id, offset});
+            tailIds.append(tail.id);
             splitAny = true;
             ++clipIndex;
         }
@@ -1685,6 +1696,7 @@ void AppController::splitAtPlayhead()
     } else {
         setLastMessage(tr("Nothing to split here — move to a clip first"), QStringLiteral("warning"));
     }
+    return tailIds;
 }
 
 void AppController::splitClipAt(int trackIndex, int clipIndex, double seconds)

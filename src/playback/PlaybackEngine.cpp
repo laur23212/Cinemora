@@ -1,4 +1,5 @@
 #include "playback/PlaybackEngine.h"
+#include "engine/gpu/PresentClaims.h"
 #include "playback/AudioOutputChannel.h"
 
 #include "playback/stats/PerfLog.h"
@@ -1008,6 +1009,13 @@ void PlaybackEngine::onFrameReady(int stream, const GpuFrameTexture &frame)
 
     {
         QMutexLocker lock(&m_frameMutex);
+        // The kept frame is claimed so the compositor's ring cannot redraw it before a preview
+        // has taken it (and claimed it in turn). See PresentClaims.h.
+        const unsigned previous = m_streams[stream].frame.textureId;
+        if (frame.textureId != previous) {
+            drift::gl::present::claim(frame.textureId);
+            drift::gl::present::release(previous);
+        }
         m_streams[stream].frame = frame;
     }
     if (stream == int(PreviewStream::Camera) && !frame.scopeImage.isNull()) {
