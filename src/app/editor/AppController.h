@@ -1336,6 +1336,12 @@ public:
     // playhead (the dominant saturated hue, the frame's edges counting most), or switches the key the
     // clip already has off or back on. (-1, -1) means the selected clip.
     Q_INVOKABLE void toggleChromaKey(int trackIndex = -1, int clipIndex = -1);
+    // Dafin: Templates > Split Screen. The layouts, each cell a box (fractions of the canvas) with its
+    // corners inside it, and applying one: the selected pictures (or every picture under the playhead
+    // when fewer than two are selected), top track first, fill the cells in order — each scaled to cover
+    // its cell and cut to it with a mask. One undo step; returns how many clips were placed.
+    Q_INVOKABLE QVariantList splitScreenLayouts() const;
+    Q_INVOKABLE int applySplitScreen(const QString &layoutId);
     // Adds an imported Motion Graphics Template (Titles panel) as an editable title at the
     // playhead: its text, a matching built-in style and its length.
     Q_INVOKABLE void addTemplateTitle(const QString &text, const QString &presetId, double durationSeconds,
