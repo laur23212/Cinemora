@@ -1439,6 +1439,7 @@ Project Project::fromJson(const QJsonObject &object, QString *errorOut)
             bookmark.timeUs = secondsToUs(bookmarkObject.value(QStringLiteral("seconds")).toDouble());
         }
         bookmark.label = bookmarkObject.value(QStringLiteral("label")).toString();
+        bookmark.color = bookmarkObject.value(QStringLiteral("color")).toString();
         project.m_bookmarks.append(bookmark);
     }
 
@@ -1547,10 +1548,14 @@ QJsonObject Project::toJson(bool includeTranscripts) const
 
     QJsonArray bookmarksArray;
     for (const Bookmark &bookmark : m_bookmarks) {
-        bookmarksArray.append(QJsonObject{
+        QJsonObject bookmarkObject{
             {QStringLiteral("timeUs"), static_cast<double>(bookmark.timeUs)},
             {QStringLiteral("label"), bookmark.label},
-        });
+        };
+        // Written only when set, so a project without coloured markers saves as before.
+        if (!bookmark.color.isEmpty())
+            bookmarkObject.insert(QStringLiteral("color"), bookmark.color);
+        bookmarksArray.append(bookmarkObject);
     }
 
     QJsonObject root{

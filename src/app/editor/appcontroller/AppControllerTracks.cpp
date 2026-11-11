@@ -16,6 +16,7 @@
 #include "engine/render2d/vector/VectorClipRenderer.h"
 #include "ui/timeline/ClipThumbnailStore.h"
 
+#include <QColor>
 #include <QGuiApplication>
 #include <QPainter>
 #include <QPainterPath>
@@ -752,6 +753,7 @@ QVariantList AppController::bookmarks() const
         result.append(QVariantMap{
             {QStringLiteral("seconds"), drift::usToSeconds(bookmark.timeUs)},
             {QStringLiteral("label"), bookmark.label},
+            {QStringLiteral("color"), bookmark.color},
         });
     }
     return result;
@@ -875,6 +877,27 @@ void AppController::updateBookmark(int index, double seconds, const QString &lab
     bookmark.label = resolvedLabel;
     pushProjectEdit(before, tr("Edit bookmark"));
     finishEdit(tr("Bookmark updated"));
+}
+
+void AppController::setBookmarkColor(int index, const QString &color)
+{
+    if (index < 0 || index >= m_project.bookmarks().size())
+        return;
+    // Dafin: "#rrggbb", or empty for the theme's marker colour. Anything else is ignored.
+    QString resolved;
+    if (!color.isEmpty()) {
+        const QColor parsed(color);
+        if (!parsed.isValid())
+            return;
+        resolved = parsed.name(QColor::HexRgb);
+    }
+    const drift::Project before = m_project;
+    drift::Bookmark &bookmark = m_project.bookmarks()[index];
+    if (bookmark.color == resolved)
+        return;
+    bookmark.color = resolved;
+    pushProjectEdit(before, tr("Change marker colour"));
+    finishEdit(tr("Marker colour changed"));
 }
 
 void AppController::goToBookmark(int index)

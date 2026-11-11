@@ -199,6 +199,7 @@ private slots:
     void undoTrackMute();
     void packagedProjectCarriesDerivedArtifacts();
     void undoBookmarkAdd();
+    void bookmarkColorUndoAndSave();
     void undoHistorySurvivesSaveAndLoad();
     void savedBundleKeepsHistoryAndShrinksIt();
     void editDuringSaveKeepsProjectModified();
@@ -2181,6 +2182,28 @@ void EditorStateTest::undoBookmarkAdd()
     QVERIFY(state.undoAvailable());
     state.undo();
     QCOMPARE(state.bookmarks().size(), 0);
+}
+
+void EditorStateTest::bookmarkColorUndoAndSave()
+{
+    AssetLibrary library;
+    AppController state(&library);
+    state.addBookmark(2.0, QStringLiteral("Beat"));
+    QVERIFY(state.bookmarks().at(0).toMap().value(QStringLiteral("color")).toString().isEmpty());
+
+    state.setBookmarkColor(0, QStringLiteral("#3E63DD"));
+    QCOMPARE(state.bookmarks().at(0).toMap().value(QStringLiteral("color")).toString(),
+             QStringLiteral("#3e63dd"));
+    // Junk is ignored rather than stored.
+    state.setBookmarkColor(0, QStringLiteral("not a colour"));
+    QCOMPARE(state.project()->bookmarks().at(0).color, QStringLiteral("#3e63dd"));
+
+    const QByteArray saved = state.serializeProjectJson();
+    QVERIFY(saved.contains("\"color\""));
+
+    state.undo();
+    QVERIFY(state.project()->bookmarks().at(0).color.isEmpty());
+    QCOMPARE(state.bookmarks().size(), 1);
 }
 
 void EditorStateTest::undoHistorySurvivesSaveAndLoad()

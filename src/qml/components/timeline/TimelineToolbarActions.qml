@@ -58,6 +58,10 @@ QtObject {
                        shortcut: "duplicate" },
         "bookmark": { glyph: Theme.icons.bookmark, label: qsTr("Add/remove bookmark at current time"),
                       shortcut: "toggleBookmark" },
+        "previousBookmark": { glyph: Theme.icons.chevronLeft, label: qsTr("Go to previous marker"),
+                              shortcut: "previousBookmark" },
+        "nextBookmark": { glyph: Theme.icons.chevronRight, label: qsTr("Go to next marker"),
+                          shortcut: "nextBookmark" },
         "markIn": { glyph: Theme.icons.setStart, label: qsTr("Mark work area in"), shortcut: "markIn" },
         "markOut": { glyph: Theme.icons.setEnd, label: qsTr("Mark work area out"), shortcut: "markOut" },
         "loop": { glyph: Theme.icons.repeat, label: qsTr("Loop work area playback"),
@@ -83,7 +87,8 @@ QtObject {
     readonly property var dafinTools: ["chromaKey", "motionTrack", "syncAudio"]
     readonly property var defaultMenuItems: [
         "trimStart", "trimEnd", "separator", "copy", "paste", "duplicate", "separator",
-        "bookmark", "markIn", "markOut", "loop", "clearWorkArea", "separator",
+        "bookmark", "previousBookmark", "nextBookmark", "markIn", "markOut", "loop",
+        "clearWorkArea", "separator",
         "merge", "freeze", "adjustmentLayer", "transformLayer", "camera"
     ]
 

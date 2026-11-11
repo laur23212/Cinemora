@@ -711,6 +711,8 @@ void CoreTest::projectSerializationRoundTrip()
     project.tracks()[0].clips.append(clip);
 
     project.bookmarks().append({.timeUs = drift::secondsToUs(3.0), .label = QStringLiteral("Mark")});
+    project.bookmarks().append({.timeUs = drift::secondsToUs(4.0), .label = QStringLiteral("Red"),
+                                .color = QStringLiteral("#e5484d")});
     project.setWorkAreaInUs(drift::secondsToUs(1.0));
     project.setWorkAreaOutUs(drift::secondsToUs(4.0));
 
@@ -725,8 +727,10 @@ void CoreTest::projectSerializationRoundTrip()
     QCOMPARE(loaded.tracks().size(), 1);
     QCOMPARE(loaded.tracks()[0].clips.size(), 1);
     QCOMPARE(loaded.tracks()[0].clips[0].timelineStart, clip.timelineStart);
-    QCOMPARE(loaded.bookmarks().size(), 1);
+    QCOMPARE(loaded.bookmarks().size(), 2);
     QCOMPARE(loaded.bookmarks()[0].label, QStringLiteral("Mark"));
+    QVERIFY(loaded.bookmarks()[0].color.isEmpty());
+    QCOMPARE(loaded.bookmarks()[1].color, QStringLiteral("#e5484d"));
     QVERIFY(loaded.hasWorkArea());
     QCOMPARE(loaded.workAreaInUs(), drift::secondsToUs(1.0));
     QCOMPARE(loaded.workAreaOutUs(), drift::secondsToUs(4.0));

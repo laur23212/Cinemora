@@ -111,6 +111,8 @@ Item {
         case "paste": EditorState.pasteAtPlayhead(); break
         case "duplicate": EditorState.duplicateSelectedClip(); break
         case "bookmark": EditorState.toggleBookmarkAtPlayhead(); break
+        case "previousBookmark": EditorState.goToPreviousBookmark(); break
+        case "nextBookmark": EditorState.goToNextBookmark(); break
         case "markIn": EditorState.markWorkAreaIn(); break
         case "markOut": EditorState.markWorkAreaOut(); break
         case "loop": EditorState.toggleLoopWorkArea(); break
@@ -130,6 +132,8 @@ Item {
         case "link": return EditorState.linkAvailable
         case "undo": return EditorState.undoAvailable
         case "redo": return EditorState.redoAvailable
+        case "previousBookmark":
+        case "nextBookmark": return EditorState.bookmarks.length > 0
         case "loop": return EditorState.workAreaActive
         case "clearWorkArea": return EditorState.workAreaInSeconds >= 0
                                      || EditorState.workAreaOutSeconds >= 0

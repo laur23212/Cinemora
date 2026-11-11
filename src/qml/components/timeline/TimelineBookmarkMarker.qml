@@ -11,13 +11,16 @@ Item {
     property var panel
 
     signal contextMenu(bool atPointer, Item anchor, real ax, real ay,
-                       int bookmarkIndex, string label, real seconds)
+                       int bookmarkIndex, string label, real seconds, string color)
     signal renameRequested(int bookmarkIndex, string label)
 
     x: (bookmarkMouse.dragging ? bookmarkMouse.dragSeconds : modelData.seconds) * panel.pxPerSecond - width / 2
     width: 10
     height: parent.height
     z: bookmarkMouse.containsMouse || bookmarkMouse.dragging ? 4 : 3
+    // Dafin: the marker's own colour, else the theme's.
+    readonly property color flagColor: modelData.color ? modelData.color
+                                                       : Theme.c.timelineBookmarkMarker.foreground
 
     // Stem into the ruler so markers read as jump flags, not dots.
     Rectangle {
@@ -25,7 +28,7 @@ Item {
         y: 0
         width: 1
         height: parent.height + 6
-        color: Theme.c.timelineBookmarkMarker.foreground
+        color: bookmarkDelegate.flagColor
         opacity: 0.7
     }
 
@@ -36,7 +39,7 @@ Item {
         height: 8
         rotation: 45
         radius: Theme.c.timelineBookmarkMarker.radius
-        color: Theme.c.timelineBookmarkMarker.foreground
+        color: bookmarkDelegate.flagColor
         border.width: bookmarkMouse.containsMouse ? Theme.c.timelineBookmarkMarker.borderWidth : 0
         border.color: Theme.c.timelineBookmarkMarker.border
     }
@@ -70,7 +73,8 @@ Item {
             heldOpen = true
             bookmarkDelegate.contextMenu(true, bookmarkMouse, mouse.x, mouse.y,
                                          bookmarkDelegate.index, bookmarkDelegate.modelData.label,
-                                         bookmarkDelegate.modelData.seconds)
+                                         bookmarkDelegate.modelData.seconds,
+                                         bookmarkDelegate.modelData.color || "")
         }
 
         onPressed: (mouse) => {
@@ -105,7 +109,8 @@ Item {
             if (mouse.button === Qt.RightButton) {
                 bookmarkDelegate.contextMenu(false, bookmarkMouse, mouse.x, mouse.y,
                                              bookmarkDelegate.index, bookmarkDelegate.modelData.label,
-                                             bookmarkDelegate.modelData.seconds)
+                                             bookmarkDelegate.modelData.seconds,
+                                         bookmarkDelegate.modelData.color || "")
                 return
             }
             if (!didDrag && !heldOpen)

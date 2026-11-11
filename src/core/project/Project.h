@@ -22,6 +22,8 @@ struct Bookmark
 {
     TimeUs timeUs = 0;
     QString label;
+    // Dafin: marker colour as "#rrggbb"; empty draws the theme's marker colour.
+    QString color;
 };
 
 // How the canvas area behind/around clips is filled.
