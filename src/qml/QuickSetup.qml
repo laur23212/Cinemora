@@ -16,9 +16,10 @@ ApplicationWindow {
         { id: "theme", page: themePage },
         { id: "scale", page: scalePage },
         { id: "addons", page: addonsPage },
-        { id: "tips", page: tipsPage }
+        { id: "tips", page: tipsPage },
+        { id: "plans", page: plansPage }
         // Dafin: Drift's "You're all set" page (Drift's contact address and community links)
-        // is left out; the tips page is the last one.
+        // is left out; the "Choose your plan" joke page is the last one.
     ].filter(p => !(mobile && p.id === "scale"))
 
     property int step: 0
@@ -67,6 +68,7 @@ ApplicationWindow {
     Component { id: scalePage; QuickSetupScalePage { } }
     Component { id: addonsPage; QuickSetupAddonsPage { } }
     Component { id: tipsPage; QuickSetupTipsPage { } }
+    Component { id: plansPage; QuickSetupPlansPage { } }
     Component { id: communityPage; QuickSetupCommunityPage { } }
 
     Item {
