@@ -25,6 +25,41 @@ Column {
     }
 
     ThemedLabel {
+        text: qsTr("Platform preset")
+    }
+
+    Flow {
+        width: parent.width
+        spacing: Theme.spacingMd
+
+        Repeater {
+            model: dialog.platformPresets
+
+            delegate: ThemedChip {
+                required property var modelData
+                text: modelData.label
+                selected: dialog.platformPresetId === modelData.id
+                tooltip: qsTr("%1 · %2:%3 · %4 kbps").arg(modelData.label)
+                    .arg(modelData.aspectW).arg(modelData.aspectH).arg(modelData.videoBitrateKbps)
+                onClicked: dialog.applyPlatformPreset(modelData)
+            }
+        }
+    }
+
+    ThemedLabel {
+        width: parent.width
+        size: "sm"
+        visible: !!dialog.platformPresetCurrent && dialog.platformAspectMismatch(dialog.platformPresetCurrent)
+        height: visible ? implicitHeight : 0
+        text: dialog.platformPresetCurrent
+              ? qsTr("%1 videos are usually %2:%3. The export keeps your project's picture shape, so change the project size to match if you need that.")
+                    .arg(dialog.platformPresetCurrent.label)
+                    .arg(dialog.platformPresetCurrent.aspectW)
+                    .arg(dialog.platformPresetCurrent.aspectH)
+              : ""
+    }
+
+    ThemedLabel {
         text: qsTr("Downscale")
     }
 
@@ -41,6 +76,7 @@ Column {
                 selected: dialog.scaleId === modelData.id
                 tooltip: qsTr("Export at %1×%2").arg(modelData.width).arg(modelData.height)
                 onClicked: {
+                    dialog.platformPresetId = ""
                     dialog.scaleId = modelData.id
                     dialog.targetHeight = modelData.targetHeight
                     if (modelData.videoBitrateKbps)

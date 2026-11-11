@@ -26,6 +26,8 @@ ThemedDialog {
 
     property string exportMode: "video" // "video" | "audio" | "gif"
     property string scaleId: "source"
+    // Platform preset chip (YouTube, TikTok…). "" = none; every value stays editable afterwards.
+    property string platformPresetId: ""
     property int targetHeight: 0
     property int videoBitrateKbps: 12000
     property string videoCodecId: "h264"
@@ -57,6 +59,58 @@ ThemedDialog {
         { label: qsTr("320 kbps"), value: "320" },
         { label: qsTr("Custom"), value: "custom" }
     ]
+
+    // Resolution + bitrate + aspect only. Heights are for a landscape / portrait project (the
+    // export keeps the project's picture shape, so only the height is set); bitrates are in kbps.
+    readonly property var platformPresets: [
+        { id: "youtube", label: qsTr("YouTube"), aspectW: 16, aspectH: 9, landscapeHeight: 1080, portraitHeight: 1920, videoBitrateKbps: 12000 },
+        { id: "tiktok", label: qsTr("TikTok"), aspectW: 9, aspectH: 16, landscapeHeight: 1080, portraitHeight: 1920, videoBitrateKbps: 8000 },
+        { id: "instagram", label: qsTr("Instagram"), aspectW: 9, aspectH: 16, landscapeHeight: 1080, portraitHeight: 1920, videoBitrateKbps: 8000 },
+        { id: "whatsapp", label: qsTr("WhatsApp"), aspectW: 16, aspectH: 9, landscapeHeight: 720, portraitHeight: 1280, videoBitrateKbps: 2500 }
+    ]
+    readonly property var platformPresetCurrent: {
+        for (var i = 0; i < platformPresets.length; ++i) {
+            if (platformPresets[i].id === platformPresetId)
+                return platformPresets[i]
+        }
+        return null
+    }
+
+    // The project's own size, from the "same as project" scale entry.
+    function projectSize() {
+        for (var i = 0; i < scaleOptions.length; ++i) {
+            if (scaleOptions[i].targetHeight === 0)
+                return { width: scaleOptions[i].width, height: scaleOptions[i].height }
+        }
+        return scaleOptions.length > 0
+                ? { width: scaleOptions[0].width, height: scaleOptions[0].height }
+                : { width: 0, height: 0 }
+    }
+
+    // True when the project's shape differs from what the preset is made for.
+    function platformAspectMismatch(preset) {
+        var sz = projectSize()
+        if (!preset || sz.width <= 0 || sz.height <= 0)
+            return false
+        var want = preset.aspectW / preset.aspectH
+        var have = sz.width / sz.height
+        return Math.abs(have - want) / want > 0.03
+    }
+
+    function applyPlatformPreset(preset) {
+        if (!preset)
+            return
+        var sz = projectSize()
+        var h = (sz.height > sz.width) ? preset.portraitHeight : preset.landscapeHeight
+        if (sz.height > 0 && h > sz.height)
+            h = sz.height // never upscale
+        platformPresetId = preset.id
+        scaleId = ""
+        targetHeight = (sz.height > 0 && h === sz.height) ? 0 : h
+        videoBitrateKbps = preset.videoBitrateKbps
+        if (videoSupportsBitrate && !videoLossless)
+            rateControl = "bitrate"
+    }
 
     property var videoCodecs: []
     property var audioCodecs: []
@@ -245,6 +299,7 @@ ThemedDialog {
         if (exportMode === "gif")
             applyGifDefaults()
 
+        platformPresetId = ""
         advancedOpen = false
         exportWorkAreaOnly = EditorState.workAreaActive
                 && (remembered.exportWorkAreaOnly === true)
