@@ -576,6 +576,27 @@ QVariantMap AppController::checkTextTemplateFile(const QUrl &fileUrl) const
     return out;
 }
 
+QString AppController::titleFileKind(const QUrl &fileUrl) const
+{
+    const QString path = fileUrl.isLocalFile() ? fileUrl.toLocalFile() : fileUrl.toString();
+    const QString suffix = QFileInfo(path).suffix().toLower();
+    if (suffix != QLatin1String("json") && suffix != QLatin1String("drifttextstyle"))
+        return {};
+    QFile file(path);
+    // Title files are a few KB; a Lottie can be megabytes and is never one.
+    if (!file.open(QIODevice::ReadOnly) || file.size() > 4 * 1024 * 1024)
+        return {};
+    const QJsonObject o = QJsonDocument::fromJson(file.readAll()).object();
+    if (o.isEmpty() || o.contains(QStringLiteral("layers")))
+        return {};
+    if (o.contains(QStringLiteral("format")) && o.value(QStringLiteral("id")).isString()
+        && !o.value(QStringLiteral("id")).toString().startsWith(QLatin1String("user:")))
+        return QStringLiteral("template");
+    if (o.value(QStringLiteral("style")).isObject())
+        return QStringLiteral("style");
+    return {};
+}
+
 QVariantMap AppController::installTextTemplate(const QUrl &fileUrl)
 {
     QVariantMap result = checkTextTemplateFile(fileUrl);

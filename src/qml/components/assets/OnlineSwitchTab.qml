@@ -35,6 +35,8 @@ Item {
 
     signal added()
     signal builtinLoaded(var item)
+    // Dafin: the built-in side while it is shown (Titles' TextAssetsTab, say), else null.
+    readonly property Item builtinItem: !root.online ? content.item : null
 
     property bool online: LayoutMemory.layoutString("assets/" + tabId + "/mode", "online") === "online"
     function setOnline(on) {

@@ -185,6 +185,7 @@ private slots:
     void addTextClipEmptyUsesPlaceholder();
     void addTextClipWithTextDoesNotRequestEdit();
     void addTextClipWithPresetAppliesStyle();
+    void titleFilesAreToldFromLotties();
     void goldPopIsInTheTitleLibrary();
     void goldPopControlsReachThePreview();
     void goldPopSurvivesSaveAndReopen();
@@ -720,6 +721,35 @@ void EditorStateTest::addTextClipWithTextDoesNotRequestEdit()
                  .value(QStringLiteral("textContent"))
                  .toString(),
              QStringLiteral("Hello"));
+}
+
+// Dafin: a title style exported from My templates and a title template (as ChatGPT writes them)
+// are .json files like a Lottie; dropping one used to end in "Could not read … image format".
+void EditorStateTest::titleFilesAreToldFromLotties()
+{
+    AssetLibrary library;
+    AppController state(&library);
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const auto write = [&](const QString &name, const QByteArray &bytes) {
+        QFile f(dir.filePath(name));
+        if (!f.open(QIODevice::WriteOnly) || f.write(bytes) != bytes.size())
+            return QUrl();
+        return QUrl::fromLocalFile(f.fileName());
+    };
+    const QUrl style = write(QStringLiteral("White_Blue_Offset_Baloo2_Bold.json"),
+                             R"({"id":"user:b721","label":"White + Blue Offset","sampleText":"Baloo 2",)"
+                             R"("style":{"fontFamily":"Baloo 2","pixelSize":112,"fontWeight":700,"layers":[]}})");
+    const QUrl tmpl = write(QStringLiteral("smooth-slide.json"),
+                            R"({"format":1,"id":"chatgpt.smooth-slide","label":"Smooth Slide","style":{}})");
+    const QUrl lottie = write(QStringLiteral("sticker.json"),
+                              R"({"v":"5.7.4","fr":30,"ip":0,"op":30,"w":100,"h":100,"layers":[]})");
+    const QUrl other = write(QStringLiteral("notes.json"), R"({"hello":1})");
+    QCOMPARE(state.titleFileKind(style), QStringLiteral("style"));
+    QCOMPARE(state.titleFileKind(tmpl), QStringLiteral("template"));
+    QCOMPARE(state.titleFileKind(lottie), QString());
+    QCOMPARE(state.titleFileKind(other), QString());
+    QCOMPARE(state.titleFileKind(QUrl::fromLocalFile(dir.filePath(QStringLiteral("missing.json")))), QString());
 }
 
 void EditorStateTest::addTextClipWithPresetAppliesStyle()

@@ -33,8 +33,50 @@ QtObject {
 
     readonly property bool importing: AssetLibrary.importing || EditorState.bin.importingFolder
 
+    // Dafin: title files dropped anywhere — a title template (.json, as ChatGPT writes them) or a
+    // text style exported from My templates (.json / .drifttextstyle) — join the Titles library
+    // instead of failing the media import ("Could not read … image format"). Returns the urls
+    // that are not title files; `onTitles(kind)` is told "installed" or "mine" when any landed.
+    function takeTitleFiles(urls, onTitles) {
+        let rest = []
+        let landed = ""
+        for (let i = 0; i < urls.length; ++i) {
+            const kind = EditorState.titleFileKind(urls[i])
+            if (kind === "template") {
+                const result = EditorState.installTextTemplate(urls[i])
+                if (result.ok === true) {
+                    Toasts.success(qsTr("“%1” is in Titles › Installed.").arg(result.label || ""))
+                    landed = "installed"
+                } else {
+                    const report = String(result.report || "").split("\n").filter(l => l.trim().length > 0)
+                    Toasts.error(qsTr("That title template can't be installed yet. Use Titles › Install a title template… to see the report.")
+                                 + (report.length > 0 ? "\n" + report[0] : ""))
+                }
+            } else if (kind === "style") {
+                if (EditorState.importUserTextPreset(urls[i])) {
+                    if (landed !== "installed")
+                        landed = "mine"
+                } else {
+                    Toasts.error(qsTr("Could not import that title style."))
+                }
+            } else {
+                rest.push(urls[i])
+            }
+        }
+        if (landed.length > 0 && onTitles)
+            onTitles(landed)
+        return rest
+    }
+
+    // Set by the host window: opens Titles on the given section ("mine" or "installed").
+    property var showTitles: null
+
     function importUrls(urls, fromDrop, onFinished) {
         if (!urls || urls.length === 0)
+            return false
+        urls = mediaImport.takeTitleFiles(urls, mediaImport.showTitles)
+        // Nothing left to import: the callers already treat false as "nothing added".
+        if (urls.length === 0)
             return false
         // Disabled: .mogrt template import needs more fixing. Treat it as ordinary media (the
         // probe rejects it and the caller gets a "could not open" toast) until the reader is

@@ -57,6 +57,31 @@ PanelFrame {
     Component.onCompleted: {
         AssetLibrary.ensureAllMedia()
         root.applyPanelRequest()
+        MediaImport.showTitles = root.showTitleSection
+    }
+    Component.onDestruction: {
+        if (MediaImport.showTitles === root.showTitleSection)
+            MediaImport.showTitles = null
+    }
+
+    // Dafin: a title file dropped anywhere landed in the Titles library; show it there
+    // (Text styles side, on "mine" for My templates or "installed").
+    function showTitleSection(section) {
+        root.rememberTab("text", "section", section)
+        LayoutMemory.setLayoutString("assets/text/mode", "builtin")
+        if (!root.locked && root.currentTabId !== "text")
+            root.showTab("text")
+        Qt.callLater(function () {
+            const tab = titlesLoader.item
+            if (!tab)
+                return
+            if (tab.setOnline)
+                tab.setOnline(false)
+            Qt.callLater(function () {
+                if (tab.builtinItem && tab.builtinItem.section !== undefined)
+                    tab.builtinItem.section = section
+            })
+        })
     }
 
     // Imports and reports the outcome. `importUrls` skips anything it cannot
@@ -931,6 +956,11 @@ PanelFrame {
     // drag through, so Lotties fell through to the Media import and templates were refused
     // outright. The URLs are always readable once the drop has happened, so the choice is made then.
     function routeDroppedUrls(urls, tabId) {
+        // Dafin: title templates and exported title styles go to Titles from any tab; a .json
+        // dropped on Stickers is only a Lottie if it is not one of those.
+        urls = MediaImport.takeTitleFiles(urls, root.showTitleSection)
+        if (urls.length === 0)
+            return
         const collection = root.userCollectionForTab(tabId)
         if (collection.length === 0 || !OnlineAssets.userCollectionAccepts(collection, urls)) {
             root.importUrlsReporting(urls, true)

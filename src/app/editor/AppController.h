@@ -1052,6 +1052,10 @@ public:
     Q_INVOKABLE QVariantMap checkTextTemplateFile(const QUrl &fileUrl) const;
     // Checks, then copies into AppData/text-styles (replacing an older file with the same id).
     Q_INVOKABLE QVariantMap installTextTemplate(const QUrl &fileUrl);
+    // Dafin: what a dropped .json is when it is not media: "template" (a title template file, as
+    // ChatGPT writes them: "format" + "id"), "style" (a text style exported from My templates:
+    // "style" without "format"), or "" (anything else, a Lottie included).
+    Q_INVOKABLE QString titleFileKind(const QUrl &fileUrl) const;
     Q_INVOKABLE bool uninstallTextTemplate(const QString &templateId);
     Q_INVOKABLE void copyPlainTextToClipboard(const QString &text) const;
     Q_INVOKABLE bool renameUserTextPreset(const QString &presetId, const QString &label);
