@@ -256,7 +256,9 @@ signals:
     void sourceContentChanging(const QString &path);
     // A file that passed the suffix whitelist and then could not be read at all, so its bin row
     // was withdrawn. Without this the row just disappears and the user is told nothing.
-    void assetImportFailed(const QString &name);
+    // Dafin: `reason` says why when it is known (a Lottie the renderer refused, say), so the toast
+    // no longer blames "the image format" for every file.
+    void assetImportFailed(const QString &name, const QString &reason = QString());
     void proxyJobsChanged();
     void proxyStateChanged(const QString &assetId);
     void badgeRevisionChanged();
@@ -292,7 +294,7 @@ private:
     void startImportJob(const QString &assetId, const QString &absolutePath, bool imageOnly);
     void startThumbJob(const QString &assetId);
     void applyImportResult(const QString &assetId, const drift::MediaAsset &filled, bool ok,
-                           bool suggestProxy = false);
+                           bool suggestProxy = false, const QString &failReason = QString());
     void startNextProxy();
     void bumpBadges();
     void refreshMissing();

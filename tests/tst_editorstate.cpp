@@ -727,11 +727,16 @@ void EditorStateTest::addTextClipWithPresetAppliesStyle()
     AssetLibrary library;
     AppController state(&library);
     QSignalSpy spy(&state, &AppController::inlineTextEditRequested);
+    QSignalSpy placed(&state, &AppController::titlePlaced);
 
     state.addTextClip(QString(), 0.0, QStringLiteral("neon"));
 
-    QCOMPARE(spy.count(), 1);
+    // Dafin: a title lands with its own default words and the Text properties, like Filmora's,
+    // and is edited by clicking it on the preview rather than opening the editor at once.
+    QCOMPARE(spy.count(), 0);
+    QCOMPARE(placed.count(), 1);
     const QVariantMap clip = state.clipAt(state.selectedTrack(), state.selectedClip());
+    QCOMPARE(clip.value(QStringLiteral("textContent")).toString(), QStringLiteral("NEON NIGHTS"));
     const QVariantMap style = clip.value(QStringLiteral("textStyle")).toMap();
     QCOMPARE(style.value(QStringLiteral("packId")).toString(), QStringLiteral("neon"));
     QCOMPARE(style.value(QStringLiteral("fontFamily")).toString(), QStringLiteral("Bebas Neue"));

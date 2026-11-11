@@ -15,7 +15,15 @@ namespace drift {
 
 bool isDotLottiePath(const QString &path)
 {
-    return QFileInfo(path).suffix().compare(QLatin1String("lottie"), Qt::CaseInsensitive) == 0;
+    const QFileInfo info(path);
+    if (info.suffix().compare(QLatin1String("lottie"), Qt::CaseInsensitive) == 0)
+        return true;
+    // Dafin: some sites hand out the zipped dotLottie under a .json name. Reading it as JSON only
+    // ever said "not a Lottie document"; it is unpacked like any .lottie instead.
+    if (info.suffix().compare(QLatin1String("json"), Qt::CaseInsensitive) != 0 || !info.isFile())
+        return false;
+    QFile file(path);
+    return file.open(QIODevice::ReadOnly) && zip::looksLikeZip(file.peek(4));
 }
 
 namespace {

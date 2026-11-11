@@ -29,6 +29,15 @@ Column {
         height: Math.round(width * 0.55)
         presetId: root.modelData.id
         hovered: userDrag.hovered
+        // Dafin: "Update template" changes the look under the same id; the playing card's frames
+        // follow it.
+        revision: {
+            const text = JSON.stringify(root.modelData.style || {})
+            let h = 0
+            for (let i = 0; i < text.length; ++i)
+                h = (h * 31 + text.charCodeAt(i)) | 0
+            return h
+        }
 
         AssetDragSource {
             id: userDrag
@@ -46,7 +55,7 @@ Column {
         }
 
         ThemedToolTip {
-            text: qsTr("%1 — click to add at the playhead, or drag to the timeline. Double-click it on the preview to edit.").arg(root.modelData.label)
+            text: qsTr("%1 — click to add at the playhead, or drag it onto the timeline or the preview. It lands with its own words: click it on the preview to change them.").arg(root.modelData.label)
             visible: userDrag.hovered && !userDrag.active
         }
 

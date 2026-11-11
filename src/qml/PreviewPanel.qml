@@ -207,6 +207,7 @@ PanelFrame {
         TransformOverlay {
             canvas: panelViewport.canvas
             onTextEditRequested: (track, clip) => panelViewport.textEditor.start(track, clip, false)
+            onVectorTextEditRequested: (track, clip) => panelViewport.vectorTextEditor.start(track, clip)
         }
     }
 

@@ -1240,6 +1240,8 @@ public:
                                       const QVariant &value);
     // Declared slots with the clip's current overrides: [{id, type, value?}].
     Q_INVOKABLE QVariantList vectorSlots(int trackIndex, int clipIndex) const;
+    // Dafin: a Lottie title's text slots with the words they show now: [{id, text}].
+    Q_INVOKABLE QVariantList vectorTextSlots(int trackIndex, int clipIndex) const;
     Q_INVOKABLE QVariantMap inspectVector(const QString &source, const QString &kind = {}) const;
     Q_INVOKABLE QVariantMap inspectVectorClip(int trackIndex, int clipIndex) const;
     Q_INVOKABLE QString vectorSourceText(int trackIndex, int clipIndex) const;
@@ -1736,6 +1738,9 @@ signals:
     // A text clip was added with no text; the preview should open its inline
     // editor so the user can type straight onto the canvas.
     void inlineTextEditRequested(int trackIndex, int clipIndex);
+    // Dafin: a title template landed with its own default words. The properties panel opens its
+    // Text tab (colours, speed…); the text is edited by clicking it on the preview.
+    void titlePlaced(int trackIndex, int clipIndex);
     void inlineTextEditingChanged();
     // The inline editor's text was laid out again: caret and selection geometry moved.
     void inlineEditGeometryChanged();

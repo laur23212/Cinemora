@@ -36,6 +36,12 @@ constexpr int kTilePixelSize = 58;
 
 QMutex g_cardMutex;
 QCache<QString, QImage> g_cardCache(96);
+// Dafin: frames of a hovered card's animation, kept so the loop after the first is free.
+QCache<QString, QImage> g_frameCache(160);
+
+// How long the card's title is shown for: long enough for an entrance, a readable hold and an
+// exit (entrance + exit never take more than half a clip).
+constexpr double kAnimatedCardSeconds = 3.0;
 
 QImage cachedCard(const QString &key)
 {
@@ -111,9 +117,22 @@ TextStylePreviewImageProvider::TextStylePreviewImageProvider()
 {
 }
 
-QImage TextStylePreviewImageProvider::requestImage(const QString &id, QSize *size,
+QImage TextStylePreviewImageProvider::requestImage(const QString &rawId, QSize *size,
                                                    const QSize &requestedSize)
 {
+    // Dafin: "<presetId>?t=<seconds>[&rev=<n>]" is one frame of the title playing (the card
+    // animates on hover, like a sticker); a bare id is the resting card. `rev` only keeps the
+    // frame cache apart from an edited template's old frames.
+    const qsizetype queryAt = rawId.indexOf(QLatin1Char('?'));
+    const QString id = queryAt < 0 ? rawId : rawId.left(queryAt);
+    double animatedAt = -1.0;
+    if (queryAt >= 0) {
+        bool ok = false;
+        const double t = QUrlQuery(rawId.mid(queryAt + 1)).queryItemValue(QStringLiteral("t")).toDouble(&ok);
+        if (ok && t >= 0.0)
+            animatedAt = qMin(t, kAnimatedCardSeconds);
+    }
+
     const std::optional<drift::TextPreset> preset = drift::textPresetForId(id);
     if (!preset) {
         if (size)
@@ -124,14 +143,41 @@ QImage TextStylePreviewImageProvider::requestImage(const QString &id, QSize *siz
     const int width = requestedSize.width() > 0 ? requestedSize.width() : kDefaultWidth;
     const int height = requestedSize.height() > 0 ? requestedSize.height() : kDefaultHeight;
 
+    const QString frameKey = animatedAt >= 0.0
+                                 ? QStringLiteral("frame|%1|%2x%3").arg(rawId).arg(width).arg(height)
+                                 : QString();
+    if (!frameKey.isEmpty()) {
+        QMutexLocker lock(&g_cardMutex);
+        if (const QImage *hit = g_frameCache.object(frameKey)) {
+            if (size)
+                *size = hit->size();
+            return *hit;
+        }
+    }
+
     drift::Clip clip;
     clip.type = drift::ClipType::Text;
     clip.textStyle = preset->style;
+    if (animatedAt >= 0.0) {
+        clip.timelineDuration = drift::secondsToUs(kAnimatedCardSeconds);
+        clip.srcIn = 0;
+        clip.srcOut = clip.timelineDuration;
+    }
 
     const QString sample = preset->sampleText.isEmpty() ? kFallbackSample : preset->sampleText;
-    // A karaoke pack accents nothing at all without a playhead, so the card borrows the second word.
-    const int activeWord = preset->style.accent.rule == drift::WordAccentRule::Karaoke ? 1 : -1;
-    const QImage card = renderTextCard(clip, sample, QSize(width, height), width / kReferenceWidth, -1, activeWord);
+    // A karaoke pack accents nothing at all without a playhead, so the card borrows the second
+    // word; while it plays, the accent walks the words.
+    int activeWord = -1;
+    if (preset->style.accent.rule == drift::WordAccentRule::Karaoke) {
+        const int words = qMax(1, int(sample.split(QLatin1Char(' '), Qt::SkipEmptyParts).size()));
+        activeWord = animatedAt >= 0.0 ? int(animatedAt / kAnimatedCardSeconds * words) % words : 1;
+    }
+    const QImage card = renderTextCard(clip, sample, QSize(width, height), width / kReferenceWidth,
+                                       animatedAt >= 0.0 ? drift::secondsToUs(animatedAt) : -1, activeWord);
+    if (!frameKey.isEmpty()) {
+        QMutexLocker lock(&g_cardMutex);
+        g_frameCache.insert(frameKey, new QImage(card));
+    }
     if (size)
         *size = card.size();
     return card;

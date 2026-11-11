@@ -1179,10 +1179,19 @@ void AssetLibrary::startImportJob(const QString &assetId, const QString &absolut
         const bool ok = probed.has_value();
         const bool video = ok && filled.kind == drift::MediaKind::Video;
         const bool suggestProxy = video && wantsPreviewProxy(info);
+        // Dafin: a Lottie or SVG the vector renderer refused says why.
+        QString failReason;
+        if (!ok && isVectorPath(absolutePath)) {
+            drift::VectorSource source;
+            source.path = absolutePath;
+            source.kind = drift::vec::detectVectorKind(drift::vec::vectorSourceBytes(source));
+            if (drift::vec::probeVectorSource(source, &failReason))
+                failReason.clear();
+        }
         QMetaObject::invokeMethod(
             this,
-            [this, assetId, filled, ok, suggestProxy]() {
-                applyImportResult(assetId, filled, ok, suggestProxy);
+            [this, assetId, filled, ok, suggestProxy, failReason]() {
+                applyImportResult(assetId, filled, ok, suggestProxy, failReason);
             },
             Qt::QueuedConnection);
     });
@@ -1289,7 +1298,7 @@ bool AssetLibrary::applyProbedSource(const QString &assetId, const drift::MediaA
 }
 
 void AssetLibrary::applyImportResult(const QString &assetId, const drift::MediaAsset &filled, bool ok,
-                                     bool suggestProxy)
+                                     bool suggestProxy, const QString &failReason)
 {
     m_importPending.remove(assetId);
     // Flushed on every way out below, so a failed or withdrawn last probe still delivers the
@@ -1316,7 +1325,7 @@ void AssetLibrary::applyImportResult(const QString &assetId, const drift::MediaA
         m_project->assets().remove(assetId);
         m_project->assetOrder().removeAll(assetId);
         endRemoveRows();
-        emit assetImportFailed(name);
+        emit assetImportFailed(name, failReason);
         return;
     }
 

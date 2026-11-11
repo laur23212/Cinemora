@@ -214,8 +214,17 @@ QtObject {
     // why this needs its own toast rather than folding into the summary below.
     property Connections _probeFailWatch: Connections {
         target: AssetLibrary
-        function onAssetImportFailed(name) {
-            if (name)
+        function onAssetImportFailed(name, reason) {
+            const file = name || qsTr("that file")
+            const lower = (name || "").toLowerCase()
+            // Dafin: a Lottie or SVG says what the renderer found instead of blaming "the image format".
+            if (lower.endsWith(".json") || lower.endsWith(".lottie"))
+                Toasts.error(reason ? qsTr("Could not play %1 as a Lottie animation: %2.").arg(file).arg(reason)
+                                    : qsTr("Could not play %1 as a Lottie animation.").arg(file))
+            else if (lower.endsWith(".svg"))
+                Toasts.error(reason ? qsTr("Could not draw %1: %2.").arg(file).arg(reason)
+                                    : qsTr("Could not draw %1.").arg(file))
+            else if (name)
                 Toasts.error(qsTr("Could not read %1 — that image format is not supported by this build.").arg(name))
             else
                 Toasts.error(qsTr("Could not read that file — the format is not supported by this build."))

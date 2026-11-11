@@ -984,11 +984,21 @@ PanelFrame {
                     dragTabSwitch.stop()
             }
         }
+        // A sticker or title card dragged as its file (AssetDragSource.fileUrl) is on its way to
+        // the timeline or the preview; passing back over the panel must not file it again.
+        readonly property bool internalDrag: AssetDrag.current.kind === "file"
         onEntered: (drag) => {
+            if (assetDropArea.internalDrag) {
+                drag.accepted = false
+                return
+            }
             drag.accept(Qt.CopyAction)
             track(drag)
         }
-        onPositionChanged: (drag) => track(drag)
+        onPositionChanged: (drag) => {
+            if (!assetDropArea.internalDrag)
+                track(drag)
+        }
         onExited: {
             dragTabSwitch.stop()
             root.dragTabId = ""
@@ -997,7 +1007,7 @@ PanelFrame {
             dragTabSwitch.stop()
             const tabId = root.dropTabAt(drop.x, drop.y)
             root.dragTabId = ""
-            if (!drop.hasUrls)
+            if (!drop.hasUrls || assetDropArea.internalDrag)
                 return
             drop.accept(Qt.CopyAction)
             root.routeDroppedUrls(drop.urls, tabId)

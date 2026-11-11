@@ -15,6 +15,9 @@
 #include "engine/compositor/layers/MaskApplier.h"
 #include "engine/render2d/vector/VectorInspect.h"
 
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 
 using namespace drift::appdetail;
 using drift::mcpdetail::findClipById;
@@ -767,6 +770,45 @@ QString AppController::setVectorSlot(int trackIndex, int clipIndex, const QStrin
     pushProjectEdit(before, tr("Animation slot"));
     finishEdit(tr("Animation slot updated"));
     return {};
+}
+
+// Dafin: the words a Lottie title shows, one entry per text slot — {id, text} with the clip's
+// override, else the document's own default — so the preview can edit them in place.
+QVariantList AppController::vectorTextSlots(int trackIndex, int clipIndex) const
+{
+    if (!isValidClipIndex(trackIndex, clipIndex)
+        || m_project.tracks().at(trackIndex).clips.at(clipIndex).type != drift::ClipType::Vector)
+        return {};
+    const drift::VectorSource &v = m_project.tracks().at(trackIndex).clips.at(clipIndex).vector;
+    if (v.kind != drift::VectorKind::Lottie)
+        return {};
+    const QByteArray bytes = drift::vec::vectorSourceBytes(v);
+    const drift::vec::InspectReport report = drift::vec::inspectVector(bytes, v.kind);
+    const QJsonObject declared = QJsonDocument::fromJson(drift::normalizeLottieJson(bytes))
+                                     .object()
+                                     .value(QStringLiteral("slots"))
+                                     .toObject();
+    QVariantList out;
+    for (const drift::vec::VectorSlotInfo &info : report.slotInfos) {
+        if (info.type != drift::VectorSlotValue::Type::Text)
+            continue;
+        QString text;
+        auto it = v.slotValues.constFind(info.id);
+        if (it != v.slotValues.constEnd()) {
+            text = it->text;
+        } else {
+            // A text document property: {"k": [{"s": {"t": "..."}, "t": 0}]} or {"k": {"t": "..."}}.
+            const QJsonValue k = declared.value(info.id).toObject().value(QStringLiteral("p")).toObject().value(
+                QStringLiteral("k"));
+            const QJsonObject doc = k.isArray() ? k.toArray().at(0).toObject().value(QStringLiteral("s")).toObject()
+                                                : k.toObject();
+            text = doc.value(QStringLiteral("t")).toString();
+        }
+        // Lottie ends lines with a carriage return.
+        text.replace(QLatin1Char('\r'), QLatin1Char('\n'));
+        out.append(QVariantMap{{QStringLiteral("id"), info.id}, {QStringLiteral("text"), text}});
+    }
+    return out;
 }
 
 QVariantList AppController::vectorSlots(int trackIndex, int clipIndex) const

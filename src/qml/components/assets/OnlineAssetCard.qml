@@ -239,6 +239,22 @@ Item {
             iconColor: Theme.mutedForeground
         }
 
+        // ── Dafin: a Lottie sticker or title drags onto the timeline or the preview as its file,
+        //    which lands where it is dropped (imported into Media on the way, so a saved project
+        //    keeps it). The file is the one the preview already plays, so it is ready once the
+        //    card animates. ──
+        AssetDragSource {
+            anchors.fill: parent
+            visible: root.isLottie
+            enabled: root.isLottie && root.lottiePath.length > 0
+            liftEnabled: false
+            kind: "media"
+            payload: ""
+            fileUrl: root.isLottie && root.lottiePath.length > 0 ? EditorState.fileUrl(root.lottiePath) : ""
+            label: root.item.title || ""
+            glyph: root.kind === "title" ? Theme.icons.type : Theme.icons.smile
+        }
+
         // ── a template drags onto the timeline like any title; a click adds it at the playhead ──
         AssetDragSource {
             anchors.fill: parent

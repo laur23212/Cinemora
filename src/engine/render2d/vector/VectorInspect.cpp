@@ -69,19 +69,28 @@ void collectExpressions(const QJsonValue &value, const QString &path, QStringLis
 
 #ifdef DRIFT_WITH_SKIA
 
-void inspectLottie(const QByteArray &data, InspectReport *report)
+bool looksLikeLottieRoot(const QJsonObject &object)
 {
+    return object.value(QStringLiteral("layers")).isArray();
+}
+
+void inspectLottie(const QByteArray &original, InspectReport *report)
+{
+    QByteArray data = normalizeLottieJson(original);
     QJsonParseError parseError;
     const QJsonDocument doc = QJsonDocument::fromJson(data, &parseError);
     if (!doc.isObject()) {
-        report->error = parseError.error == QJsonParseError::NoError
-                            ? QStringLiteral("not a Lottie document")
-                            : QStringLiteral("invalid JSON: ") + parseError.errorString();
+        if (data.startsWith("PK\x03\x04"))
+            report->error = QStringLiteral("a .lottie bundle (zip) saved with a .json name");
+        else
+            report->error = parseError.error == QJsonParseError::NoError
+                                ? QStringLiteral("not a Lottie document")
+                                : QStringLiteral("invalid JSON: ") + parseError.errorString();
         return;
     }
     const QJsonObject root = doc.object();
-    if (!root.contains(QStringLiteral("layers")) || !root.contains(QStringLiteral("op"))) {
-        report->error = QStringLiteral("not a Lottie document (no layers/op)");
+    if (!looksLikeLottieRoot(root)) {
+        report->error = QStringLiteral("not a Lottie document (no layers)");
         return;
     }
 
@@ -90,10 +99,18 @@ void inspectLottie(const QByteArray &data, InspectReport *report)
     observers.attach(builder);
     builder.setFontManager(drift::skia::systemFontMgr())
         .setResourceProvider(drift::skia::makeVectorResourceProvider(QString()));
-    const sk_sp<skottie::Animation> animation = builder.make(data.constData(), size_t(data.size()));
+    sk_sp<skottie::Animation> animation = builder.make(data.constData(), size_t(data.size()));
+    if (!animation) {
+        // Skottie's JSON reader is stricter than Qt's; the same document written back by Qt
+        // often reads.
+        data = normalizeLottieJson(original, true);
+        animation = builder.make(data.constData(), size_t(data.size()));
+    }
     if (!animation) {
         report->error = QStringLiteral("Skottie could not parse the animation");
         report->unsupported = observers.loggedLines();
+        if (!report->unsupported.isEmpty())
+            report->error += QStringLiteral(" (") + report->unsupported.first().trimmed() + QLatin1Char(')');
         return;
     }
 

@@ -17,6 +17,11 @@ Item {
     property string thumbnail: ""
     property string glyph: ""
     property alias liftEnabled: lift.liftEnabled
+    // Dafin: when set, the card drags as that file (text/uri-list), exactly like a file dragged
+    // in from the file manager: the timeline and the preview import it and place it where it
+    // lands. Used by Lottie stickers and titles, which are files rather than catalog ids.
+    property url fileUrl: ""
+    readonly property bool fileDrag: fileUrl.toString().length > 0
 
     readonly property bool active: mouseDrag.active || lift.lifted
     readonly property bool pressed: tap.pressed || lift.pressed
@@ -26,13 +31,15 @@ Item {
     property bool hasContextMenu: false
 
     signal tapped()
+    signal doubleTapped()
     signal contextMenuRequested()
 
     Drag.active: mouseDrag.active
     Drag.dragType: Drag.Automatic
     Drag.supportedActions: Qt.CopyAction
-    Drag.keys: [AssetDrag.mimeKey(root.kind)]
-    Drag.mimeData: AssetDrag.mimeData(root.kind, root.payload, root.label)
+    Drag.keys: root.fileDrag ? ["text/uri-list"] : [AssetDrag.mimeKey(root.kind)]
+    Drag.mimeData: root.fileDrag ? ({ "text/uri-list": root.fileUrl.toString() })
+                                 : AssetDrag.mimeData(root.kind, root.payload, root.label)
     // Centred, so the drop lands under the pointer rather than a card's width to its left.
     Drag.hotSpot.x: width / 2
     Drag.hotSpot.y: height / 2
@@ -50,6 +57,7 @@ Item {
             acceptedButtons: Qt.LeftButton
             acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad | PointerDevice.Stylus
             onTapped: root.tapped()
+            onDoubleTapped: root.doubleTapped()
         }
 
         TapHandler {
@@ -64,8 +72,10 @@ Item {
             // Not the touchscreen: a finger on a desktop touchscreen scrolls the grid.
             acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad | PointerDevice.Stylus
             onActiveChanged: {
+                // A file drag is marked "file" so the assets panel knows it came from inside
+                // and does not file it into My Lotties again.
                 if (active)
-                    AssetDrag.begin(root.kind, root.payload, root.label)
+                    AssetDrag.begin(root.fileDrag ? "file" : root.kind, root.fileDrag ? root.fileUrl : root.payload, root.label)
                 else
                     AssetDrag.end()
             }

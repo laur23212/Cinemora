@@ -4,6 +4,7 @@
 #include "app/online/library/SessionFiles.h"
 #include "core/base/ZipArchive.h"
 #include "core/project/sources/DotLottie.h"
+#include "core/project/sources/LottieJson.h"
 
 #include <QCryptographicHash>
 #include <QDir>
@@ -517,7 +518,7 @@ std::optional<UserLibrary::Entry> UserLibrary::makeEntry(const QString &collecti
         return fail(tr("Couldn't copy %1.").arg(name));
 
     if (collection == kLotties) {
-        if (info.suffix().compare(QLatin1String("lottie"), Qt::CaseInsensitive) == 0) {
+        if (drift::isDotLottiePath(e.filePath())) {
             // The preview renderer reads plain Lottie JSON, so the bundle is unpacked once.
             QString unpackError;
             const QStringList animations = drift::unpackDotLottie(e.filePath(), dir + QStringLiteral("/unpacked"),
@@ -529,8 +530,11 @@ std::optional<UserLibrary::Entry> UserLibrary::makeEntry(const QString &collecti
             if (info.size() > kMaxLottieBytes)
                 return fail(tr("%1 is too large for a Lottie animation.").arg(name));
             QFile f(e.filePath());
-            const QJsonObject doc = f.open(QIODevice::ReadOnly) ? QJsonDocument::fromJson(f.readAll()).object()
-                                                                : QJsonObject();
+            // Read as the renderer reads it: BOM stripped, a site's wrapper object unwrapped and
+            // missing header fields defaulted (drift::normalizeLottieJson).
+            const QJsonObject doc = f.open(QIODevice::ReadOnly)
+                                        ? QJsonDocument::fromJson(drift::normalizeLottieJson(f.readAll())).object()
+                                        : QJsonObject();
             if (!isLottieDocument(doc))
                 return fail(tr("%1 is not a Lottie animation. On LottieFiles, download the \"Lottie JSON\" file.").arg(name));
             e.meta.insert(QStringLiteral("preview"), e.file);

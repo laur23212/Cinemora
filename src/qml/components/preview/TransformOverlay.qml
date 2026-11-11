@@ -21,6 +21,8 @@ Item {
 
     // A text clip was double-clicked: the panel opens its inline editor.
     signal textEditRequested(int track, int clip)
+    // Dafin: a click on a selected Lottie clip; the preview offers its text slot, if it has one.
+    signal vectorTextEditRequested(int track, int clip)
 
     // In 3D mode the scene camera, as a gizmo box at its eye (see previewCameraBox).
     property var cameraBox: null
@@ -603,9 +605,15 @@ Item {
                 TapHandler {
                     id: boxTap
                     property int pressMods: 0
+                    // Dafin: whether the clip was already the selection when this press began, so
+                    // a click on a selected title edits it (Filmora/PowerPoint style) while the
+                    // first click only selects.
+                    property bool pressedSelected: false
                     onPressedChanged: {
-                        if (pressed)
+                        if (pressed) {
                             boxTap.pressMods = boxTap.point.modifiers
+                            boxTap.pressedSelected = handle.selected && !root.groupMode
+                        }
                     }
                     onTapped: (eventPoint) => {
                         if (!handle.isTransform && (boxTap.pressMods & (Qt.ShiftModifier | Qt.ControlModifier))) {
@@ -626,8 +634,12 @@ Item {
                         }
                         EditorState.selectClip(handle.box.track, handle.box.clip)
                         handle.forceActiveFocus()
-                        if (tapCount === 2 && handle.isText && !root.mode3d)
+                        const editGesture = tapCount === 2 || (tapCount === 1 && boxTap.pressedSelected)
+                        if (editGesture && handle.isText && !root.mode3d)
                             root.textEditRequested(handle.box.track, handle.box.clip)
+                        // Dafin: a Lottie title's words (its text slot) are edited the same way.
+                        else if (editGesture && handle.box.kind === "vector" && !root.mode3d)
+                            root.vectorTextEditRequested(handle.box.track, handle.box.clip)
                     }
                 }
 

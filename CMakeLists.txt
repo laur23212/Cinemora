@@ -651,6 +651,7 @@ add_library(driftcore STATIC
     src/core/base/ZipArchive.cpp
     src/core/project/sources/DotLottie.h
     src/core/project/sources/DotLottie.cpp
+    src/core/project/sources/LottieJson.cpp
     src/core/project/Track.h
     src/core/project/Track.cpp
     src/core/project/Project.h
@@ -1772,6 +1773,7 @@ qt_add_qml_module(drift
         src/qml/components/preview/PreviewStatusLayer.qml
         src/qml/components/preview/PreviewToolHost.qml
         src/qml/components/preview/InlineTextEditor.qml
+        src/qml/components/preview/VectorTextEditPopup.qml
         src/qml/components/preview/PreviewOsd.qml
         src/qml/components/preview/PreviewOptionsMenu.qml
         src/qml/components/preview/PreviewTransportBar.qml

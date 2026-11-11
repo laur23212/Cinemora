@@ -447,6 +447,7 @@ set(DAFIN_ASSET_LIBRARY_SOURCES
     ../src/app/online/library/AssetSearchService.cpp
     ../src/app/online/library/AuthManager.cpp
     ../src/app/online/library/DownloadManager.cpp
+    ../src/core/project/sources/LottieJson.cpp
     ../src/app/online/library/LocalAssetDatabase.cpp
     ../src/app/online/library/ProviderRegistry.cpp
     ../src/app/online/library/SecretStore.cpp

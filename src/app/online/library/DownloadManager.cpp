@@ -3,6 +3,7 @@
 #include "app/online/library/LocalAssetDatabase.h"
 #include "app/online/library/ProviderRegistry.h"
 #include "app/online/library/SessionFiles.h"
+#include "core/project/sources/LottieJson.h"
 
 #include <QCoreApplication>
 #include <QCryptographicHash>
@@ -45,8 +46,10 @@ bool DownloadManager::looksLikeLottie(const QByteArray &head)
 {
     if (head.startsWith("PK"))
         return true; // .lottie (zip); the bin importer unpacks it
-    const QJsonObject o = QJsonDocument::fromJson(head).object();
-    return o.contains(QStringLiteral("layers")) && (o.contains(QStringLiteral("v")) || o.contains(QStringLiteral("fr")));
+    // As the renderer reads it (BOM, wrapper objects, missing header fields all handled), so a
+    // file is never refused here that would play.
+    const QJsonObject o = QJsonDocument::fromJson(drift::normalizeLottieJson(head)).object();
+    return o.value(QStringLiteral("layers")).isArray();
 }
 
 // ─── manager ─────────────────────────────────────────────────────────────────────────────────

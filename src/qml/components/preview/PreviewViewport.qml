@@ -22,6 +22,7 @@ Item {
     readonly property alias canvas: canvasRect
     readonly property alias toolHost: toolHost
     readonly property alias textEditor: textEditor
+    readonly property alias vectorTextEditor: vectorTextEditor
 
     readonly property real aspect: {
         void EditorState.tracksRevision
@@ -167,5 +168,11 @@ Item {
         id: textEditor
         z: 150
         canvas: canvasRect
+    }
+
+    // Dafin: a Lottie title's words, edited from the preview.
+    VectorTextEditPopup {
+        id: vectorTextEditor
+        z: 160
     }
 }

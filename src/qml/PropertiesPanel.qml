@@ -87,6 +87,13 @@ PanelFrame {
             root.clipDataRevision++
             root.syncAdjustmentTab()
             root.syncActiveTab()
+            root.openTitleTab()
+        }
+        // Dafin: a title template just landed with its default words: its Text tab (text,
+        // font, colours, speed) is what you came for.
+        function onTitlePlaced(trackIndex, clipIndex) {
+            if (!root.locked && root.tabVisible("text"))
+                root.activeTab = root.textTabIndex
         }
         function onSelectedClipDataChanged() {
             root.clipDataRevision++
@@ -224,6 +231,25 @@ PanelFrame {
         if (root.hasSelection && !root.tabVisible(root.currentTabId))
             // Dafin: a template title opens on its own controls.
             root.activeTab = root.tabVisible("template") ? Math.max(0, root.tabIndexOf("template")) : 0
+    }
+
+    // Dafin: selecting a different title — a text clip, a .mogrt template title or a Lottie title —
+    // opens its own controls rather than General, as Filmora opens a title's properties. Only on
+    // a new selection, so a tab picked by hand for the same clip stays.
+    property string _lastSelectedClipId: ""
+    function openTitleTab() {
+        const id = root.hasSelection ? (root.clipData.id || "") : ""
+        if (id === root._lastSelectedClipId)
+            return
+        root._lastSelectedClipId = id
+        if (root.locked || id.length === 0)
+            return
+        for (const tabId of ["template", "text", "vector"]) {
+            if (root.tabVisible(tabId)) {
+                root.activeTab = root.tabIndexOf(tabId)
+                return
+            }
+        }
     }
 
     // Tell the timeline to show its subtitle-cue lane only while the Subtitles tab is open.

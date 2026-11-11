@@ -322,7 +322,14 @@ private:
         skottie::Animation::Builder builder(skottie::Animation::Builder::kPreferEmbeddedFonts);
         builder.setFontManager(drift::skia::systemFontMgr())
             .setResourceProvider(drift::skia::makeVectorResourceProvider(baseDir));
-        doc->animation = builder.make(data.constData(), size_t(data.size()));
+        // Dafin: the same header defaults and BOM/wrapper handling the probe applies, so a file
+        // that imported also draws.
+        QByteArray lottie = normalizeLottieJson(data);
+        doc->animation = builder.make(lottie.constData(), size_t(lottie.size()));
+        if (!doc->animation) {
+            lottie = normalizeLottieJson(data, true);
+            doc->animation = builder.make(lottie.constData(), size_t(lottie.size()));
+        }
         if (!doc->animation)
             return nullptr;
         doc->slotManager = builder.getSlotManager();

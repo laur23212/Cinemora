@@ -32,8 +32,16 @@ void AppController::addTextClip(const QString &text, double atSeconds, const QSt
     // Adding with no text is the "drop it in, then type on the preview" path:
     // the clip gets placeholder words and the preview opens an inline editor on
     // it. Passing text keeps the original behaviour.
+    //
+    // Dafin: a title template lands like a Filmora title instead — with its own default words
+    // (the template's sample text) and the Text properties open, and is edited by clicking it on
+    // the preview. Only a plain, unstyled text still opens the editor straight away.
+    const std::optional<drift::TextPreset> preset =
+        presetId.isEmpty() ? std::nullopt : drift::textPresetForId(presetId);
+    const QString templateText = preset ? preset->sampleText.trimmed() : QString();
     const bool placeholder = trimmed.isEmpty();
-    const QString content = placeholder ? tr("Your text here") : trimmed;
+    const bool templateDefault = placeholder && !templateText.isEmpty();
+    const QString content = !placeholder ? trimmed : templateDefault ? templateText : tr("Your text here");
 
     const drift::Project before = m_project;
     const bool requestedFits = requestedTrack >= 0 && requestedTrack < m_project.tracks().size()
@@ -58,11 +66,9 @@ void AppController::addTextClip(const QString &text, double atSeconds, const QSt
     clip.timelineDuration = drift::kTextClipDurationUs;
     clip.srcIn = 0;
     clip.srcOut = drift::kTextClipDurationUs;
-    if (!presetId.isEmpty()) {
-        // Dafin: through the template path, so a title template's clip effects come along.
-        if (const std::optional<drift::TextPreset> preset = drift::textPresetForId(presetId))
-            applyTitleTemplate(clip, *preset);
-    }
+    // Dafin: through the template path, so a title template's clip effects come along.
+    if (preset)
+        applyTitleTemplate(clip, *preset);
     applyDefaultVisualLayout(clip, m_project.width(), m_project.height());
 
     track.clips.append(clip);
@@ -77,7 +83,10 @@ void AppController::addTextClip(const QString &text, double atSeconds, const QSt
         // edit) a clip that spans the current time.
         if (m_playheadUs < start || m_playheadUs >= start + drift::kTextClipDurationUs)
             setPlayheadSeconds(drift::usToSeconds(start));
-        emit inlineTextEditRequested(trackIndex, newClipIndex);
+        if (templateDefault)
+            emit titlePlaced(trackIndex, newClipIndex);
+        else
+            emit inlineTextEditRequested(trackIndex, newClipIndex);
     }
 }
 

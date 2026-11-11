@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/project/sources/LottieJson.h"
 #include "core/project/sources/VectorSource.h"
 
 #include <QByteArray>
@@ -93,6 +94,7 @@ struct InspectReport
 
 // `<` opens an SVG, anything else is taken as Lottie JSON.
 VectorKind detectVectorKind(const QByteArray &data);
+
 
 InspectReport inspectVector(const QByteArray &data, VectorKind kind);
 

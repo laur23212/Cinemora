@@ -82,6 +82,7 @@ private slots:
     void inspectLottieReportsDocument();
     void inspectReportsExpressions();
     void inspectRejectsGarbage();
+    void inspectAcceptsLooseLottieHeaders();
     void inspectSvgReportsSizeAndSmil();
     void probeFillsSource();
     void framesFollowTime();
@@ -147,6 +148,49 @@ void VectorTest::inspectReportsExpressions()
     QCOMPARE(report.expressions.size(), 1);
     QCOMPARE(report.expressions[0], QStringLiteral("layers/Box/ks/r"));
     QVERIFY(!report.hints.isEmpty());
+}
+
+// Dafin: exporters and sites leave out header fields Skottie insists on, add a BOM or wrap the
+// animation in their own object; such files used to be refused outright ("Could not read").
+void VectorTest::inspectAcceptsLooseLottieHeaders()
+{
+    const QByteArray original = fixture(QStringLiteral("slide.json"));
+    QJsonObject root = QJsonDocument::fromJson(original).object();
+    QVERIFY(root.contains(QStringLiteral("layers")));
+    const double fr = root.value(QStringLiteral("fr")).toDouble();
+    const double op = root.value(QStringLiteral("op")).toDouble();
+
+    // A file that already works is passed through byte for byte (same hash, same render).
+    QCOMPARE(drift::normalizeLottieJson(original), original);
+
+    QJsonObject loose = root;
+    loose.remove(QStringLiteral("v"));
+    loose.insert(QStringLiteral("fr"), QString::number(fr)); // a number written as a string
+    const QByteArray looseBytes = QByteArray("\xEF\xBB\xBF") + QJsonDocument(loose).toJson();
+    const vec::InspectReport looseReport = vec::inspectVector(looseBytes, VectorKind::Lottie);
+    QVERIFY2(looseReport.ok, qPrintable(looseReport.error));
+    QCOMPARE(looseReport.fps, fr);
+
+    QJsonObject noEnd = root;
+    noEnd.remove(QStringLiteral("op"));
+    const vec::InspectReport noEndReport = vec::inspectVector(QJsonDocument(noEnd).toJson(), VectorKind::Lottie);
+    QVERIFY2(noEndReport.ok, qPrintable(noEndReport.error));
+    QVERIFY(noEndReport.durationUs > 0);
+
+    const QByteArray wrapped =
+        QJsonDocument(QJsonObject{{QStringLiteral("animationData"), root}}).toJson();
+    const vec::InspectReport wrappedReport = vec::inspectVector(wrapped, VectorKind::Lottie);
+    QVERIFY2(wrappedReport.ok, qPrintable(wrappedReport.error));
+    QVERIFY(qAbs(wrappedReport.durationUs - secondsToUs((op - root.value(QStringLiteral("ip")).toDouble()) / fr)) < 1000);
+
+    // And the renderer draws what the probe accepted.
+    VectorSource source;
+    source.source = QString::fromUtf8(QJsonDocument(loose).toJson());
+    source.kind = VectorKind::Lottie;
+    QString error;
+    QVERIFY2(vec::probeVectorSource(source, &error), qPrintable(error));
+    const QImage frame = vec::renderThumbnail(source, QSize(64, 64), 0.5);
+    QVERIFY(!frame.isNull());
 }
 
 void VectorTest::inspectRejectsGarbage()

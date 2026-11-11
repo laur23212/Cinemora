@@ -39,7 +39,7 @@ Column {
         }
 
         ThemedToolTip {
-            text: qsTr("%1 — click to add at the playhead, or drag to the timeline. Double-click it on the preview to edit.").arg(root.modelData.label)
+            text: qsTr("%1 — click to add at the playhead, or drag it onto the timeline or the preview. It lands with its own words: click it on the preview to change them.").arg(root.modelData.label)
             visible: packDrag.hovered && !packDrag.active
         }
 

@@ -10,6 +10,7 @@
 
 namespace drift {
 
+// A .lottie file, or a zipped dotLottie that was saved with a .json name.
 bool isDotLottiePath(const QString &path);
 
 // Unpacks into destRoot/<content hash>/: every animation as <archive name>[-<id>].json at the
