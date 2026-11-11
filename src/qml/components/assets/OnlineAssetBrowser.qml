@@ -17,14 +17,31 @@ Item {
     property var kinds: ["video"]
     property bool allowLinks: true
     property string searchText: ""
-    // "<kind>" = everything of that kind, "<kind>|<providerId>" = one provider.
+    // "<kind>" = everything of that kind, "<kind>|<providerId>" = one provider,
+    // "<kind>|<providerId>|<group>" = one of the provider's own sub-categories (Dafin Sound Effects).
     property string activeCategory: ""
+    // A chip under a sub-category ("" = all of it); cleared when the category changes.
+    property string activeSub: ""
+    onActiveCategoryChanged: activeSub = ""
+    // The card whose preview is playing: starting another one stops it.
+    property string playingKey: ""
     readonly property var categories: sidebarModel
 
     signal added()
 
     readonly property string activeKind: activeCategory.length > 0 ? activeCategory.split("|")[0] : kinds[0]
     readonly property string activeProvider: activeCategory.indexOf("|") > 0 ? activeCategory.split("|")[1] : ""
+    readonly property string activeGroup: activeCategory.split("|").length > 2 ? activeCategory.split("|")[2] : ""
+    // The selected sub-category's entry ({id, name, count, subs}) when there is one.
+    readonly property var activeGroupInfo: {
+        if (root.activeGroup.length === 0)
+            return null
+        for (const entry of root.sidebarModel) {
+            if (entry.group === root.activeGroup && entry.provider === root.activeProvider)
+                return entry.groupInfo
+        }
+        return null
+    }
 
     readonly property var kindLabels: ({
         "video": qsTr("Stock video"), "music": qsTr("Music"), "sfx": qsTr("Sound effects"),
@@ -108,6 +125,10 @@ Item {
                     continue
                 out.push({ id: k + "|" + p.id, name: p.name, heading: "", provider: p.id,
                            locked: p.requiresAccount && p.state !== "connected", state: p.state })
+                // Dafin: the source's own sub-categories, indented under its row.
+                for (const c of (p.categories || []))
+                    out.push({ id: k + "|" + p.id + "|" + c.id, name: c.name, heading: "", provider: p.id,
+                               locked: false, group: c.id, groupInfo: c, count: c.count || 0 })
             }
         }
         return out
@@ -117,6 +138,7 @@ Item {
         id: results
         kinds: [root.activeKind]
         providerId: root.activeProvider
+        category: root.activeGroup.length > 0 ? root.activeGroup + (root.activeSub.length > 0 ? "/" + root.activeSub : "") : ""
         query: root.searchText.trim()
         pageSize: root.activeKind === "sticker" ? 40 : 30
     }
@@ -173,7 +195,7 @@ Item {
                     visible: !entry.modelData.separator
                     x: Theme.spacingSm
                     width: entry.width - Theme.spacingSm * 2
-                    height: visible ? 30 : 0
+                    height: visible ? (entry.modelData.group ? 26 : 30) : 0
                     radius: Theme.radiusSm
                     color: selected ? Theme.panelAccent : (rowHover.hovered ? Theme.c.assetsPanel.optionBackgroundHover : "transparent")
 
@@ -189,13 +211,25 @@ Item {
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
                         x: entry.modelData.user ? Theme.spacingMd + userGlyph.width + 6
+                                                : entry.modelData.group ? Theme.spacingLg * 2
                                                 : entry.modelData.provider ? Theme.spacingLg : Theme.spacingMd
-                        width: parent.width - x - 22
+                        width: parent.width - x - (entry.modelData.group ? subCount.implicitWidth + 10 : 22)
                         elide: Text.ElideRight
                         text: entry.modelData.name
                         color: parent.selected ? Theme.primary : entry.modelData.locked ? Theme.mutedForeground : Theme.panelForeground
-                        font.pixelSize: Theme.fontSizeBase
+                        font.pixelSize: entry.modelData.group ? Theme.fontSizeSm : Theme.fontSizeBase
                         font.weight: entry.modelData.provider && !entry.modelData.user ? Font.Normal : Font.DemiBold
+                    }
+                    // How many effects a sub-category holds.
+                    Text {
+                        id: subCount
+                        visible: !!entry.modelData.group
+                        anchors.right: parent.right
+                        anchors.rightMargin: 6
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: entry.modelData.count || ""
+                        color: Theme.mutedForeground
+                        font.pixelSize: Theme.fontSizeXs
                     }
                     // Files waiting to be saved.
                     Rectangle {
@@ -286,7 +320,8 @@ Item {
             }
 
             Row {
-                visible: root.allowLinks
+                // Not for the built-in sound effects: they are already here.
+                visible: root.allowLinks && root.activeProvider !== "dafin-sfx"
                 width: parent.width
                 spacing: Theme.spacingXs
                 ThemedTextField {
@@ -306,6 +341,43 @@ Item {
                     onClicked: {
                         if (OnlineAssets.importLink(linkField.text))
                             linkField.text = ""
+                    }
+                }
+            }
+
+            // Dafin: the finer kinds inside a sub-category (Air & Soft, Reverse & Build…).
+            Flow {
+                visible: !!root.activeGroupInfo && (root.activeGroupInfo.subs || []).length > 1
+                width: parent.width
+                spacing: Theme.spacingXs
+                Repeater {
+                    model: root.activeGroupInfo ? [{ id: "", name: qsTr("All"), count: root.activeGroupInfo.count }]
+                                                  .concat(root.activeGroupInfo.subs || []) : []
+                    delegate: Rectangle {
+                        required property var modelData
+                        readonly property bool selected: root.activeSub === modelData.id
+                        width: chipLabel.implicitWidth + Theme.spacingMd * 2
+                        height: 24
+                        radius: 12
+                        color: selected ? Theme.panelAccent : (chipHover.hovered ? Theme.c.assetsPanel.optionBackgroundHover : "transparent")
+                        border.width: 1
+                        border.color: selected ? Theme.primary : Theme.panelBorder
+                        Text {
+                            id: chipLabel
+                            anchors.centerIn: parent
+                            text: parent.modelData.name
+                            color: parent.selected ? Theme.primary : Theme.panelForeground
+                            font.pixelSize: Theme.fontSizeXs
+                        }
+                        HoverHandler { id: chipHover; cursorShape: Qt.PointingHandCursor }
+                        TapHandler { onTapped: root.activeSub = parent.modelData.id }
+                        ThemedToolTip {
+                            visible: chipHover.hovered && (parent.modelData.count || 0) > 0
+                            text: qsTr("%n sound(s)", "", parent.modelData.count || 0)
+                        }
+                        Accessible.role: Accessible.RadioButton
+                        Accessible.name: modelData.name
+                        Accessible.checked: selected
                     }
                 }
             }
@@ -455,6 +527,8 @@ Item {
                     item: parent.item
                     thumbnail: parent.thumbnail
                     cardWidth: grid.cellWidth - Theme.spacingSm
+                    playingKey: root.playingKey
+                    onPreviewStarted: (key) => root.playingKey = key
                     onAdded: root.added()
                     onDeleteRequested: (item) => deleteDialog.openFor(item)
                 }

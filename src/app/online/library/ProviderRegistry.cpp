@@ -2,6 +2,7 @@
 
 #include "app/online/library/AuthManager.h"
 #include "app/online/library/providers/DafinLibraryProvider.h"
+#include "app/online/library/providers/DafinSoundEffectsProvider.h"
 #include "app/online/library/providers/CatalogProvider.h"
 #include "app/online/library/providers/FreesoundProvider.h"
 #include "app/online/library/providers/JamendoProvider.h"
@@ -30,6 +31,7 @@ void ProviderRegistry::registerBuiltins()
 {
     // To add a provider: implement AssetProvider and add one line here. Order = display order.
     add(std::make_unique<DafinLibraryProvider>(this));
+    add(std::make_unique<DafinSoundEffectsProvider>(this));
     add(std::make_unique<PexelsProvider>(this));
     add(std::make_unique<PixabayProvider>(this));
     add(std::make_unique<OpenverseProvider>(this));

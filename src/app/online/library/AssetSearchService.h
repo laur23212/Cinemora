@@ -55,6 +55,8 @@ class AssetSearchModel : public QAbstractListModel
     Q_PROPERTY(QStringList kinds READ kinds WRITE setKinds NOTIFY kindsChanged)
     Q_PROPERTY(QString providerId READ providerId WRITE setProviderId NOTIFY providerIdChanged)
     Q_PROPERTY(QString query READ query WRITE setQuery NOTIFY queryChanged)
+    // Dafin: a sub-category of the provider (SearchRequest::category); empty = all.
+    Q_PROPERTY(QString category READ category WRITE setCategory NOTIFY categoryChanged)
     Q_PROPERTY(int pageSize READ pageSize WRITE setPageSize NOTIFY pageSizeChanged)
     Q_PROPERTY(bool loading READ loading NOTIFY stateChanged)
     Q_PROPERTY(bool hasMore READ hasMore NOTIFY stateChanged)
@@ -86,6 +88,8 @@ public:
     void setProviderId(const QString &id);
     QString query() const { return m_query; }
     void setQuery(const QString &query);
+    QString category() const { return m_category; }
+    void setCategory(const QString &category);
     int pageSize() const { return m_pageSize; }
     void setPageSize(int size);
     bool loading() const { return m_pending > 0; }
@@ -103,6 +107,7 @@ signals:
     void kindsChanged();
     void providerIdChanged();
     void queryChanged();
+    void categoryChanged();
     void pageSizeChanged();
     void stateChanged();
 
@@ -123,6 +128,7 @@ private:
     QStringList m_kinds;
     QString m_providerId;
     QString m_query;
+    QString m_category;
     int m_pageSize = 30;
     QList<AssetItem> m_items;
     QSet<QString> m_keys;

@@ -56,6 +56,9 @@ struct SearchRequest
     AssetKind kind = AssetKind::Video;
     int page = 1;             // 1-based
     int pageSize = 30;
+    // Dafin: one of the provider's own sub-categories (ProviderInfo::categories), "group" or
+    // "group/sub"; empty = everything. Providers without categories ignore it.
+    QString category;
 };
 
 struct SearchPage
@@ -132,6 +135,10 @@ struct ProviderInfo
     // False when the source has no row of its own in the panel's sidebar and its items only
     // appear under "All …" (imported .mogrt titles).
     bool ownSidebarEntry = true;
+    // Dafin: sub-categories the panel lists under the source's row (Dafin Sound Effects):
+    // [{id, name, count, subs: [{id, name, count}]}]. A row searches with SearchRequest::category
+    // = id, a chip under it with "id/subId".
+    QVariantList categories;
 };
 
 // Credentials as stored (JSON in the secure store). Values are opaque to everyone but the

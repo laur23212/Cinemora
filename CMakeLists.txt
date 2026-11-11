@@ -1263,6 +1263,8 @@ target_sources(driftapp PRIVATE
     src/app/online/library/providers/OpenverseProvider.cpp
     src/app/online/library/providers/DafinLibraryProvider.h
     src/app/online/library/providers/DafinLibraryProvider.cpp
+    src/app/online/library/providers/DafinSoundEffectsProvider.h
+    src/app/online/library/providers/DafinSoundEffectsProvider.cpp
     src/app/online/library/providers/CatalogProvider.h
     src/app/online/library/providers/CatalogProvider.cpp
     src/app/editor/AppController.h
@@ -1645,6 +1647,22 @@ qt_add_resources(drift "drift_asset_library"
         asset-library/titles/lower-third-slide.json
         asset-library/titles/pop-title.json
         asset-library/titles/title-fade-up.json
+)
+
+# Dafin Sound Effects (Audio › Online): 335 original Ogg Opus effects, ~8 MB, built into the binary
+# so the library works offline on every platform without a packaging step of its own. The
+# provider copies them to a cache folder on first use (DafinSoundEffectsProvider). Opus does not
+# compress, so rcc doesn't try. Rebuilt from a handoff with tools/sfx/build_sfx_index.py.
+file(GLOB_RECURSE DAFIN_SOUND_EFFECT_FILES CONFIGURE_DEPENDS RELATIVE "${CMAKE_SOURCE_DIR}"
+    "${CMAKE_SOURCE_DIR}/asset-library/sound-effects/*.ogg")
+list(SORT DAFIN_SOUND_EFFECT_FILES)
+qt_add_resources(drift "drift_sound_effects"
+    PREFIX "/sound-effects"
+    BASE asset-library/sound-effects
+    OPTIONS -no-compress
+    FILES
+        asset-library/sound-effects/index.json
+        ${DAFIN_SOUND_EFFECT_FILES}
 )
 
 # Stock Media tab: the built-in source catalog (copied to app data on first run for editing).

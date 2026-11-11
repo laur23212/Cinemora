@@ -455,6 +455,7 @@ set(DAFIN_ASSET_LIBRARY_SOURCES
     ../src/app/online/library/SessionFiles.cpp
     ../src/app/online/library/ThumbnailCache.cpp
     ../src/app/online/library/providers/DafinLibraryProvider.cpp
+    ../src/app/online/library/providers/DafinSoundEffectsProvider.cpp
     ../src/app/online/library/providers/CatalogProvider.cpp
     ../src/app/online/library/providers/FreesoundProvider.cpp
     ../src/app/online/library/providers/JamendoProvider.cpp

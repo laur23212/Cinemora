@@ -28,6 +28,12 @@ Item {
     signal added()
     // A saved file of the user's own: the panel confirms before deleting it.
     signal deleteRequested(var item)
+    // Dafin: one preview at a time. The grid passes the key of the card that last started
+    // playing; any other card that is playing stops.
+    property string playingKey: ""
+    signal previewStarted(string key)
+    onPlayingChanged: if (playing) previewStarted(key)
+    onPlayingKeyChanged: if (playing && playingKey !== key) playing = false
 
     readonly property string key: item.key || ""
     readonly property string kind: item.kind || "video"
@@ -51,11 +57,18 @@ Item {
     property bool lottieFailed: false
     property bool playing: false
     property var peaks: (item.extra && item.extra.peaks) ? item.extra.peaks : []
+    // Dafin: audio that is already a file here (the built-in sound effects, My sounds) drags
+    // straight onto the timeline as that file.
+    readonly property string localAudioUrl: isAudio && item.downloadUrl && String(item.downloadUrl).startsWith("file:")
+                                            ? String(item.downloadUrl) : ""
 
     width: cardWidth
     height: preview.height + caption.height + Theme.spacingXs
 
     function formatDuration(s) {
+        // Sound effects are mostly under a second or two: "0.8 s" says more than "0:01".
+        if ((s || 0) > 0 && s < 10)
+            return qsTr("%1 s").arg(Number(s).toLocaleString(Qt.locale(), "f", 1))
         s = Math.round(s || 0)
         return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0")
     }
@@ -162,6 +175,22 @@ Item {
                     }
                 }
             }
+        }
+        // ── Dafin: a sound that is a local file drags onto the timeline (imported into Media on the
+        //    way, so a saved project keeps it); a click on the waveform plays or stops it. Under
+        //    the ▶ and download buttons, which keep their own clicks. ──
+        AssetDragSource {
+            z: -1
+            anchors.fill: parent
+            visible: root.localAudioUrl.length > 0
+            enabled: visible
+            liftEnabled: false
+            kind: "media"
+            payload: ""
+            fileUrl: root.localAudioUrl
+            label: root.item.title || ""
+            glyph: Theme.icons.music
+            onTapped: root.playing = !root.playing
         }
         MediaPlayer {
             id: audio
@@ -523,6 +552,13 @@ Item {
                         if (extra.format) parts.push(extra.format)
                         if (extra.sizeLabel) parts.push(extra.sizeLabel)
                     }
+                    return parts.join(" · ")
+                }
+                // Dafin: a library's own label (the built-in effects' sub-category) instead of the
+                // author and licence, which are the same on every card there.
+                if (root.item.extra && root.item.extra.caption) {
+                    parts.push(root.item.extra.caption)
+                    if (root.item.extra.mood) parts.push(root.item.extra.mood)
                     return parts.join(" · ")
                 }
                 if (root.item.author) parts.push(root.item.author)

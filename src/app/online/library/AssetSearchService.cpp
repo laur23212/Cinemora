@@ -22,7 +22,8 @@ AssetSearchService::AssetSearchService(ProviderRegistry *registry, AuthManager *
 QString AssetSearchService::cacheKey(const QString &providerId, const SearchRequest &r) const
 {
     return providerId + QLatin1Char('|') + kindToString(r.kind) + QLatin1Char('|') + r.query.trimmed().toLower()
-         + QLatin1Char('|') + QString::number(r.page) + QLatin1Char('|') + QString::number(r.pageSize);
+         + QLatin1Char('|') + QString::number(r.page) + QLatin1Char('|') + QString::number(r.pageSize)
+         + QLatin1Char('|') + r.category;
 }
 
 int AssetSearchService::blockedSeconds(const QString &providerId) const
@@ -209,6 +210,15 @@ void AssetSearchModel::setQuery(const QString &query)
     scheduleRefresh();
 }
 
+void AssetSearchModel::setCategory(const QString &category)
+{
+    if (m_category == category)
+        return;
+    m_category = category;
+    emit categoryChanged();
+    scheduleRefresh();
+}
+
 void AssetSearchModel::setPageSize(int size)
 {
     size = qBound(6, size, 80);
@@ -301,6 +311,7 @@ void AssetSearchModel::startRound()
         r.kind = s.kind;
         r.page = s.nextPage;
         r.pageSize = m_pageSize;
+        r.category = m_category;
         const QString providerId = s.providerId;
         // Besides the cancel in ~AssetSearchModel: a provider that answers a cancelled request
         // anyway still finds the model gone.

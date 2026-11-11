@@ -164,6 +164,7 @@ QVariantMap OnlineAssets::describe(const QString &id) const
         {QStringLiteral("nonCommercialOnly"), i.nonCommercialOnly},
         {QStringLiteral("userLibrary"), i.userLibrary},
         {QStringLiteral("ownSidebarEntry"), i.ownSidebarEntry},
+        {QStringLiteral("categories"), i.categories},
         {QStringLiteral("fields"), fields},
         {QStringLiteral("accountHint"), i.accountHint},
         {QStringLiteral("state"), connectionStateToString(s)},

@@ -10,6 +10,7 @@
 #include "app/online/library/SecretStore.h"
 #include "app/online/library/SessionFiles.h"
 #include "app/online/library/providers/DafinLibraryProvider.h"
+#include "app/online/library/providers/DafinSoundEffectsProvider.h"
 #include "app/online/library/providers/CatalogProvider.h"
 #include "app/online/library/providers/FreesoundProvider.h"
 #include "app/online/library/providers/JamendoProvider.h"
@@ -17,7 +18,10 @@
 #include "app/online/library/providers/PexelsProvider.h"
 #include "app/online/library/providers/PixabayProvider.h"
 
+#include <QDir>
 #include <QFile>
+#include <QFileInfo>
+#include <QSet>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -261,6 +265,83 @@ private slots:
             QVERIFY2(DownloadManager::looksLikeLottie(lottie.readAll()), qPrintable(a.id));
         }
         QVERIFY(local >= 10);
+    }
+
+    // The bundled sound effects (Audio › Online › Dafin Sound Effects): every entry is an Ogg file
+    // that reaches the cache under its own name, the sidebar groups and chips cover them all, and
+    // a category or a search narrows the grid.
+    void bundledSoundEffectsAreUsable()
+    {
+        QTemporaryDir cache;
+        QDir(cache.path()).mkpath(QStringLiteral("old-version/whooshes")); // an earlier library's copy
+        QNetworkAccessManager net;
+        AuthManager auth(SecretStore::createFileStore(cache.path() + QStringLiteral("/secrets")));
+        ProviderRegistry registry(&net, &auth);
+        DafinSoundEffectsProvider sfx(&registry, QStringLiteral(DAFIN_SOURCE_DIR "/asset-library/sound-effects"),
+                                      cache.path());
+
+        const ProviderInfo info = sfx.info();
+        QCOMPARE(info.kinds, QList<AssetKind>{AssetKind::SoundEffect});
+        QVERIFY(!info.requiresAccount);
+        QVERIFY(info.categories.size() >= 5);
+
+        SearchRequest all;
+        all.kind = AssetKind::SoundEffect;
+        all.pageSize = 1000;
+        SearchPage page;
+        sfx.search(all, [&](const SearchPage &p, const ProviderError &e) { QVERIFY(e.ok()); page = p; });
+        QVERIFY(page.items.size() >= 300);
+        QVERIFY(!QFileInfo::exists(cache.path() + QStringLiteral("/old-version")));
+
+        QSet<QString> files, ids;
+        for (const AssetItem &a : page.items) {
+            QVERIFY2(a.downloadUrl.isLocalFile(), qPrintable(a.id));
+            QFile f(a.downloadUrl.toLocalFile());
+            QVERIFY2(f.open(QIODevice::ReadOnly), qPrintable(a.id));
+            QCOMPARE(f.read(4), QByteArray("OggS"));
+            QVERIFY2(QFileInfo(f.fileName()).completeBaseName() == util::safeFileName(a.title), qPrintable(a.id));
+            QCOMPARE(QFileInfo(f.fileName()).suffix(), QStringLiteral("ogg")); // what Media imports
+            QVERIFY(a.durationSeconds > 0.0 && a.durationSeconds < 10.0);
+            QVERIFY(a.extra.value(QStringLiteral("peaks")).toList().size() > 10);
+            QVERIFY(a.attribution.isEmpty());
+            files.insert(a.downloadUrl.toLocalFile());
+            ids.insert(a.id);
+        }
+        QCOMPARE(files.size(), page.items.size());
+        QCOMPARE(ids.size(), page.items.size());
+
+        int counted = 0;
+        for (const QVariant &g : info.categories) {
+            const QVariantMap group = g.toMap();
+            SearchRequest r = all;
+            r.category = group.value(QStringLiteral("id")).toString();
+            const SearchPage inGroup = DafinSoundEffectsProvider::filter(page.items, r);
+            QCOMPARE(inGroup.items.size(), group.value(QStringLiteral("count")).toInt());
+            counted += int(inGroup.items.size());
+            for (const QVariant &s : group.value(QStringLiteral("subs")).toList()) {
+                r.category = group.value(QStringLiteral("id")).toString() + QLatin1Char('/')
+                           + s.toMap().value(QStringLiteral("id")).toString();
+                QCOMPARE(DafinSoundEffectsProvider::filter(page.items, r).items.size(),
+                         s.toMap().value(QStringLiteral("count")).toInt());
+            }
+        }
+        QCOMPARE(counted, page.items.size());
+
+        // Search: tags and names, title matches first; a category narrows it.
+        SearchRequest q = all;
+        q.query = QStringLiteral("bell");
+        const SearchPage bells = DafinSoundEffectsProvider::filter(page.items, q);
+        QVERIFY(bells.items.size() >= 3);
+        QVERIFY(bells.items.first().title.contains(QLatin1String("Bell"), Qt::CaseInsensitive));
+        q.query = QStringLiteral("whoosh");
+        q.category = QStringLiteral("ui");
+        QVERIFY(DafinSoundEffectsProvider::filter(page.items, q).items.size()
+                < DafinSoundEffectsProvider::filter(page.items, all).items.size());
+        q.pageSize = 10;
+        q.category.clear();
+        const SearchPage first = DafinSoundEffectsProvider::filter(page.items, q);
+        QCOMPARE(first.items.size(), 10);
+        QVERIFY(first.hasMore);
     }
 
     void catalogLookupPicksRenditions()
