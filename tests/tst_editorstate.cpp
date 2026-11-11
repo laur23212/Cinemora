@@ -3,6 +3,7 @@
 #include "app/color/ColorController.h"
 #include "app/jobs/audio/DenoiseController.h"
 #include "app/jobs/audio/AudioAlignController.h"
+#include "app/jobs/ai/AiToolsController.h"
 #include "app/jobs/vision/DepthController.h"
 #include "app/jobs/vision/FaceTrackingController.h"
 #include "app/mcp/McpController.h"
@@ -317,6 +318,7 @@ private slots:
     void subtitleCueFilterModel();
     void subtitleFileRoundTripVtt();
     void generateSubtitlesRefusesOverlappingSources();
+    void aiCaptionsComeFromTheStoredTranscript();
     void separatedAudioTracksMirrorVideoHierarchy();
     void linkedAudioUnlinkAndMove();
     void linkUnrelatedClipsMoveTogetherKeepTiming();
@@ -7039,6 +7041,79 @@ void EditorStateTest::generateSubtitlesRefusesOverlappingSources()
     state.setSelection({clipPair(0, 0), clipPair(1, 0)});
     QVERIFY(!state.generateSubtitlesForSelection());
     QVERIFY(!state.subtitleGenerating());
+}
+
+// Dafin: AI › Auto captions builds the caption clip from the transcript kept with the project,
+// lists that transcript, and a corrected line rewrites the caption over it as one undo step.
+void EditorStateTest::aiCaptionsComeFromTheStoredTranscript()
+{
+    AssetLibrary library;
+    AppController state(&library);
+    appendCombinedVideoClip(*state.project());
+
+    const auto word = [](double s, double e, const QString &text) {
+        drift::TranscriptWord w;
+        w.startUs = drift::secondsToUs(s);
+        w.endUs = drift::secondsToUs(e);
+        w.text = text;
+        return w;
+    };
+    auto transcript = std::make_shared<drift::Transcript>();
+    transcript->language = QStringLiteral("en");
+    transcript->wordTimingsAligned = true;
+    transcript->source.path = QStringLiteral("/tmp/video.mp4"); // missing, so it matches by path
+    transcript->words = {word(0.2, 0.5, QStringLiteral("Hello")), word(0.5, 0.9, QStringLiteral("world.")),
+                         word(2.0, 2.3, QStringLiteral("Second")), word(2.3, 2.7, QStringLiteral("line"))};
+    state.project()->setTranscript(QStringLiteral("asset-video"), transcript);
+
+    AiToolsController *ai = state.ai();
+    QVERIFY(ai);
+    state.selectClip(0, 0);
+    QTRY_VERIFY(ai->canCaption());
+    // Already transcribed: no model is needed, and the clip is made at once.
+    QVERIFY(ai->createCaptions(QString(), 2));
+    QVERIFY(!ai->captioning());
+
+    const auto captions = [&]() -> QList<drift::SubtitleCue> {
+        for (const drift::Track &track : state.project()->tracks()) {
+            for (const drift::Clip &clip : track.clips) {
+                if (clip.type == drift::ClipType::Subtitle)
+                    return clip.subtitleCues;
+            }
+        }
+        return {};
+    };
+    QCOMPARE(captions().size(), 2);
+    QCOMPARE(captions().at(0).text, QStringLiteral("Hello world."));
+    QCOMPARE(captions().at(1).text, QStringLiteral("Second line"));
+    QCOMPARE(captions().at(1).startUs, drift::secondsToUs(2.0));
+
+    // The new caption clip is selected; the transcript listed is still the video's.
+    ai->setTranscriptVisible(true);
+    QCOMPARE(ai->transcriptClipId(), QStringLiteral("clip-video"));
+    QVERIFY(ai->transcriptInfo().value(QStringLiteral("hasTranscript")).toBool());
+    QCOMPARE(ai->transcriptLines().size(), 2);
+    QCOMPARE(ai->transcriptLines().at(1).toMap().value(QStringLiteral("text")).toString(),
+             QStringLiteral("Second line"));
+    QCOMPARE(ai->transcriptLines().at(1).toMap().value(QStringLiteral("start")).toDouble(), 2.0);
+
+    QVERIFY(ai->setLineText(1, QStringLiteral("Second take")));
+    QCOMPARE(state.project()->transcript(QStringLiteral("asset-video"))->words.at(3).text, QStringLiteral("take"));
+    QCOMPARE(captions().at(0).text, QStringLiteral("Hello world."));
+    QCOMPARE(captions().at(1).text, QStringLiteral("Second take"));
+
+    // Undo puts the caption back; the transcript keeps the correction (transcripts sit outside
+    // undo), and entering the line again brings the caption back in line with it.
+    state.undo();
+    QCOMPARE(captions().at(1).text, QStringLiteral("Second line"));
+    QCOMPARE(state.project()->transcript(QStringLiteral("asset-video"))->words.at(3).text, QStringLiteral("take"));
+    QVERIFY(ai->setLineText(1, QStringLiteral("Second take")));
+    QCOMPARE(captions().at(1).text, QStringLiteral("Second take"));
+
+    // Emptying a line removes its words and the caption that only held them.
+    QVERIFY(ai->setLineText(1, QString()));
+    QCOMPARE(captions().size(), 1);
+    QCOMPARE(ai->transcriptLines().size(), 1);
 }
 
 void EditorStateTest::editsCannotOverlapAClipCompletely()

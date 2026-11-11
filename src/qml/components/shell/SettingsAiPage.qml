@@ -87,6 +87,25 @@ SettingsPage {
         }
     }
 
+    // Dafin: everything the AI tools downloaded, with a way to get the disk space back.
+    SettingsGroupHeader {
+        text: qsTr("Downloaded AI models")
+        query: page.query
+    }
+
+    SettingsRow {
+        title: qsTr("Models and engines on this computer")
+        searchId: "ai-downloaded-models"
+        description: qsTr("AI tools download what they need the first time you use them. Delete any you no longer need; it downloads again when a tool asks for it.")
+        keywords: "models download delete remove disk space storage whisper speech captions engine onnx add-ons"
+        stacked: true
+        query: page.query
+
+        SettingsAiModelsSection {
+            width: parent.width
+        }
+    }
+
     SettingsGroupHeader {
         text: qsTr("Agents")
         query: page.query

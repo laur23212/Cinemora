@@ -21,6 +21,7 @@
 #include "core/project/SubtitleCue.h"
 #include "core/project/SubtitleTiming.h"
 #include "core/project/Transcript.h"
+#include "core/project/TranscriptEdit.h"
 #include "core/edit/commands/ProjectCommands.h"
 #include "core/text/animation/LottieTextImport.h"
 #include "core/text/animation/TextAnimationPreset.h"
@@ -58,6 +59,9 @@ private slots:
     void transcriptCuesUseMeasuredTimings();
     void transcriptSavedWithAssetNotHashed();
     void transcriptSurvivesUndoRedo();
+    void transcriptLinesBreakAtPausesAndSentences();
+    void transcriptWordReplaceKeepsOrSharesTimings();
+    void transcriptTextInWindowByWordMiddles();
     void splitClipClearsInnerFades();
     void splitThenMergeRestoresFades();
     void audioEdgeMultiplierRamps();
@@ -7769,6 +7773,120 @@ void CoreTest::transcriptCuesUseMeasuredTimings()
     QCOMPARE(cues[0].endUs, drift::secondsToUs(0.8));
     QCOMPARE(cues[4].text, QStringLiteral("speaker,"));
     QCOMPARE(cues[4].startUs, drift::secondsToUs(3.3));
+}
+
+// Dafin: the AI panel's transcript lines.
+void CoreTest::transcriptLinesBreakAtPausesAndSentences()
+{
+    const auto t = sampleTranscript();
+    const drift::TimeUs end = drift::secondsToUs(10);
+
+    // The filler stays in the line; the audio event and the new speaker start another one.
+    const auto lines = drift::transcriptLines(*t, 0, end, drift::secondsToUs(0.8), 4, 30);
+    QCOMPARE(lines.size(), 2);
+    QCOMPARE(lines[0].text, QStringLiteral("Hello world. um"));
+    QCOMPARE(lines[0].firstWord, 0);
+    QCOMPARE(lines[0].lastWord, 3);
+    QCOMPARE(lines[0].startUs, drift::secondsToUs(0.5));
+    QCOMPARE(lines[0].endUs, drift::secondsToUs(1.5));
+    QCOMPARE(lines[1].text, QStringLiteral("Next speaker, here"));
+    QCOMPARE(lines[1].firstWord, 5);
+    QCOMPARE(lines[1].lastWord, 7);
+    QCOMPARE(lines[1].speaker, 1);
+
+    // A finished sentence ends the line once it is long enough.
+    const auto sentences = drift::transcriptLines(*t, 0, end, drift::secondsToUs(0.8), 1, 30);
+    QCOMPARE(sentences.size(), 3);
+    QCOMPARE(sentences[0].text, QStringLiteral("Hello world."));
+    QCOMPARE(sentences[1].text, QStringLiteral("um"));
+
+    // A pause longer than the gap splits it too (0.1 s before "um"), and the cap counts words.
+    QCOMPARE(drift::transcriptLines(*t, 0, end, drift::secondsToUs(0.09), 4, 30).size(), 3);
+    QCOMPARE(drift::transcriptLines(*t, 0, end, drift::secondsToUs(0.8), 4, 1).size(), 6);
+
+    // Only the clip's part of the media.
+    const auto part = drift::transcriptLines(*t, drift::secondsToUs(3.2), end);
+    QCOMPARE(part.size(), 1);
+    QCOMPARE(part[0].text, QStringLiteral("Next speaker, here"));
+}
+
+void CoreTest::transcriptWordReplaceKeepsOrSharesTimings()
+{
+    // As many words as before: each keeps its measured time.
+    {
+        auto t = sampleTranscript();
+        QVERIFY(drift::replaceTranscriptWords(*t, 5, 7, QStringLiteral("Next  speakers, there")));
+        QCOMPARE(t->words.size(), 8);
+        QCOMPARE(t->words[5].text, QStringLiteral("Next"));
+        QCOMPARE(t->words[6].text, QStringLiteral("speakers,"));
+        QCOMPARE(t->words[6].startUs, drift::secondsToUs(3.3));
+        QCOMPARE(t->words[6].endUs, drift::secondsToUs(3.6));
+        QVERIFY(std::isnan(t->words[6].confidence));
+        QVERIFY(!t->words[6].interpolated);
+        QVERIFY(t->words[5].interpolated); // untouched words keep their flags
+        QCOMPARE(t->words[7].text, QStringLiteral("there"));
+        QCOMPARE(t->words[7].speaker, 1);
+        // The same text again changes nothing.
+        QVERIFY(!drift::replaceTranscriptWords(*t, 5, 7, QStringLiteral("Next speakers, there")));
+    }
+    // A different count: the old span is shared out, the spacing token goes, the event stays.
+    {
+        auto t = sampleTranscript();
+        QVERIFY(drift::replaceTranscriptWords(*t, 0, 3, QStringLiteral("Hello there big world.")));
+        QCOMPARE(t->words.size(), 8);
+        QCOMPARE(t->words[0].startUs, drift::secondsToUs(0.5));
+        QCOMPARE(t->words[3].endUs, drift::secondsToUs(1.5));
+        QCOMPARE(t->words[3].text, QStringLiteral("world."));
+        for (int i = 0; i < 4; ++i) {
+            QVERIFY(t->words[i].interpolated);
+            QCOMPARE(t->words[i].type, drift::TranscriptTokenType::Word);
+            QCOMPARE(t->words[i].speaker, 0);
+            if (i > 0)
+                QCOMPARE(t->words[i].startUs, t->words[i - 1].endUs);
+        }
+        QCOMPARE(t->words[4].type, drift::TranscriptTokenType::AudioEvent);
+        for (int i = 1; i < t->words.size(); ++i)
+            QVERIFY(t->words[i - 1].startUs <= t->words[i].startUs);
+    }
+    // Fillers are recognised in what was typed.
+    {
+        auto t = sampleTranscript();
+        QVERIFY(drift::replaceTranscriptWords(*t, 5, 7, QStringLiteral("uh next one")));
+        QCOMPARE(t->words[5].type, drift::TranscriptTokenType::Filler);
+        QCOMPARE(t->words[6].type, drift::TranscriptTokenType::Word);
+    }
+    // Clearing the text removes the words.
+    {
+        auto t = sampleTranscript();
+        QVERIFY(drift::replaceTranscriptWords(*t, 5, 7, QStringLiteral("  ")));
+        QCOMPARE(t->words.size(), 5);
+        QCOMPARE(t->words.last().type, drift::TranscriptTokenType::AudioEvent);
+    }
+    // A range with no speech, or out of bounds, is refused.
+    {
+        auto t = sampleTranscript();
+        QVERIFY(!drift::replaceTranscriptWords(*t, 4, 4, QStringLiteral("music")));
+        QVERIFY(!drift::replaceTranscriptWords(*t, 6, 9, QStringLiteral("x")));
+        QVERIFY(!drift::replaceTranscriptWords(*t, 7, 5, QStringLiteral("x")));
+        QCOMPARE(t->words.size(), 8);
+    }
+}
+
+void CoreTest::transcriptTextInWindowByWordMiddles()
+{
+    const auto t = sampleTranscript();
+    QCOMPARE(drift::transcriptTextInWindow(*t, drift::secondsToUs(0.5), drift::secondsToUs(1.25)),
+             QStringLiteral("Hello world."));
+    QCOMPARE(drift::transcriptTextInWindow(*t, drift::secondsToUs(1.25), drift::secondsToUs(3.0)),
+             QStringLiteral("um"));
+    QCOMPARE(drift::transcriptTextInWindow(*t, drift::secondsToUs(3.0), drift::secondsToUs(3.9)),
+             QStringLiteral("Next speaker, here"));
+    QVERIFY(drift::transcriptTextInWindow(*t, drift::secondsToUs(4.0), drift::secondsToUs(9.0)).isEmpty());
+    QVERIFY(drift::transcriptTextInWindow(*t, drift::secondsToUs(2.0), drift::secondsToUs(2.0)).isEmpty());
+
+    // A caption made from the transcript reads back as its own text.
+    for (const drift::SubtitleCue &cue : drift::cuesFromTranscript(*t, 0, drift::secondsToUs(10), 42, 1, 0))
+        QCOMPARE(drift::transcriptTextInWindow(*t, cue.startUs, cue.endUs), cue.text);
 }
 
 void CoreTest::transcriptSavedWithAssetNotHashed()

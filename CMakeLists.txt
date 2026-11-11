@@ -602,6 +602,8 @@ add_library(driftcore STATIC
     src/core/project/SubtitleTiming.cpp
     src/core/project/Transcript.h
     src/core/project/Transcript.cpp
+    src/core/project/TranscriptEdit.h
+    src/core/project/TranscriptEdit.cpp
     src/core/project/GuideSet.h
     src/core/project/GuideSet.cpp
     src/core/interchange/subtitles/SubtitleParse.h
@@ -1335,6 +1337,8 @@ target_sources(driftapp PRIVATE
     src/app/jobs/audio/DenoiseController.cpp
     src/app/jobs/audio/AudioAlignController.h
     src/app/jobs/audio/AudioAlignController.cpp
+    src/app/jobs/ai/AiToolsController.h
+    src/app/jobs/ai/AiToolsController.cpp
     src/app/jobs/vision/RestoreController.h
     src/app/jobs/vision/RestoreController.cpp
     src/app/jobs/vision/FaceTrackingController.h
@@ -1934,6 +1938,11 @@ qt_add_qml_module(drift
         src/qml/components/assets/TextAssetsTab.qml
         src/qml/components/assets/ScenesTab.qml
         src/qml/components/assets/SubtitlesTab.qml
+        src/qml/components/assets/AiToolsTab.qml
+        src/qml/components/assets/AiToolCard.qml
+        src/qml/components/assets/AiCaptionsPanel.qml
+        src/qml/components/assets/AiTranscriptView.qml
+        src/qml/components/assets/AiModelDownload.qml
         src/qml/components/assets/SpeechTab.qml
         src/qml/components/assets/StickersTab.qml
         src/qml/components/assets/ShapesTab.qml
@@ -2558,6 +2567,7 @@ qt_add_qml_module(drift
         src/qml/components/shell/SettingsAboutPage.qml
         src/qml/components/shell/SettingsUpdatesPage.qml
         src/qml/components/shell/SettingsAiPage.qml
+        src/qml/components/shell/SettingsAiModelsSection.qml
         src/qml/components/shell/SettingsAppearanceActions.qml
         src/qml/components/shell/SettingsAppearancePage.qml
         src/qml/components/shell/SettingsAppearanceTranslucency.qml

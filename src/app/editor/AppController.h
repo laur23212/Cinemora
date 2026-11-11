@@ -49,6 +49,8 @@ class MogrtTitleController;
 class ColorController;
 class DenoiseController;
 class AudioAlignController;
+// Dafin: the assets panel's AI category.
+class AiToolsController;
 class DepthController;
 class FaceTrackingController;
 class McpController;
@@ -95,6 +97,7 @@ class AppController : public QObject
     friend class DepthController;
     friend class DenoiseController;
     friend class AudioAlignController;
+    friend class AiToolsController;
     friend class ColorController;
     friend class KeyframeController;
     friend class MaskingController;
@@ -124,6 +127,7 @@ class AppController : public QObject
     Q_MOC_INCLUDE("app/color/ColorController.h")
     Q_MOC_INCLUDE("app/jobs/audio/DenoiseController.h")
     Q_MOC_INCLUDE("app/jobs/audio/AudioAlignController.h")
+    Q_MOC_INCLUDE("app/jobs/ai/AiToolsController.h")
     Q_MOC_INCLUDE("app/jobs/vision/DepthController.h")
     Q_MOC_INCLUDE("app/jobs/vision/FaceTrackingController.h")
     Q_MOC_INCLUDE("app/mcp/McpController.h")
@@ -168,6 +172,8 @@ class AppController : public QObject
     Q_PROPERTY(DenoiseController *denoise READ denoise CONSTANT)
     // Silence removal and audio sync. QML: EditorState.audioAlign.
     Q_PROPERTY(AudioAlignController *audioAlign READ audioAlign CONSTANT)
+    // Dafin: the AI category's tools (auto captions and the transcript so far).
+    Q_PROPERTY(AiToolsController *ai READ ai CONSTANT)
     // Colour grade, finishing effects and looks. QML: EditorState.color.
     Q_PROPERTY(ColorController *color READ color CONSTANT)
     // Keyframe panel editing and clip property rows. QML: EditorState.keyframes.
@@ -384,6 +390,7 @@ public:
     DepthController *depth() const { return m_depth; }
     DenoiseController *denoise() const { return m_denoise; }
     AudioAlignController *audioAlign() const { return m_audioAlign; }
+    AiToolsController *ai() const { return m_ai; }
     ColorController *color() const { return m_color; }
     KeyframeController *keyframes() const { return m_keyframes; }
     MaskingController *masking() const { return m_masking; }
@@ -2345,6 +2352,7 @@ protected:
     DepthController *m_depth = nullptr;
     DenoiseController *m_denoise = nullptr;
     AudioAlignController *m_audioAlign = nullptr;
+    AiToolsController *m_ai = nullptr;
     ColorController *m_color = nullptr;
     KeyframeController *m_keyframes = nullptr;
     MaskingController *m_masking = nullptr;

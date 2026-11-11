@@ -791,7 +791,7 @@ PanelFrame {
         if (tabId === "stock" || tabId === "text" || tabId === "subtitles" || tabId === "speech" || tabId === "stickers" || tabId === "shapes"
                 || tabId === "effects" || tabId === "templates" || tabId === "adjustment"
                 || tabId === "sounds" || tabId === "transitions" || tabId === "masks"
-                || tabId === "scenes")
+                || tabId === "scenes" || tabId === "ai")
             return false
         const kinds = kindsForTab(tabId)
         return kinds.length === 0 || kinds.indexOf(kind) >= 0
@@ -812,7 +812,8 @@ PanelFrame {
         "effects": qsTr("Effects"),
         "templates": qsTr("Templates"),
         "transitions": qsTr("Transitions"),
-        "sounds": root.topTabs ? qsTr("Audio") : qsTr("Audio FX")
+        "sounds": root.topTabs ? qsTr("Audio") : qsTr("Audio FX"),
+        "ai": qsTr("AI")
     })
 
     // Rail order: project media → on-canvas graphics → processing → prefs.
@@ -833,6 +834,8 @@ PanelFrame {
         ListElement { tabId: "templates"; icon: 6; separatorAfter: false }
         ListElement { tabId: "transitions"; icon: 7; separatorAfter: false }
         ListElement { tabId: "sounds"; icon: 8; separatorAfter: true }
+        // Dafin: AI tools that run on this computer.
+        ListElement { tabId: "ai"; icon: 15; separatorAfter: true }
     }
     property var tabIcons: [
         Theme.icons.film,
@@ -849,7 +852,8 @@ PanelFrame {
         Theme.icons.mask,
         Theme.icons.store,
         Theme.icons.micVocal,
-        Theme.icons.download
+        Theme.icons.download,
+        Theme.icons.sparkles
     ]
 
     // Filmora-style horizontal category bar instead of the vertical rail. Remembered per user;
@@ -862,7 +866,7 @@ PanelFrame {
     }
     // Filmora's order first; Drift's extra tabs follow after the divider.
     readonly property var topTabOrder: ["media", "stock", "sounds", "text", "transitions", "effects",
-                                        "stickers", "templates", "|", "subtitles", "speech", "shapes",
+                                        "stickers", "templates", "ai", "|", "subtitles", "speech", "shapes",
                                         "masks", "scenes"]
     property int activeTab: locked ? tabIndexOf(lockedTab) : tabIndexOf(LayoutMemory.layoutString("assets/tab", "media"))
     readonly property string currentTabId: tabsModel.get(activeTab).tabId
@@ -1199,6 +1203,22 @@ PanelFrame {
                 sourceComponent: Component {
                     SubtitlesTab {
                         onAdded: root.addCompleted()
+                    }
+                }
+            }
+
+            // Dafin: the AI category. The open tool is remembered across tab switches.
+            Loader {
+                active: root.currentTabId === "ai"
+                visible: active
+                width: parent.width
+                height: parent.height - assetsHeader.height
+                clip: true
+                opacity: root.tabOpacity
+                sourceComponent: Component {
+                    AiToolsTab {
+                        Component.onCompleted: openTool = (root.tabState["ai"] || {}).tool || ""
+                        onOpenToolChanged: root.rememberTab("ai", "tool", openTool)
                     }
                 }
             }
