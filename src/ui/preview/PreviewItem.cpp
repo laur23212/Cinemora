@@ -1,23 +1,103 @@
 #include "ui/preview/PreviewItem.h"
 
 #include "playback/PlaybackEngine.h"
+#include "engine/gpu/PresentClaims.h"
 
+#include <QMutex>
+#include <QMutexLocker>
+#include <QOpenGLContext>
+#include <QOpenGLExtraFunctions>
 #include <QQuickWindow>
 #include <QSGSimpleTextureNode>
 #include <QSGTexture>
 #include <QScreen>
 
+// Textures the render thread drew and has since rebound away from; dropped after the next
+// buffer swap. Shared with the frameSwapped connection, which runs on the render thread and may
+// fire while the item is being destroyed on the GUI thread.
+struct PreviewItem::SwapRelease
+{
+    QMutex mutex;
+    QVector<unsigned> textures;
+
+    void add(const QVector<unsigned> &more)
+    {
+        QMutexLocker lock(&mutex);
+        textures += more;
+    }
+
+    // Render thread, right after a swap: the frame that no longer used these is submitted, so a
+    // fence now covers every draw that sampled them.
+    void releaseSwapped()
+    {
+        QVector<unsigned> done;
+        {
+            QMutexLocker lock(&mutex);
+            done.swap(textures);
+        }
+        if (done.isEmpty())
+            return;
+        QOpenGLContext *ctx = QOpenGLContext::currentContext();
+        QOpenGLExtraFunctions *gl = ctx ? ctx->extraFunctions() : nullptr;
+        bool fenced = false;
+        for (unsigned texture : done) {
+            void *fence = gl ? static_cast<void *>(gl->glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0)) : nullptr;
+            fenced = fenced || fence;
+            drift::gl::present::release(texture, fence);
+        }
+        // Another context may only wait for a fence this one has flushed.
+        if (fenced)
+            gl->glFlush();
+    }
+
+    void releaseAll()
+    {
+        QMutexLocker lock(&mutex);
+        for (unsigned texture : std::as_const(textures))
+            drift::gl::present::release(texture);
+        textures.clear();
+    }
+};
+
 PreviewItem::PreviewItem(QQuickItem *parent)
     : QQuickItem(parent)
+    , m_swapRelease(std::make_shared<SwapRelease>())
 {
     setFlag(ItemHasContents, true);
     // The item has no window until it enters a scene, so the cadence hook-up cannot happen
     // here — it happens on every window change, including the first.
     connect(this, &QQuickItem::windowChanged, this, &PreviewItem::bindDisplayCadence);
+    connect(this, &QQuickItem::windowChanged, this, &PreviewItem::bindSwapRelease);
+}
+
+void PreviewItem::bindSwapRelease()
+{
+    disconnect(m_swapReleaseConn);
+    // Claims taken against the old window's swaps are settled now: nothing will swap them out.
+    m_swapRelease->releaseAll();
+    QQuickWindow *win = window();
+    if (!win)
+        return;
+    m_swapReleaseConn = connect(win, &QQuickWindow::frameSwapped, win,
+                                [state = m_swapRelease] { state->releaseSwapped(); },
+                                Qt::DirectConnection);
+}
+
+void PreviewItem::releaseAllClaims()
+{
+    disconnect(m_swapReleaseConn);
+    for (unsigned texture : std::as_const(m_pendingRelease))
+        drift::gl::present::release(texture);
+    m_pendingRelease.clear();
+    m_swapRelease->releaseAll();
+    drift::gl::present::release(m_claimed);
+    m_claimed = 0;
+    m_claimSynced = false;
 }
 
 PreviewItem::~PreviewItem()
 {
+    releaseAllClaims();
     // The cadence connections are made from the window to the *engine*, not to this item, so
     // they outlive it: a panel rebuilt by a layout change would leave the old item's pair
     // running beside the new one's, double-counting every buffer swap.
@@ -56,6 +136,15 @@ void PreviewItem::setStream(int stream)
     emit streamChanged();
 }
 
+void PreviewItem::setPacesDisplay(bool paces)
+{
+    if (m_pacesDisplay == paces)
+        return;
+    m_pacesDisplay = paces;
+    bindDisplayCadence();
+    emit pacesDisplayChanged();
+}
+
 void PreviewItem::onStreamFrameChanged(int stream)
 {
     if (stream == m_stream)
@@ -65,7 +154,7 @@ void PreviewItem::onStreamFrameChanged(int stream)
 void PreviewItem::bindDisplayCadence()
 {
     QQuickWindow *win = window();
-    if (m_stream != int(PreviewStream::Camera)) {
+    if (m_stream != int(PreviewStream::Camera) || !m_pacesDisplay) {
         disconnect(m_afterAnimatingConn);
         disconnect(m_frameSwappedConn);
         disconnect(m_screenChangedConn);
@@ -138,6 +227,19 @@ void PreviewItem::pullFrame()
     // Pull in C++: QML cannot reliably assign QImage between properties, which left
     // the Android preview permanently blank even when the compositor had frames.
     const GpuFrameTexture frame = m_playback->previewFrame(PreviewStream(m_stream));
+    // Claimed here, on the GUI thread, while the engine still holds its own claim on the frame:
+    // from now until this item has drawn something else and swapped, the ring keeps it intact.
+    if (frame.textureId != m_claimed) {
+        drift::gl::present::claim(frame.textureId);
+        if (m_claimed) {
+            if (m_claimSynced)
+                m_pendingRelease.append(m_claimed);
+            else
+                drift::gl::present::release(m_claimed);
+        }
+        m_claimed = frame.textureId;
+        m_claimSynced = false;
+    }
     setTextureSize(frame.size);
     setTextureId(int(frame.textureId));
     setImage(frame.image);
@@ -176,6 +278,13 @@ void PreviewItem::setImage(const QImage &image)
 QSGNode *PreviewItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
 {
     auto *node = static_cast<QSGSimpleTextureNode *>(oldNode);
+
+    // Render thread, GUI blocked: what the last frames drew and this sync replaces is let go
+    // once this frame has been swapped.
+    if (!m_pendingRelease.isEmpty()) {
+        m_swapRelease->add(m_pendingRelease);
+        m_pendingRelease.clear();
+    }
 
     const bool hasImage = !m_image.isNull();
     const bool hasNative = m_textureId != 0 && !m_textureSize.isEmpty();
@@ -221,6 +330,15 @@ QSGNode *PreviewItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
             // instead. Declaring the channel only selects the blending material.
             // The QImage branch above does not need the flag because
             // createTextureFromImage infers alpha from the image format.
+            // The compositor's context flushed the frame but may not have finished it; make
+            // this context wait for it on the GPU before the first draw that samples it. The
+            // fence stays valid while the texture is claimed, and this item holds the claim.
+            if (m_textureId == int(m_claimed)) {
+                if (void *fence = drift::gl::present::producerFence(m_claimed)) {
+                    if (QOpenGLContext *ctx = QOpenGLContext::currentContext())
+                        ctx->extraFunctions()->glWaitSync(static_cast<GLsync>(fence), 0, GL_TIMEOUT_IGNORED);
+                }
+            }
             texture = QNativeInterface::QSGOpenGLTexture::fromNative(
                 static_cast<GLuint>(m_textureId), window(), m_textureSize,
                 QQuickWindow::TextureHasAlphaChannel);
@@ -239,6 +357,8 @@ QSGNode *PreviewItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
         node->setFiltering(QSGTexture::Linear);
         node->setTextureCoordinatesTransform(QSGSimpleTextureNode::NoTransform);
         m_boundTextureId = hasImage ? 0 : m_textureId;
+        if (!hasImage && m_textureId == int(m_claimed))
+            m_claimSynced = true;
         m_boundTextureSize = drawSize;
         m_boundImageCacheKey = hasImage ? m_image.cacheKey() : 0;
     }

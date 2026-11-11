@@ -126,7 +126,10 @@ public:
     // Presentation targets rotated between the compositor and the scene graph. Public so
     // GpuCompositor can static_assert the in-flight composite cap against it: every composite
     // that may be running at once needs a slot, plus one for the frame still on screen.
-    static constexpr int kPresentRingSize = 3;
+    // Dafin: four, because the frame on screen and the newest published one are not always the
+    // same slot (see PresentClaims.h): the one being drawn, the one being handed over, and a
+    // free one for the next composite.
+    static constexpr int kPresentRingSize = 4;
     // Each preview stream rotates through its own ring, so one stream's published frame is
     // never the slot another stream's composite picks next.
     static constexpr int kPresentStreams = 2;

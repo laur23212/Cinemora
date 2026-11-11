@@ -121,6 +121,7 @@
 #include "engine/face/swap/FaceSwapSource.h"
 #include "engine/render3d/models/GlModelRenderer.h"
 #include "engine/gpu/GlRuntime.h"
+#include "engine/gpu/PresentClaims.h"
 #include "engine/packages/assets/EmojiCatalog.h"
 #include "engine/packages/assets/FontCatalog.h"
 #include "engine/compositor/FrameCompositor.h"
@@ -331,6 +332,7 @@ private slots:
     void playbackDiagnosticsReportsStagesAndFindings();
     void presentRingKeepsResizedTexturesAliveForTheSceneGraph();
     void presentRingDoesNotRedrawTheTextureOnScreen();
+    void presentRingNeverRedrawsAClaimedTexture();
     void debugReportListsEveryAvailableHardwareEncoder();
     void cudaInteropUploadsAFrameWithoutBlanking();
     void d3d11InteropUploadsAFrameWithoutBlanking();
@@ -7401,6 +7403,38 @@ void EngineTest::presentRingDoesNotRedrawTheTextureOnScreen()
     QVERIFY(third.isValid());
     QVERIFY2(second.textureId != third.textureId,
              "the compositor redrew the texture still on screen");
+}
+
+// Dafin: the newest published slot is not always the one on screen — while a transform is
+// dragged the compositor publishes several frames per refresh, and it used to cycle back onto the
+// texture the render thread was still drawing (a one-refresh black flicker). A claimed texture is
+// left alone however many frames go by, and comes back into the ring once released.
+void EngineTest::presentRingNeverRedrawsAClaimedTexture()
+{
+    if (!GpuCompositor::isAvailable())
+        QSKIP("OpenGL offscreen context unavailable");
+
+    GpuScene scene;
+    scene.canvasSize = QSize(64, 64);
+    scene.backgroundColor = Qt::blue;
+
+    const GpuFrameTexture held = GpuCompositor::renderToTexture(scene);
+    QVERIFY(held.isValid());
+    QVERIFY(held.textureId != 0);
+    drift::gl::present::claim(held.textureId);
+
+    for (int i = 0; i < drift::gl::GlRuntime::kPresentRingSize * 3; ++i) {
+        const GpuFrameTexture next = GpuCompositor::renderToTexture(scene);
+        QVERIFY(next.isValid());
+        QVERIFY2(next.textureId != held.textureId, "the compositor redrew a claimed texture");
+    }
+
+    drift::gl::present::release(held.textureId);
+    QVERIFY(!drift::gl::present::isClaimed(held.textureId));
+    bool reused = false;
+    for (int i = 0; i < drift::gl::GlRuntime::kPresentRingSize + 1 && !reused; ++i)
+        reused = GpuCompositor::renderToTexture(scene).textureId == held.textureId;
+    QVERIFY2(reused, "a released texture never came back into the ring");
 }
 
 // The Hardware column used to name whichever vendor came first in Exporter's static order, so a
