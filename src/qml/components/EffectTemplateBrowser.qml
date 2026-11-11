@@ -9,9 +9,12 @@ Column {
 
     readonly property string favoritesId: "__favorites__"
     readonly property string mineId: "__mine__"
-    readonly property var categories: EditorState.effectTemplateCategories()
+    // Dafin: Split Screen is built in (no pack needed) and comes first, as in Filmora.
+    readonly property string splitId: "__split__"
+    readonly property var categories: [{ "id": splitId, "label": qsTr("Split Screen") }]
+                                      .concat(EditorState.effectTemplateCategories())
     readonly property var catalog: EditorState.effectTemplateCatalog()
-    property string activeCategory: categories.length > 0 ? categories[0].id : mineId
+    property string activeCategory: splitId
     property alias searchText: search.text
     readonly property string query: search.text.trim().toLowerCase()
     property int favoritesTick: 0
@@ -90,12 +93,20 @@ Column {
             visible: root.activeCategory === root.mineId && root.query.length === 0
         }
 
+        SplitScreenGrid {
+            id: splitGrid
+            x: 12
+            width: parent.width - 24 + Theme.assetCardGap
+            height: parent.height
+            visible: root.activeCategory === root.splitId && root.query.length === 0
+        }
+
         // Without the pack installed the catalog is empty and the grid rendered nothing,
         // unlike the sibling audio and transitions tabs which both offer an install CTA.
         EmptyState {
             anchors.centerIn: parent
             width: Math.min(parent.width - Theme.spacing3xl, 260)
-            visible: root.catalog.length === 0 && !stacks.visible
+            visible: root.catalog.length === 0 && !stacks.visible && !splitGrid.visible
             compact: true
             glyph: Theme.icons.wand
             title: qsTr("No effect templates")
@@ -109,7 +120,7 @@ Column {
             x: 12
             y: 12
             width: parent.width - 24
-            visible: root.catalog.length > 0 && !stacks.visible && root.visibleTemplates.length === 0
+            visible: root.catalog.length > 0 && !stacks.visible && !splitGrid.visible && root.visibleTemplates.length === 0
             text: root.query.length > 0
                   ? qsTr("No templates match “%1”.").arg(search.text.trim())
                   : (root.activeCategory === root.favoritesId
@@ -141,7 +152,7 @@ Column {
             height: parent.height
             topMargin: 12
             bottomMargin: 12
-            visible: !stacks.visible && root.visibleTemplates.length > 0
+            visible: !stacks.visible && !splitGrid.visible && root.visibleTemplates.length > 0
             clip: true
             reuseItems: true
             boundsBehavior: Flickable.StopAtBounds

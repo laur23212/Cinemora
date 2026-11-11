@@ -157,6 +157,7 @@ private slots:
     void retimeKeepsDisabledKeyframeTrackDisabled();
     void effectStackCopyPasteAppendsAndRescales();
     void chromaKeyHueIsFlaggedForTheColourSwatch();
+    void splitScreenFillsCellsWithCoveredMaskedClips();
     void pastedEffectsKeepTheKeyframeGraphSelection();
     void copiedSingleEffectRoutesToTheRightList();
     void pastedAudioEffectsAreDroppedOnClipsWithNoAudio();
@@ -15885,6 +15886,59 @@ void EditorStateTest::maskingCutoutPatchSurvivesInspectorEdits()
     QVERIFY(edited.invert);
     QCOMPARE(edited.mediaPatches.size(), 1);
     QCOMPARE(edited.mediaPatches.firstKey(), 5 * fx.frame);
+}
+
+void EditorStateTest::splitScreenFillsCellsWithCoveredMaskedClips()
+{
+    AssetLibrary library;
+    AppController state(&library);
+    drift::Project &project = *state.project();
+    project.tracks().clear();
+    for (const QString &id : {QStringLiteral("v1"), QStringLiteral("v2")}) {
+        drift::Track track{.type = drift::TrackType::Video};
+        track.id = id;
+        project.tracks().append(track);
+    }
+    for (int t = 0; t < 2; ++t) {
+        drift::Clip clip;
+        clip.id = t == 0 ? QStringLiteral("a") : QStringLiteral("b");
+        clip.type = drift::ClipType::Video;
+        clip.timelineDuration = drift::secondsToUs(2.0);
+        clip.srcOut = clip.timelineDuration;
+        project.tracks()[t].clips.append(clip);
+    }
+
+    const QVariantList layouts = state.splitScreenLayouts();
+    QVERIFY(layouts.size() >= 6);
+    QCOMPARE(layouts.first().toMap().value(QStringLiteral("id")).toString(), QStringLiteral("rows3"));
+    QCOMPARE(layouts.first().toMap().value(QStringLiteral("cells")).toList().size(), 3);
+    QCOMPARE(state.applySplitScreen(QStringLiteral("no-such-layout")), 0);
+
+    state.selectClip(0, 0);
+    state.addToSelection(1, 0);
+    QCOMPARE(state.applySplitScreen(QStringLiteral("leftright")), 2);
+
+    // The canvas-shaped picture is scaled to cover its half and centred on it, so it spills over
+    // the cell by a quarter of the canvas each side; the mask cuts it back to the cell.
+    const double canvasW = project.width();
+    int t = -1;
+    int c = -1;
+    QVERIFY(drift::mcpdetail::findClipById(project, QStringLiteral("a"), &t, &c));
+    const drift::Clip &left = project.tracks().at(t).clips.at(c);
+    QVERIFY(qAbs(left.transformX.evaluateAt(0) - (-0.25 * canvasW)) < 1.0);
+    QVERIFY(qAbs(left.transformW.evaluateAt(0) - canvasW) < 1.0);
+    const QList<drift::ClipRef> masks = drift::linkedMaskAdjustments(project, t, c);
+    QCOMPARE(masks.size(), 1);
+    const drift::Mask &mask = project.tracks().at(masks.first().trackIndex).clips.at(masks.first().clipIndex).mask;
+    QCOMPARE(mask.shape, drift::MaskShape::Rectangle);
+    QVERIFY(qAbs(mask.w - 0.5) < 1e-6);
+    QVERIFY(qAbs(mask.x - 0.25) < 1e-6);
+
+    // Undo puts both clips back as one step.
+    state.undo();
+    QVERIFY(drift::mcpdetail::findClipById(project, QStringLiteral("a"), &t, &c));
+    QVERIFY(project.tracks().at(t).clips.at(c).transformX.isEmpty());
+    QVERIFY(drift::linkedMaskAdjustments(project, t, c).isEmpty());
 }
 
 QTEST_MAIN(EditorStateTest)

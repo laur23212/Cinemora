@@ -1932,6 +1932,7 @@ qt_add_qml_module(drift
         src/qml/components/properties/CollapsibleSectionHeader.qml
         src/qml/components/properties/AudioEffectHeader.qml
         src/qml/components/assets/TextAssetsTab.qml
+        src/qml/components/assets/SplitScreenGrid.qml
         src/qml/components/assets/ScenesTab.qml
         src/qml/components/assets/SubtitlesTab.qml
         src/qml/components/assets/SpeechTab.qml

@@ -812,3 +812,191 @@ void AppController::moveClipToNewTrack(int trackIndex, int clipIndex, int insert
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// Split screen templates (Templates tab > Split Screen)
+
+namespace {
+
+struct SplitCell
+{
+    double x, y, w, h;                    // the cell's box, as fractions of the canvas
+    std::array<QPointF, 4> shape;         // corners within the box (0..1); a plain box is the unit square
+    bool slanted = false;                 // true when `shape` is not the box itself
+};
+
+struct SplitLayout
+{
+    const char *id;
+    const char *label;
+    std::vector<SplitCell> cells;
+};
+
+SplitCell box(double x, double y, double w, double h)
+{
+    return {x, y, w, h, {QPointF(0, 0), QPointF(1, 0), QPointF(1, 1), QPointF(0, 1)}, false};
+}
+
+// The layouts of Filmora's Split Screen category, in its order, then a few plain extras.
+const std::vector<SplitLayout> &splitLayouts()
+{
+    static const std::vector<SplitLayout> layouts = {
+        {"rows3", "3 rows", {box(0, 0, 1, 1.0 / 3), box(0, 1.0 / 3, 1, 1.0 / 3), box(0, 2.0 / 3, 1, 1.0 / 3)}},
+        {"diagonal2",
+         "Diagonal",
+         {{0, 0, 0.58, 1, {QPointF(0, 0), QPointF(1, 0), QPointF(0.72, 1), QPointF(0, 1)}, true},
+          {0.42, 0, 0.58, 1, {QPointF(0.28, 0), QPointF(1, 0), QPointF(1, 1), QPointF(0, 1)}, true}}},
+        {"grid2x2", "2 x 2", {box(0, 0, 0.5, 0.5), box(0.5, 0, 0.5, 0.5), box(0, 0.5, 0.5, 0.5), box(0.5, 0.5, 0.5, 0.5)}},
+        {"cols4", "4 columns", {box(0, 0, 0.25, 1), box(0.25, 0, 0.25, 1), box(0.5, 0, 0.25, 1), box(0.75, 0, 0.25, 1)}},
+        {"top3bottom1",
+         "3 over 1",
+         {box(0, 0, 1.0 / 3, 0.3), box(1.0 / 3, 0, 1.0 / 3, 0.3), box(2.0 / 3, 0, 1.0 / 3, 0.3), box(0, 0.3, 1, 0.7)}},
+        {"top1bottom3",
+         "1 over 3",
+         {box(0, 0, 1, 0.7), box(0, 0.7, 1.0 / 3, 0.3), box(1.0 / 3, 0.7, 1.0 / 3, 0.3), box(2.0 / 3, 0.7, 1.0 / 3, 0.3)}},
+        {"leftright", "Left and right", {box(0, 0, 0.5, 1), box(0.5, 0, 0.5, 1)}},
+        {"topbottom", "Top and bottom", {box(0, 0, 1, 0.5), box(0, 0.5, 1, 0.5)}},
+        {"cols3", "3 columns", {box(0, 0, 1.0 / 3, 1), box(1.0 / 3, 0, 1.0 / 3, 1), box(2.0 / 3, 0, 1.0 / 3, 1)}},
+        {"left1right2", "1 and 2", {box(0, 0, 0.5, 1), box(0.5, 0, 0.5, 0.5), box(0.5, 0.5, 0.5, 0.5)}},
+        {"grid3x3",
+         "3 x 3",
+         {box(0, 0, 1.0 / 3, 1.0 / 3), box(1.0 / 3, 0, 1.0 / 3, 1.0 / 3), box(2.0 / 3, 0, 1.0 / 3, 1.0 / 3),
+          box(0, 1.0 / 3, 1.0 / 3, 1.0 / 3), box(1.0 / 3, 1.0 / 3, 1.0 / 3, 1.0 / 3),
+          box(2.0 / 3, 1.0 / 3, 1.0 / 3, 1.0 / 3), box(0, 2.0 / 3, 1.0 / 3, 1.0 / 3),
+          box(1.0 / 3, 2.0 / 3, 1.0 / 3, 1.0 / 3), box(2.0 / 3, 2.0 / 3, 1.0 / 3, 1.0 / 3)}},
+    };
+    return layouts;
+}
+
+} // namespace
+
+QVariantList AppController::splitScreenLayouts() const
+{
+    QVariantList out;
+    for (const SplitLayout &layout : splitLayouts()) {
+        QVariantList cells;
+        for (const SplitCell &cell : layout.cells) {
+            QVariantList corners;
+            for (const QPointF &p : cell.shape)
+                corners.append(QVariantMap{{QStringLiteral("x"), p.x()}, {QStringLiteral("y"), p.y()}});
+            cells.append(QVariantMap{{QStringLiteral("x"), cell.x}, {QStringLiteral("y"), cell.y},
+                                     {QStringLiteral("w"), cell.w}, {QStringLiteral("h"), cell.h},
+                                     {QStringLiteral("corners"), corners}});
+        }
+        out.append(QVariantMap{{QStringLiteral("id"), QString::fromLatin1(layout.id)},
+                               {QStringLiteral("label"), tr(layout.label)},
+                               {QStringLiteral("cells"), cells}});
+    }
+    return out;
+}
+
+int AppController::applySplitScreen(const QString &layoutId)
+{
+    const SplitLayout *layout = nullptr;
+    for (const SplitLayout &candidate : splitLayouts()) {
+        if (layoutId == QLatin1String(candidate.id))
+            layout = &candidate;
+    }
+    if (!layout)
+        return 0;
+
+    const auto isPicture = [](const drift::Clip &clip) {
+        return (clip.type == drift::ClipType::Video || clip.type == drift::ClipType::Image) && !clip.id.isEmpty();
+    };
+
+    // The clips to place, top track first: the selection when it holds two or more pictures,
+    // otherwise every picture under the playhead.
+    QList<QPair<int, int>> refs;
+    for (const auto &pair : m_selection) {
+        if (pair.first >= 0 && pair.first < m_project.tracks().size() && pair.second >= 0
+            && pair.second < m_project.tracks().at(pair.first).clips.size()
+            && isPicture(m_project.tracks().at(pair.first).clips.at(pair.second)))
+            refs.append(pair);
+    }
+    if (refs.size() < 2) {
+        refs.clear();
+        for (int t = 0; t < m_project.tracks().size(); ++t) {
+            const drift::Track &track = m_project.tracks().at(t);
+            if (track.hidden)
+                continue;
+            for (int c = 0; c < track.clips.size(); ++c) {
+                if (isPicture(track.clips.at(c)) && track.clips.at(c).containsTime(m_playheadUs))
+                    refs.append({t, c});
+            }
+        }
+    }
+    if (refs.isEmpty()) {
+        setLastMessage(tr("Put clips on different video tracks, or select them, then pick a split screen"),
+                       QStringLiteral("warning"));
+        return 0;
+    }
+    std::sort(refs.begin(), refs.end());
+
+    // Indices shift when a mask lane is inserted, so the clips are followed by id.
+    QStringList ids;
+    for (const auto &pair : refs)
+        ids.append(m_project.tracks().at(pair.first).clips.at(pair.second).id);
+
+    const double canvasW = qMax(1, m_project.width());
+    const double canvasH = qMax(1, m_project.height());
+    const drift::Project before = m_project;
+    int placed = 0;
+    for (int i = 0; i < ids.size() && i < static_cast<int>(layout->cells.size()); ++i) {
+        int t = -1;
+        int c = -1;
+        if (!findClipById(m_project, ids.at(i), &t, &c))
+            continue;
+        drift::Clip &clip = m_project.tracks()[t].clips[c];
+        const SplitCell &cell = layout->cells[static_cast<size_t>(i)];
+
+        // The picture's own shape: the asset's size with its rotation correction, else the shape
+        // of the rect it is drawn in now.
+        double mediaW = 0;
+        double mediaH = 0;
+        if (const drift::MediaAsset *asset = m_project.asset(clip.assetId)) {
+            mediaW = asset->width;
+            mediaH = asset->height;
+            if (clip.rotationCorrection % 180 != 0)
+                std::swap(mediaW, mediaH);
+        }
+        if (mediaW <= 0 || mediaH <= 0) {
+            const drift::TimeUs rel = qMax<drift::TimeUs>(0, m_playheadUs - clip.timelineStart);
+            mediaW = clip.transformW.isEmpty() ? canvasW : clip.transformW.evaluateAt(rel);
+            mediaH = clip.transformH.isEmpty() ? canvasH : clip.transformH.evaluateAt(rel);
+        }
+
+        // Scale to cover the cell, centred on it, then cut the overflow away with a mask.
+        const double cellX = cell.x * canvasW;
+        const double cellY = cell.y * canvasH;
+        const double cellW = cell.w * canvasW;
+        const double cellH = cell.h * canvasH;
+        const double scale = qMax(cellW / mediaW, cellH / mediaH);
+        const double w = mediaW * scale;
+        const double h = mediaH * scale;
+        const double x = cellX + (cellW - w) / 2.0;
+        const double y = cellY + (cellH - h) / 2.0;
+        drift::appdetail::setClipLayoutPixels(clip, x, y, w, h);
+        clip.rotation = {};
+
+        // Mask coordinates are fractions of the clip's own frame.
+        drift::Mask mask;
+        mask.shape = cell.slanted ? drift::MaskShape::Freeform : drift::MaskShape::Rectangle;
+        mask.name = tr("Split screen");
+        mask.w = cellW / w;
+        mask.h = cellH / h;
+        mask.x = (cellX + cellW / 2.0 - x) / w;
+        mask.y = (cellY + cellH / 2.0 - y) / h;
+        if (cell.slanted) {
+            for (const QPointF &p : cell.shape)
+                mask.points.append(QPointF((cellX + p.x() * cellW - x) / w, (cellY + p.y() * cellH - y) / h));
+        }
+        writeClipMask(t, c, mask);
+        ++placed;
+    }
+
+    pushProjectEdit(before, tr("Split screen"));
+    finishEdit(ids.size() > static_cast<int>(layout->cells.size())
+                   ? tr("Split screen: %1 of %2 clips placed").arg(placed).arg(ids.size())
+                   : tr("Split screen applied"));
+    return placed;
+}
