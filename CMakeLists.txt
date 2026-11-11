@@ -2720,6 +2720,7 @@ qt_add_qml_module(drift
         src/qml/components/quicksetup/QuickSetupAddonsPage.qml
         src/qml/components/quicksetup/QuickSetupAddonRow.qml
         src/qml/components/quicksetup/QuickSetupTipsPage.qml
+        src/qml/components/quicksetup/QuickSetupPlansPage.qml
         src/qml/components/quicksetup/QuickSetupCommunityPage.qml
         src/qml/components/quicksetup/QuickSetupMockEditor.qml
         src/qml/components/quicksetup/QuickSetupTipArt.qml
