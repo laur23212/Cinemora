@@ -1344,6 +1344,8 @@ target_sources(driftapp PRIVATE
     src/app/platform/DiagnosticsLog.cpp
     src/app/editor/ProjectSafety.h
     src/app/editor/ProjectSafety.cpp
+    src/app/editor/ProjectScanner.h
+    src/app/editor/ProjectScanner.cpp
     src/app/bin/AssetPreviewController.h
     src/app/bin/AssetPreviewController.cpp
     src/app/editor/sessions/SpeedCurveController.h
@@ -2683,6 +2685,7 @@ qt_add_qml_module(drift
         src/qml/components/shell/StartScreenTitle.qml
         src/qml/components/shell/StartScreenRecents.qml
         src/qml/components/shell/StartScreenProjectRow.qml
+        src/qml/components/shell/StartScreenProjectCard.qml
         src/qml/components/shell/StartScreenActions.qml
         src/qml/components/shell/SettingsAboutPage.qml
         src/qml/components/shell/SettingsUpdatesPage.qml

@@ -1,16 +1,41 @@
 import QtQuick
 import Drift
 
+// One project in the start screen's list view: a small picture, the name, and when it was saved,
+// how long it runs and (for Filmora / Premiere Pro projects) whose it is. Show in folder and
+// remove appear on hover.
 Rectangle {
-    signal openRequested(string path)
     id: projectRow
 
     required property var modelData
+    property string dateText: ""
+    property string durationText: ""
+    property string removeLabel: qsTr("Remove from list")
+
+    signal openRequested(string path)
+    signal removeRequested(string path)
+    signal revealRequested(string path)
+
     readonly property bool exists: modelData.exists !== false
     readonly property bool hovered: rowHover.hovered
+    readonly property string kind: modelData.kind || "dafin"
+    readonly property string details: {
+        const parts = []
+        if (dateText.length > 0)
+            parts.push(dateText)
+        if (durationText.length > 0)
+            parts.push(durationText)
+        if (kind === "filmora")
+            parts.push("Filmora")
+        else if (kind === "premiere")
+            parts.push("Premiere Pro")
+        if (!exists)
+            parts.push(qsTr("missing"))
+        return parts.join("  ·  ")
+    }
 
     width: ListView.view ? ListView.view.width : 0
-    height: 56
+    height: 64
     radius: Theme.c.startScreenProjectRow.radius
     color: hovered && exists ? Theme.c.startScreenProjectRow.backgroundHover
                              : Theme.c.startScreenProjectRow.background
@@ -28,43 +53,62 @@ Rectangle {
 
     Row {
         anchors.left: parent.left
-        anchors.right: removeButton.left
-        anchors.leftMargin: Theme.spacingXl
+        anchors.right: rowButtons.left
+        anchors.leftMargin: Theme.spacingMd
         anchors.rightMargin: Theme.spacingLg
         anchors.verticalCenter: parent.verticalCenter
         spacing: Theme.spacingLg
 
         Rectangle {
-            width: 8
-            height: 8
-            radius: Theme.c.startScreenProjectRow.statusRadius
+            id: thumb
+            width: 76
+            height: 43
+            radius: Theme.radiusSm
             anchors.verticalCenter: parent.verticalCenter
-            color: projectRow.exists ? Theme.c.startScreenProjectRow.statusExists
-                                     : Theme.c.startScreenProjectRow.statusMissing
+            color: Theme.c.startScreenProjectCard.placeholder
+            clip: true
+
+            Image {
+                id: thumbImage
+                anchors.fill: parent
+                source: projectRow.modelData.thumbnail || ""
+                fillMode: Image.PreserveAspectCrop
+                asynchronous: true
+                cache: false
+                sourceSize.width: 152
+            }
+
+            IconGlyph {
+                anchors.centerIn: parent
+                visible: thumbImage.status !== Image.Ready
+                glyph: Theme.icons.film
+                iconSize: Theme.iconSizeMd
+                iconColor: Theme.c.startScreenProjectCard.placeholderIcon
+            }
         }
 
         Column {
-            width: parent.width - 8 - Theme.spacingLg
+            width: parent.width - thumb.width - Theme.spacingLg
             anchors.verticalCenter: parent.verticalCenter
-            spacing: 1
+            spacing: 2
 
             Text {
                 width: parent.width
-                text: projectRow.modelData.name + (projectRow.exists ? "" : qsTr(" (missing)"))
+                text: projectRow.modelData.name
                 color: Theme.c.startScreenProjectRow.foreground
                 font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSizeSm
+                font.pixelSize: Theme.fontSizeBase
                 font.weight: Font.Medium
-                elide: Text.ElideRight
+                elide: Text.ElideMiddle
             }
 
             Text {
                 width: parent.width
-                text: projectRow.modelData.path
+                text: projectRow.details
                 color: Theme.c.startScreenProjectRow.foregroundMuted
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontSizeXs
-                elide: Text.ElideLeft
+                elide: Text.ElideRight
             }
         }
     }
@@ -73,58 +117,85 @@ Rectangle {
         text: projectRow.exists
               ? projectRow.modelData.path
               : qsTr("This file has been moved or deleted:\n%1").arg(projectRow.modelData.path)
-        visible: projectRow.hovered && !removeArea.containsMouse
+        visible: projectRow.hovered && !revealArea.containsMouse && !removeArea.containsMouse
     }
 
-    Item {
-        id: removeButton
+    // Below the buttons so a click on one of them never also opens the project.
+    MouseArea {
+        anchors.left: parent.left
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        anchors.right: rowButtons.left
+        cursorShape: projectRow.exists ? Qt.PointingHandCursor : Qt.ArrowCursor
+        onClicked: {
+            if (projectRow.exists)
+                projectRow.openRequested(projectRow.modelData.path)
+        }
+    }
+
+    Row {
+        id: rowButtons
         anchors.right: parent.right
         anchors.rightMargin: Theme.spacingSm
         anchors.verticalCenter: parent.verticalCenter
-        width: Theme.iconSizeMd + Theme.spacingSm
-        height: Theme.iconSizeMd + Theme.spacingSm
+        spacing: 2
         opacity: projectRow.hovered ? 1 : 0
 
         Behavior on opacity {
             NumberAnimation { duration: Theme.durationFast; easing.type: Theme.easing }
         }
 
-        IconGlyph {
-            anchors.centerIn: parent
-            glyph: Theme.icons.x
-            iconSize: Theme.iconSizeMd
-            iconColor: removeArea.containsMouse ? Theme.c.startScreenProjectRow.iconHover
-                                                : Theme.c.startScreenProjectRow.icon
-        }
+        Item {
+            width: Theme.iconSizeMd + Theme.spacingSm * 2
+            height: width
+            visible: projectRow.exists
 
-        ThemedToolTip {
-            text: qsTr("Remove from recents")
-            visible: removeArea.containsMouse
-        }
+            IconGlyph {
+                anchors.centerIn: parent
+                glyph: Theme.icons.folder
+                iconSize: Theme.iconSizeMd
+                iconColor: revealArea.containsMouse ? Theme.c.startScreenProjectRow.iconHover
+                                                    : Theme.c.startScreenProjectRow.icon
+            }
 
-        MouseArea {
-            id: removeArea
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: (mouse) => {
-                mouse.accepted = true
-                EditorState.projectFile.removeRecentProject(projectRow.modelData.path)
+            ThemedToolTip {
+                text: qsTr("Show in folder")
+                visible: revealArea.containsMouse
+            }
+
+            MouseArea {
+                id: revealArea
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: projectRow.revealRequested(projectRow.modelData.path)
             }
         }
-    }
 
-    MouseArea {
-        anchors.left: parent.left
-        anchors.top: parent.top
-        anchors.bottom: parent.bottom
-        anchors.right: removeButton.left
-        hoverEnabled: true
-        cursorShape: projectRow.exists ? Qt.PointingHandCursor : Qt.ArrowCursor
-        onClicked: {
-            if (!projectRow.exists)
-                return
-            projectRow.openRequested(projectRow.modelData.path)
+        Item {
+            width: Theme.iconSizeMd + Theme.spacingSm * 2
+            height: width
+
+            IconGlyph {
+                anchors.centerIn: parent
+                glyph: Theme.icons.x
+                iconSize: Theme.iconSizeMd
+                iconColor: removeArea.containsMouse ? Theme.c.startScreenProjectRow.iconHover
+                                                    : Theme.c.startScreenProjectRow.icon
+            }
+
+            ThemedToolTip {
+                text: projectRow.removeLabel
+                visible: removeArea.containsMouse
+            }
+
+            MouseArea {
+                id: removeArea
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: projectRow.removeRequested(projectRow.modelData.path)
+            }
         }
     }
 }

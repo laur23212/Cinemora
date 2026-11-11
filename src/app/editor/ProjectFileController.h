@@ -22,6 +22,7 @@
 
 class QTimer;
 class AppController;
+class ProjectScanner;
 
 // Project-file lifecycle and project setup: save, load, packaging, collect-media,
 // autosave and the startup queue. Reached from QML as EditorState.projectFile.
@@ -50,6 +51,9 @@ class ProjectFileController : public QObject
     Q_PROPERTY(bool recoveryAvailable READ recoveryAvailable NOTIFY recoveryChanged)
     Q_PROPERTY(QVariantMap recoveryInfo READ recoveryInfo NOTIFY recoveryChanged)
     Q_PROPERTY(QVariantList recentProjects READ recentProjects NOTIFY recentProjectsChanged)
+    // Dafin: projects found on this computer (.drift, Filmora .wfp, Premiere .prproj) for the
+    // start screen's "On this computer" tab; also gives recents their length and picture.
+    Q_PROPERTY(QObject *scanner READ scannerObject CONSTANT)
     // An instance an agent launched next to the user's editor (--isolated-session). It must
     // not restore or prompt for the user's last session, and must leave the per-user state
     // that session relies on alone: the crash-recovery file, lastSessionPath, recents. Set
@@ -87,6 +91,8 @@ public:
     bool recoveryAvailable() const { return m_recoveryAvailable; }
     QVariantMap recoveryInfo() const { return m_recoveryInfo; }
     QVariantList recentProjects() const;
+    ProjectScanner *scanner() const { return m_scanner; }
+    QObject *scannerObject() const;
 
     // Writes a .drift bundle keeping each asset's current storage mode, so a referencing project
     // stays instant to save and a packaged one stays self-contained.
@@ -338,6 +344,7 @@ private:
     QUrl m_lastExternalProject;
     bool m_uiReady = false;
     bool m_isolatedSession = false;
+    ProjectScanner *m_scanner = nullptr;
 
     static constexpr int kAutosaveIntervalMs = 60000;
     static constexpr int kMaxRecentProjects = 10;

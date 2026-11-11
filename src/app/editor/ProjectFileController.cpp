@@ -1,6 +1,7 @@
 #include "app/editor/ProjectFileController.h"
 #include "app/editor/ProjectSafety.h"
 #include <QLocale>
+#include "app/editor/ProjectScanner.h"
 #include "app/online/library/SessionFiles.h"
 #include "app/bin/MediaBinController.h"
 #include "app/editor/PreferencesController.h"
@@ -85,6 +86,16 @@ ProjectFileController::ProjectFileController(AppController *app, QObject *parent
     : QObject(parent)
     , m_app(app)
 {
+    // Dafin: the start screen's project finder. Recents are read by it too (length, and a
+    // picture for those Dafin has no thumbnail of), so a new reading refreshes them.
+    m_scanner = new ProjectScanner(this);
+    const auto syncRecentsToScanner = [this] {
+        m_scanner->setExtraFiles(QSettings().value(QStringLiteral("recentProjects")).toStringList());
+    };
+    syncRecentsToScanner();
+    connect(this, &ProjectFileController::recentProjectsChanged, this, syncRecentsToScanner);
+    connect(m_scanner, &ProjectScanner::infoChanged, this, &ProjectFileController::recentProjectsChanged);
+
     // Periodically snapshot unsaved work to a recovery file so a crash doesn't
     // lose progress. A confirmed close (Save or Don't Save) clears dirty first,
     // so aboutToQuit only writes this when quit was interrupted (SIGTERM, kill).
@@ -2052,18 +2063,32 @@ QVariantList ProjectFileController::recentProjects() const
             continue;
         }
         const QFileInfo info(path);
+        // Dafin: length (and a picture when Dafin kept none) from the project finder's reading.
+        const ProjectScanner::Info scanned = m_scanner->info(path);
+        const bool scannedCurrent = scanned.inspected && info.exists()
+                                    && scanned.modified.toMSecsSinceEpoch() == info.lastModified().toMSecsSinceEpoch();
+        const QString cover = thumbnail.isEmpty() && scannedCurrent && !scanned.cover.isEmpty()
+                                  ? QUrl::fromLocalFile(scanned.cover).toString()
+                                  : thumbnail;
         out.append(QVariantMap{
             {QStringLiteral("path"), path},
             {QStringLiteral("name"), info.fileName()},
             {QStringLiteral("exists"), info.exists()},
-            {QStringLiteral("thumbnail"), thumbnail},
+            {QStringLiteral("thumbnail"), cover},
             {QStringLiteral("modified"), info.exists() ? info.lastModified() : QDateTime()},
             {QStringLiteral("sizeBytes"), info.exists() ? info.size() : qint64(0)},
+            {QStringLiteral("kind"), ProjectScanner::kindFor(path)},
+            {QStringLiteral("durationUs"), scannedCurrent ? double(scanned.durationUs) : 0.0},
         });
     }
     if (idsChanged)
         settings.setValue(QStringLiteral("recentProjectIds"), ids);
     return out;
+}
+
+QObject *ProjectFileController::scannerObject() const
+{
+    return m_scanner;
 }
 
 void ProjectFileController::queueSaveThumbnail(const QString &location)
