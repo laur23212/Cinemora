@@ -23,3 +23,15 @@ every chat follows these rules, so that no chat cancels or overwrites another's 
    or running.
 5. **Say which files you will change** before starting, so the user can warn you when another
    chat is editing the same ones.
+
+## Model and effort
+
+6. **Judge the model and effort before starting.** Decide which model (Sonnet or Opus) and which
+   effort (Low, Medium, High, Extra or Max) the task needs, then:
+   - If the current setting is enough, say so in one line and start.
+   - If it needs more, stop and tell the user what to switch to and why. Don't start, so they can
+     change it and resend.
+   - If it needs less, mention that they could switch down next time, and start anyway.
+
+   Errands (merge, build, adding templates, small text edits) need little. Features, crashes and
+   changes across many files need more. If a task turns out harder midway, say so then.
