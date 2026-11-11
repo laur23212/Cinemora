@@ -639,6 +639,76 @@ private slots:
         QVERIFY(!reread.find(item.key()).has_value());
     }
 
+    // Dafin: the one "downloaded" state the tabs read. Ready while the file is on disk and in
+    // Media; removed from Media → "download" again (remembered across a restart); downloading
+    // again re-imports the same file instead of fetching a second copy.
+    void downloadedStateFollowsMedia()
+    {
+        QTemporaryDir dir;
+        QTemporaryDir src;
+        const QString lottiePath = src.path() + QStringLiteral("/star.json");
+        {
+            QFile f(lottiePath);
+            QVERIFY(f.open(QIODevice::WriteOnly));
+            f.write(kMiniLottie);
+        }
+        QNetworkAccessManager net;
+        AuthManager auth(SecretStore::createFileStore(dir.path()));
+        ProviderRegistry registry(&net, &auth);
+        auth.setRegistry(&registry);
+        registry.add(std::make_unique<FakeProvider>(&registry, QStringLiteral("lib"), QList<AssetKind>{AssetKind::Sticker}));
+        const QString dbPath = dir.path() + QStringLiteral("/assets.json");
+        LocalAssetDatabase db(dbPath);
+        DownloadManager downloads(&net, &registry, &db);
+        QStringList imported;
+        downloads.setImporter([&](const QStringList &paths) { imported << paths; return QStringList{QStringLiteral("bin-1")}; });
+
+        AssetItem item;
+        item.providerId = QStringLiteral("lib");
+        item.id = QStringLiteral("star");
+        item.kind = AssetKind::Sticker;
+        item.downloadUrl = QUrl::fromLocalFile(lottiePath);
+
+        QCOMPARE(downloads.localPath(item.key()), QString());
+        QSignalSpy done(&downloads, &DownloadManager::downloaded);
+        downloads.enqueue(item);
+        QVERIFY(done.wait(5000));
+        const QString saved = done.first().at(2).toString();
+        QCOMPARE(downloads.localPath(item.key()), saved);
+        // The Lottie preview now draws (and the card drags) the downloaded file.
+        QCOMPARE(downloads.previewPath(item.key()), saved);
+
+        // Removed from Media: back to "download", the file stays.
+        QCOMPARE(db.setRemovedFromMedia(saved, false).size(), 0);
+        QCOMPARE(db.setRemovedFromMedia(saved, true), QStringList{item.key()});
+        QCOMPARE(downloads.state(item.key()), DownloadManager::State::None);
+        QCOMPARE(downloads.localPath(item.key()), QString());
+        QVERIFY(QFileInfo::exists(saved));
+
+        // Remembered across a restart.
+        db.flush();
+        {
+            LocalAssetDatabase reread(dbPath);
+            reread.load();
+            QCOMPARE(reread.reconcile(), 0);
+            QVERIFY(reread.find(item.key())->removedFromMedia);
+        }
+
+        // Download again: the same file is imported, nothing new is written.
+        const QStringList filesBefore = QDir(QFileInfo(saved).absolutePath()).entryList(QDir::Files);
+        downloads.enqueue(item);
+        QCOMPARE(done.size(), 2);
+        QCOMPARE(done.last().at(2).toString(), saved);
+        QCOMPARE(imported.last(), saved);
+        QCOMPARE(QDir(QFileInfo(saved).absolutePath()).entryList(QDir::Files), filesBefore);
+        QCOMPARE(downloads.localPath(item.key()), saved);
+
+        // Back in Media some other way (undo, imported again): ready again.
+        QCOMPARE(db.setRemovedFromMedia(saved, true).size(), 1);
+        QCOMPARE(db.setRemovedFromMedia(saved, false).size(), 1);
+        QCOMPARE(downloads.state(item.key()), DownloadManager::State::Done);
+    }
+
     void stickerThatIsNotLottieIsRejected()
     {
         QTemporaryDir dir;

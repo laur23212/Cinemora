@@ -24,6 +24,12 @@ Item {
         void MarketInstall.revision
         return MarketInstall.installState(item)
     }
+    // Dafin: installed stock media or a sound still in Media drags onto the timeline as its file.
+    readonly property string readyPath: {
+        void MarketInstall.revision
+        return (isStock || kind === "audio" || kind === "music") && installState === "installed"
+               ? MarketInstall.installedPath(item) : ""
+    }
     readonly property bool badgeShown: !isAsset
                                        && (installState === "installed" || installState === "update"
                                            || installState === "failed"
@@ -87,6 +93,19 @@ Item {
                 item: root.item
                 compact: root.compact
                 onOpenRequested: root.openRequested()
+
+                AssetDragSource {
+                    anchors.fill: parent
+                    visible: root.readyPath.length > 0
+                    enabled: visible
+                    liftEnabled: false
+                    kind: "media"
+                    payload: ""
+                    fileUrl: root.readyPath.length > 0 ? EditorState.fileUrl(root.readyPath) : ""
+                    label: root.item.title || ""
+                    glyph: root.glyphFor(root.kind)
+                    onTapped: root.openRequested()
+                }
             }
             Text {
                 width: parent.width
@@ -133,6 +152,19 @@ Item {
                 }
                 HoverHandler { id: hover; cursorShape: Qt.PointingHandCursor }
                 TapHandler { onTapped: root.openRequested() }
+
+                AssetDragSource {
+                    anchors.fill: parent
+                    visible: root.readyPath.length > 0
+                    enabled: visible
+                    liftEnabled: false
+                    kind: "media"
+                    payload: ""
+                    fileUrl: root.readyPath.length > 0 ? EditorState.fileUrl(root.readyPath) : ""
+                    label: root.item.title || ""
+                    glyph: root.glyphFor(root.kind)
+                    onTapped: root.openRequested()
+                }
             }
             Text {
                 width: parent.width

@@ -47,7 +47,12 @@ public:
     State state(const QString &key) const;
     double progress(const QString &key) const;
     QString message(const QString &key) const;
+    // Dafin: the downloaded file of a finished item that is still on disk and still in Media,
+    // empty otherwise. What a "ready" card drags onto the timeline.
+    QString localPath(const QString &key) const;
     int revision() const { return m_revision; }
+    // Dafin: re-announces every state (a record changed outside a download, e.g. removed from Media).
+    void refresh() { bump(); }
 
     // Lottie preview: fetch the JSON (small) into the session folder; previewReady() answers.
     void fetchPreview(const AssetItem &item);

@@ -30,6 +30,11 @@ FocusScope {
         return MarketInstall.installState(asset)
     }
     readonly property bool playing: autoplay || hover.hovered || root.activeFocus
+    // Dafin: an installed Lottie still in Media drags onto the timeline as its file.
+    readonly property string readyPath: {
+        void MarketInstall.revision
+        return kind === "lottie" && installState === "installed" ? MarketInstall.installedPath(asset) : ""
+    }
 
     width: Math.round(previewHeight * aspect)
     implicitHeight: column.implicitHeight
@@ -150,6 +155,22 @@ FocusScope {
                 border.width: Theme.c.driftAssetCard.borderWidth
                 border.color: Theme.c.driftAssetCard.borderFocus
                 visible: root.activeFocus && !hover.hovered
+            }
+
+            AssetDragSource {
+                anchors.fill: parent
+                visible: root.readyPath.length > 0
+                enabled: visible
+                liftEnabled: false
+                kind: "media"
+                payload: ""
+                fileUrl: root.readyPath.length > 0 ? EditorState.fileUrl(root.readyPath) : ""
+                label: root.asset.title || ""
+                glyph: Theme.icons.smile
+                onTapped: {
+                    root.forceActiveFocus()
+                    root.openRequested()
+                }
             }
 
             // The one action, on the preview so it never shifts the label rows. Always there on

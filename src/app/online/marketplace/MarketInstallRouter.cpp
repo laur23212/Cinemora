@@ -6,7 +6,24 @@
 #include "app/online/marketplace/CommunityInstaller.h"
 #include "app/online/marketplace/StockInstaller.h"
 
+#include <QDir>
+#include <QFileInfo>
+#include <QSettings>
 #include <QUrl>
+
+namespace {
+const char kRemovedKey[] = "dafin/marketRemovedFromMedia";
+
+QString mediaKey(const QString &path)
+{
+    const QString clean = QDir::cleanPath(QFileInfo(path).absoluteFilePath());
+#ifdef Q_OS_WIN
+    return clean.toLower();
+#else
+    return clean;
+#endif
+}
+} // namespace
 
 MarketInstallRouter::MarketInstallRouter(StockInstaller *stock, DriftAssetStore *assets, SfxLibrary *sfx,
                                          CommunityInstaller *community, DownloadCenter *center,
@@ -40,6 +57,60 @@ MarketInstallRouter::MarketInstallRouter(StockInstaller *stock, DriftAssetStore 
     }
     if (m_community)
         connect(m_community, &CommunityInstaller::stateChanged, this, &MarketInstallRouter::bump);
+    const QStringList removed = QSettings().value(QLatin1String(kRemovedKey)).toStringList();
+    m_removedFromMedia = QSet<QString>(removed.cbegin(), removed.cend());
+}
+
+void MarketInstallRouter::setInMedia(const QString &path, bool inMedia)
+{
+    if (path.isEmpty())
+        return;
+    const QString key = mediaKey(path);
+    if (inMedia ? !m_removedFromMedia.remove(key) : m_removedFromMedia.contains(key))
+        return;
+    if (!inMedia) {
+        if (!isInstalledFile(key))
+            return; // the user's own file, or another tab's download: none of the router's business
+        m_removedFromMedia.insert(key);
+    }
+    saveRemoved();
+    bump({}, {});
+}
+
+bool MarketInstallRouter::isInstalledFile(const QString &key) const
+{
+    for (const QString &root : {SfxLibrary::installRoot(), DriftAssetStore::installRoot()}) {
+        if (!root.isEmpty() && key.startsWith(mediaKey(root) + QLatin1Char('/')))
+            return true;
+    }
+    // Stock saves to a folder the user picks: match the finished stock jobs' files.
+    if (m_center) {
+        const QVariantList jobs = m_center->jobs();
+        for (const QVariant &v : jobs) {
+            const QVariantMap job = v.toMap();
+            const QString file = job.value(QStringLiteral("filePath")).toString();
+            if (job.value(QStringLiteral("kind")).toString() == QLatin1String("stock") && !file.isEmpty()
+                && mediaKey(file) == key)
+                return true;
+        }
+    }
+    return false;
+}
+
+void MarketInstallRouter::saveRemoved() const
+{
+    // Files that are gone need no memory.
+    QStringList keep;
+    for (const QString &p : m_removedFromMedia)
+        if (QFileInfo::exists(p))
+            keep << p;
+    QSettings().setValue(QLatin1String(kRemovedKey), keep);
+}
+
+bool MarketInstallRouter::removedFromMedia(const QVariantMap &result) const
+{
+    const QString path = result.value(QStringLiteral("path")).toString();
+    return !path.isEmpty() && m_removedFromMedia.contains(mediaKey(path));
 }
 
 QString MarketInstallRouter::family(const QString &source)
@@ -64,6 +135,20 @@ void MarketInstallRouter::install(const QVariantMap &item, const QString &varian
 {
     const QString source = item.value(QStringLiteral("source")).toString();
     const QString kind = family(source);
+    // Dafin: back into Media from the file already on disk (Drift Assets and sounds re-import an
+    // existing file themselves; a stock download would fetch a second copy, so it's done here).
+    const QVariantMap previous = rawResult(item, variantId);
+    if (removedFromMedia(previous)) {
+        const QString path = previous.value(QStringLiteral("path")).toString();
+        m_removedFromMedia.remove(mediaKey(path));
+        saveRemoved();
+        if (kind == QLatin1String("stock") && QFileInfo::exists(path) && m_importer) {
+            m_importer({path});
+            bump(source, item.value(QStringLiteral("id")).toString());
+            return;
+        }
+        bump(source, item.value(QStringLiteral("id")).toString());
+    }
     if (kind == QLatin1String("stock") && m_stock) {
         m_stock->download(source, item.value(QStringLiteral("id")).toString(), variantId,
                           destDir.isEmpty() ? QUrl() : QUrl::fromLocalFile(destDir),
@@ -79,6 +164,21 @@ void MarketInstallRouter::install(const QVariantMap &item, const QString &varian
 }
 
 QString MarketInstallRouter::installState(const QVariantMap &item, const QString &variantId) const
+{
+    const QString state = rawState(item, variantId);
+    if ((state == QLatin1String("installed") || state == QLatin1String("update"))
+        && removedFromMedia(rawResult(item, variantId)))
+        return QStringLiteral("none");
+    return state;
+}
+
+QVariantMap MarketInstallRouter::installResult(const QVariantMap &item, const QString &variantId) const
+{
+    const QVariantMap result = rawResult(item, variantId);
+    return removedFromMedia(result) ? QVariantMap() : result;
+}
+
+QString MarketInstallRouter::rawState(const QVariantMap &item, const QString &variantId) const
 {
     const QString source = item.value(QStringLiteral("source")).toString();
     const QString kind = family(source);
@@ -100,7 +200,7 @@ QString MarketInstallRouter::installState(const QVariantMap &item, const QString
     return QStringLiteral("none");
 }
 
-QVariantMap MarketInstallRouter::installResult(const QVariantMap &item, const QString &variantId) const
+QVariantMap MarketInstallRouter::rawResult(const QVariantMap &item, const QString &variantId) const
 {
     const QString source = item.value(QStringLiteral("source")).toString();
     const QString kind = family(source);

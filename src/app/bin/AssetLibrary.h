@@ -259,6 +259,9 @@ signals:
     // Dafin: `reason` says why when it is known (a Lottie the renderer refused, say), so the toast
     // no longer blames "the image format" for every file.
     void assetImportFailed(const QString &name, const QString &reason = QString());
+    // Dafin: a row was removed from the bin (not on project close). Downloaded-asset tabs use it
+    // to show that item as "download" again.
+    void assetRemoved(const QString &path);
     void proxyJobsChanged();
     void proxyStateChanged(const QString &assetId);
     void badgeRevisionChanged();

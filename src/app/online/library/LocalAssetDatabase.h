@@ -32,6 +32,9 @@ struct AssetRecord
     QString storage;        // "session" (deleted on exit) or "library" (kept)
     QDateTime downloadedAt;
     QDateTime lastUsedAt;
+    // Dafin: the user removed this file from Media, so its card offers "download" again (the
+    // file stays on disk, and downloading it again re-imports that same file).
+    bool removedFromMedia = false;
 
     QJsonObject toJson() const;
     static AssetRecord fromJson(const QJsonObject &o);
@@ -54,6 +57,9 @@ public:
     QList<AssetRecord> all() const { return m_records.values(); }
     void upsert(const AssetRecord &record);
     void remove(const QString &key);
+    // Dafin: marks every record whose file is `path` as removed from (or back in) Media.
+    // Returns the keys that changed.
+    QStringList setRemovedFromMedia(const QString &path, bool removed);
     void flush();
 
     QString path() const { return m_path; }

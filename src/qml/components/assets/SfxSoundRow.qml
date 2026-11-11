@@ -29,6 +29,11 @@ Rectangle {
         return MarketInstall.installState(modelData)
     }
     readonly property bool busy: installState === "installing"
+    // Dafin: an installed sound that is still in Media drags onto the timeline from this row.
+    readonly property string readyPath: {
+        void MarketInstall.revision
+        return installState === "installed" ? MarketInstall.installedPath(modelData) : ""
+    }
     readonly property var peaks: Sfx.peaksOf(modelData)
     readonly property real progress: isCurrent && previewPlayer.duration > 0
                                      ? Math.min(1, previewPlayer.position / previewPlayer.duration) : 0
@@ -118,6 +123,25 @@ Rectangle {
             function onProgressChanged() { wave.requestPaint() }
             function onPeaksChanged() { wave.requestPaint() }
         }
+    }
+
+    // Name and waveform: the handle that drags a ready sound (as its file, like the file manager).
+    AssetDragSource {
+        // Ids, not `label`: inside here that name is the drag source's own label property.
+        anchors.left: playButton.right
+        anchors.leftMargin: Theme.spacingMd
+        anchors.right: trailing.left
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        visible: root.readyPath.length > 0
+        enabled: visible
+        liftEnabled: false
+        kind: "media"
+        payload: ""
+        fileUrl: root.readyPath.length > 0 ? EditorState.fileUrl(root.readyPath) : ""
+        label: root.modelData.title || ""
+        glyph: Theme.icons.music
+        onTapped: root.openRequested(root.modelData)
     }
 
     Row {

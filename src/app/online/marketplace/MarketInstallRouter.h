@@ -2,7 +2,11 @@
 
 #include <QObject>
 #include <QPointer>
+#include <QSet>
+#include <QStringList>
 #include <QVariantMap>
+
+#include <functional>
 
 class CommunityInstaller;
 class DownloadCenter;
@@ -40,12 +44,24 @@ public:
     Q_INVOKABLE QVariantMap installResult(const QVariantMap &item, const QString &variantId = QString()) const;
     Q_INVOKABLE QString installedPath(const QVariantMap &item, const QString &variantId = QString()) const;
 
+    // Dafin: the media bin reports files leaving it (and coming back). An installed item whose
+    // file left Media reads "none" again, so its card offers the download; installing it again
+    // re-imports the file already on disk. Remembered across restarts.
+    using Importer = std::function<QStringList(const QStringList &)>;
+    void setImporter(Importer importer) { m_importer = std::move(importer); }
+    void setInMedia(const QString &path, bool inMedia);
+
 signals:
     void revisionChanged();
     void stateChanged(const QString &source, const QString &itemId);
 
 private:
     void bump(const QString &source, const QString &itemId);
+    QString rawState(const QVariantMap &item, const QString &variantId) const;
+    QVariantMap rawResult(const QVariantMap &item, const QString &variantId) const;
+    bool removedFromMedia(const QVariantMap &result) const;
+    void saveRemoved() const;
+    bool isInstalledFile(const QString &key) const;
 
     QPointer<StockInstaller> m_stock;
     QPointer<DriftAssetStore> m_assets;
@@ -53,4 +69,6 @@ private:
     QPointer<CommunityInstaller> m_community;
     QPointer<DownloadCenter> m_center;
     int m_revision = 0;
+    Importer m_importer;
+    QSet<QString> m_removedFromMedia; // cleaned absolute paths
 };

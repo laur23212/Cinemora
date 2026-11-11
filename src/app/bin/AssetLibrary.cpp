@@ -2151,6 +2151,8 @@ bool AssetLibrary::removeAssetAt(int index)
         return false;
 
     const QString assetId = m_project->assetIdAt(index);
+    const drift::MediaAsset *removed = m_project->asset(assetId);
+    const QString removedPath = removed ? removed->path : QString();
     beginRemoveRows({}, index, index);
     m_project->assets().remove(assetId);
     m_project->assetOrder().removeAll(assetId);
@@ -2161,6 +2163,8 @@ bool AssetLibrary::removeAssetAt(int index)
     m_importPending.remove(assetId);
     m_thumbPending.remove(assetId);
     m_audioProbePending.remove(assetId);
+    if (!removedPath.isEmpty() && indexOfPath(removedPath) < 0)
+        emit assetRemoved(removedPath);
     return true;
 }
 

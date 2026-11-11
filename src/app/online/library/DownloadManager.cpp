@@ -92,11 +92,17 @@ DownloadManager::State DownloadManager::state(const QString &key) const
     const auto it = m_jobs.constFind(key);
     if (it != m_jobs.constEnd())
         return it->state;
-    if (m_database) {
-        if (const auto r = m_database->find(key); r && QFileInfo::exists(r->localPath))
-            return State::Done;
-    }
-    return State::None;
+    return localPath(key).isEmpty() ? State::None : State::Done;
+}
+
+QString DownloadManager::localPath(const QString &key) const
+{
+    if (!m_database || m_jobs.contains(key))
+        return {};
+    // Dafin: removed from Media → the card offers "download" again (see enqueue()).
+    if (const auto r = m_database->find(key); r && !r->removedFromMedia && QFileInfo::exists(r->localPath))
+        return r->localPath;
+    return {};
 }
 
 double DownloadManager::progress(const QString &key) const
@@ -132,7 +138,9 @@ void DownloadManager::enqueue(const AssetItem &item)
     if (m_database) {
         if (const auto r = m_database->find(key); r && QFileInfo::exists(r->localPath)) {
             const QStringList ids = m_importer ? m_importer({r->localPath}) : QStringList();
+            // Dafin: also how a file removed from Media comes back — the same file, no refetch.
             AssetRecord updated = *r;
+            updated.removedFromMedia = false;
             updated.lastUsedAt = QDateTime::currentDateTimeUtc();
             m_database->upsert(updated);
             emit downloaded(key, ids.value(0), r->localPath);
@@ -322,6 +330,10 @@ void DownloadManager::complete(const QString &key, const QString &path, qint64 b
         r.lastUsedAt = r.downloadedAt;
         m_database->upsert(r);
     }
+    // Dafin: a Lottie card previewed before the download drags (and draws) the downloaded file
+    // from now on, so the timeline and Media get this one file rather than the preview copy too.
+    if (job.item.kind == AssetKind::Sticker || job.item.kind == AssetKind::Title)
+        m_previews.insert(key, path);
     const QStringList ids = m_importer ? m_importer({path}) : QStringList();
     job.state = State::Done;
     job.progress = 1.0;

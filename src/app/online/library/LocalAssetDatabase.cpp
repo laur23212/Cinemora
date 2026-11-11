@@ -28,6 +28,7 @@ QJsonObject AssetRecord::toJson() const
         {QStringLiteral("storage"), storage},
         {QStringLiteral("downloadedAt"), downloadedAt.toString(Qt::ISODate)},
         {QStringLiteral("lastUsedAt"), lastUsedAt.toString(Qt::ISODate)},
+        {QStringLiteral("removedFromMedia"), removedFromMedia},
     };
 }
 
@@ -49,6 +50,7 @@ AssetRecord AssetRecord::fromJson(const QJsonObject &o)
     r.storage = o.value(QStringLiteral("storage")).toString(QStringLiteral("session"));
     r.downloadedAt = QDateTime::fromString(o.value(QStringLiteral("downloadedAt")).toString(), Qt::ISODate);
     r.lastUsedAt = QDateTime::fromString(o.value(QStringLiteral("lastUsedAt")).toString(), Qt::ISODate);
+    r.removedFromMedia = o.value(QStringLiteral("removedFromMedia")).toBool(false);
     return r;
 }
 
@@ -122,6 +124,32 @@ void LocalAssetDatabase::remove(const QString &key)
         scheduleSave();
         emit changed();
     }
+}
+
+QStringList LocalAssetDatabase::setRemovedFromMedia(const QString &path, bool removed)
+{
+    QStringList changedKeys;
+    if (path.isEmpty())
+        return changedKeys;
+    const QString wanted = QDir::cleanPath(QFileInfo(path).absoluteFilePath());
+#ifdef Q_OS_WIN
+    const Qt::CaseSensitivity cs = Qt::CaseInsensitive;
+#else
+    const Qt::CaseSensitivity cs = Qt::CaseSensitive;
+#endif
+    for (auto it = m_records.begin(); it != m_records.end(); ++it) {
+        if (it->removedFromMedia == removed || it->localPath.isEmpty())
+            continue;
+        if (QDir::cleanPath(QFileInfo(it->localPath).absoluteFilePath()).compare(wanted, cs) != 0)
+            continue;
+        it->removedFromMedia = removed;
+        changedKeys << it.key();
+    }
+    if (!changedKeys.isEmpty()) {
+        scheduleSave();
+        emit changed();
+    }
+    return changedKeys;
 }
 
 void LocalAssetDatabase::scheduleSave()

@@ -11,8 +11,8 @@ import Drift
 //   music / sfx    waveform image, cover art or waveform peaks; ▶ plays the preview (never on hover)
 //   sticker/title  the Lottie itself, drawn by Dafin's renderer (image://lottieframe/), animating
 //                  on hover and resting on a representative frame
-// Download button states: none → queued → downloading (ring) → done (✓, click adds it again) /
-// failed (retry). Items whose licence forbids download show a lock with the reason.
+// Download button states: none → queued → downloading (ring) → done (✓ "ready": the card drags
+// onto the timeline, a click adds it to Media again) / failed (retry). Items whose licence forbids download show a lock with the reason.
 //
 // Dafin: the user's own files (My Lotties, My sounds, imported .mogrt titles) carry Save and
 // Delete in the top-right corner; an unsaved one is marked and goes away when Dafin closes. A
@@ -52,6 +52,9 @@ Item {
     readonly property string dlState: OnlineAssets.downloadsRevision >= 0 ? OnlineAssets.downloadState(key) : "none"
     readonly property real dlProgress: OnlineAssets.downloadsRevision >= 0 ? OnlineAssets.downloadProgress(key) : 0
     readonly property string dlMessage: OnlineAssets.downloadsRevision >= 0 ? OnlineAssets.downloadMessage(key) : ""
+    // Dafin: the downloaded file while it is on disk and in Media (OnlineAssets' one downloaded
+    // state, shared by every tab). Non-empty = "ready": the card drags this file to the timeline.
+    readonly property string readyPath: dlState === "done" && !isMogrt ? OnlineAssets.downloadedPath(key) : ""
     readonly property bool hovered: hover.hovered
     property string lottiePath: ""
     property bool lottieFailed: false
@@ -201,6 +204,7 @@ Item {
         }
         IconButton {
             visible: root.isAudio
+            z: 2 // above the drag source of a ready card
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
             anchors.leftMargin: 6
@@ -268,20 +272,26 @@ Item {
             iconColor: Theme.mutedForeground
         }
 
-        // ── Dafin: a Lottie sticker or title drags onto the timeline or the preview as its file,
-        //    which lands where it is dropped (imported into Media on the way, so a saved project
-        //    keeps it). The file is the one the preview already plays, so it is ready once the
-        //    card animates. ──
+        // ── Dafin: a ready card (downloaded, still in Media) drags onto the timeline or the
+        //    preview as its downloaded file, like a file from the file manager. That file is
+        //    already in Media, so the drop reuses it (no second copy, no second Media row); after a
+        //    restart it is imported into Media on the way. A Lottie sticker or title drags even
+        //    before the download, as the file its preview plays. ──
         AssetDragSource {
+            readonly property string path: root.readyPath.length > 0 ? root.readyPath
+                                         : root.isLottie ? root.lottiePath : ""
             anchors.fill: parent
-            visible: root.isLottie
-            enabled: root.isLottie && root.lottiePath.length > 0
+            visible: !root.isMogrt && (root.isLottie || root.readyPath.length > 0)
+            enabled: path.length > 0
             liftEnabled: false
             kind: "media"
             payload: ""
-            fileUrl: root.isLottie && root.lottiePath.length > 0 ? EditorState.fileUrl(root.lottiePath) : ""
+            fileUrl: path.length > 0 ? EditorState.fileUrl(path) : ""
             label: root.item.title || ""
-            glyph: root.kind === "title" ? Theme.icons.type : Theme.icons.smile
+            glyph: root.kind === "title" ? Theme.icons.type
+                 : root.isAudio ? Theme.icons.music
+                 : root.kind === "video" ? Theme.icons.film
+                 : Theme.icons.smile
         }
 
         // ── a template drags onto the timeline like any title; a click adds it at the playhead ──
@@ -424,8 +434,8 @@ Item {
                 text: root.isMogrt ? (root.mogrtAnimates ? qsTr("Add at the playhead, or drag onto the timeline. Its text and other controls stay editable in Properties › Template.")
                                                         : qsTr("This template can't be animated here. Click for the options."))
                     : !root.item.downloadable ? (root.item.downloadBlockedReason || qsTr("Download not allowed"))
-                    : root.dlState === "done" ? (root.userItem ? qsTr("Added. Click to add it to Media again.")
-                                                               : qsTr("Downloaded. Click to add it to Media again."))
+                    : root.dlState === "done" ? (root.userItem ? qsTr("Added. Drag it onto the timeline, or click to add it to Media again.")
+                                                               : qsTr("Ready. Drag it onto the timeline, or click to add it to Media again."))
                     : root.dlState === "downloading" ? qsTr("Downloading %1%. Click to cancel.").arg(Math.round(root.dlProgress * 100))
                     : root.dlState === "queued" ? qsTr("Waiting… Click to cancel.")
                     : root.dlState === "failed" ? (root.dlMessage || qsTr("Download failed. Click to retry."))

@@ -22,6 +22,25 @@ MarketServices::MarketServices(AssetLibrary &library, EditorState &state, AddonM
     driftAssets.setImporter(importIntoBin);
     sfx.setImporter(importIntoBin);
     onlineAssets.setImporter(importIntoBin);
+    router.setImporter(importIntoBin);
+    // Dafin: one "downloaded" state per download system, kept in step with Media. A file removed
+    // from Media turns its card back into "download"; a file that comes back (undo, opened
+    // project, imported again) makes it ready again.
+    QObject::connect(&library, &AssetLibrary::assetRemoved, &onlineAssets, [this](const QString &path) {
+        onlineAssets.setInMedia(path, false);
+        router.setInMedia(path, false);
+    });
+    const auto backInMedia = [this, &library](int first, int last) {
+        for (int i = first; i <= last; ++i) {
+            const QString path = library.assetAt(i).value(QStringLiteral("path")).toString();
+            onlineAssets.setInMedia(path, true);
+            router.setInMedia(path, true);
+        }
+    };
+    QObject::connect(&library, &QAbstractItemModel::rowsInserted, &onlineAssets,
+                     [backInMedia](const QModelIndex &, int first, int last) { backInMedia(first, last); });
+    QObject::connect(&library, &QAbstractItemModel::modelReset, &onlineAssets,
+                     [backInMedia, &library]() { backInMedia(0, library.rowCount() - 1); });
     driftAssets.setPropImporter([&state](const QString &dir) {
         return state.importFaceProps(QUrl::fromLocalFile(dir)).value(QStringLiteral("installed")).toStringList();
     });

@@ -80,6 +80,13 @@ public:
     Q_INVOKABLE QString downloadState(const QString &key) const;
     Q_INVOKABLE double downloadProgress(const QString &key) const;
     Q_INVOKABLE QString downloadMessage(const QString &key) const;
+    // Dafin: one "downloaded" state for every tab that downloads (Stock Media, Audio, Stickers,
+    // Titles): the finished file while it is on disk and in Media, else "". A card with a path
+    // is "ready" and drags that file onto the timeline.
+    Q_INVOKABLE QString downloadedPath(const QString &key) const;
+    // Called by the media bin: a file left Media (its card goes back to "download") or came
+    // back (undo, imported again: ready again). No-op for files that were never downloaded.
+    void setInMedia(const QString &path, bool inMedia);
     Q_INVOKABLE bool importLink(const QString &url);
     Q_INVOKABLE void preparePreview(const QVariantMap &item);
     Q_INVOKABLE QString previewPath(const QString &key) const;

@@ -263,6 +263,13 @@ QString OnlineAssets::downloadState(const QString &key) const
 
 double OnlineAssets::downloadProgress(const QString &key) const { return m_downloads->progress(key); }
 QString OnlineAssets::downloadMessage(const QString &key) const { return m_downloads->message(key); }
+QString OnlineAssets::downloadedPath(const QString &key) const { return m_downloads->localPath(key); }
+
+void OnlineAssets::setInMedia(const QString &path, bool inMedia)
+{
+    if (!m_database->setRemovedFromMedia(path, !inMedia).isEmpty())
+        m_downloads->refresh();
+}
 
 void OnlineAssets::preparePreview(const QVariantMap &item) { m_downloads->fetchPreview(AssetItem::fromVariant(item)); }
 QString OnlineAssets::previewPath(const QString &key) const { return m_downloads->previewPath(key); }
