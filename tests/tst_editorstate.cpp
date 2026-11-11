@@ -104,6 +104,8 @@
 #include "engine/encode/export/Exporter.h"
 #include "engine/encode/writers/MatteWriter.h"
 #include "app/editor/ProjectFileController.h"
+#include "app/editor/ProjectScanner.h"
+#include "TestZip.h"
 #include <QPainter>
 #include "core/effects/Mask.h"
 #include "app/editor/sessions/MaskingController.h"
@@ -135,6 +137,8 @@ class EditorStateTest : public QObject
 
 private slots:
     void snapTimeEnabled();
+    void projectScannerFindsProjectsAndSkipsAutoSaves();
+    void projectScannerReadsFilmoraLengthAndPicture();
     void compositeFromSelectionUndoRedo();
     void compositeClipGetsAPreviewBox();
     void cameraMovesThePreviewOverlayWithThePicture();
@@ -15885,6 +15889,112 @@ void EditorStateTest::maskingCutoutPatchSurvivesInspectorEdits()
     QVERIFY(edited.invert);
     QCOMPARE(edited.mediaPatches.size(), 1);
     QCOMPARE(edited.mediaPatches.firstKey(), 5 * fx.frame);
+}
+
+// Dafin: the start screen's "On this computer" tab. The walk finds Dafin, Filmora and Premiere
+// projects whatever the case of their extension, and leaves out hidden folders, Premiere's
+// auto-save copies, folders past the depth limit and anything past the file cap.
+void EditorStateTest::projectScannerFindsProjectsAndSkipsAutoSaves()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QDir root(dir.path());
+    const auto touch = [&root](const QString &relative) {
+        QVERIFY(root.mkpath(QFileInfo(root.filePath(relative)).path()));
+        QFile f(root.filePath(relative));
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        f.write("x");
+    };
+    touch(QStringLiteral("Holiday.drift"));
+    touch(QStringLiteral("Filmora/Trip.WFP"));
+    touch(QStringLiteral("Adobe/Edit.prproj"));
+    touch(QStringLiteral("Adobe/Adobe Premiere Pro Auto-Save/Edit--1.prproj"));
+    touch(QStringLiteral(".cache/Hidden.drift"));
+    touch(QStringLiteral("a/b/c/Deep.drift"));
+    touch(QStringLiteral("notes.txt"));
+
+    QStringList found = ProjectScanner::findProjectFiles({dir.path()}, 2, 100);
+    QStringList names;
+    for (const QString &p : std::as_const(found))
+        names.append(QFileInfo(p).fileName());
+    names.sort();
+    QCOMPARE(names, (QStringList{QStringLiteral("Edit.prproj"), QStringLiteral("Holiday.drift"),
+                                 QStringLiteral("Trip.WFP")}));
+
+    // Deep enough now; a root listed twice still lists each file once.
+    found = ProjectScanner::findProjectFiles({dir.path(), dir.path()}, 6, 100);
+    QCOMPARE(found.size(), 4);
+    QCOMPARE(ProjectScanner::findProjectFiles({dir.path()}, 6, 2).size(), 2);
+
+    QCOMPARE(ProjectScanner::kindFor(QStringLiteral("x/Trip.WFP")), QStringLiteral("filmora"));
+    QCOMPARE(ProjectScanner::kindFor(QStringLiteral("Edit.prproj")), QStringLiteral("premiere"));
+    QCOMPARE(ProjectScanner::kindFor(QStringLiteral("Holiday.drift")), QStringLiteral("dafin"));
+    QVERIFY(ProjectScanner::kindFor(QStringLiteral("notes.txt")).isEmpty());
+}
+
+// A Filmora project's card: its length is the end of its last clip (a clip whose media is gone
+// still counts), and its picture is the first visual clip — here a still image.
+void EditorStateTest::projectScannerReadsFilmoraLengthAndPicture()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString still = dir.filePath(QStringLiteral("cover.png"));
+    QImage image(32, 18, QImage::Format_RGB32);
+    image.fill(Qt::red);
+    QVERIFY(image.save(still));
+
+    const auto ticks = [](double seconds) { return double(qint64(seconds * 10'000'000.0)); };
+    const QJsonObject stillClip{
+        {QStringLiteral("filename"), QUrl::fromLocalFile(still).toString()},
+        {QStringLiteral("tlBegin"), ticks(0)},
+        {QStringLiteral("tlEnd"), ticks(2)},
+        {QStringLiteral("inPoint"), 0},
+        {QStringLiteral("outPoint"), ticks(2)},
+    };
+    const QJsonObject music{
+        {QStringLiteral("filename"), QUrl::fromLocalFile(dir.filePath(QStringLiteral("gone.mp3"))).toString()},
+        {QStringLiteral("tlBegin"), ticks(1)},
+        {QStringLiteral("tlEnd"), ticks(6)},
+        {QStringLiteral("inPoint"), 0},
+        {QStringLiteral("outPoint"), ticks(5)},
+    };
+    const QJsonObject timeline{
+        {QStringLiteral("timelineInfos"), QJsonArray{QJsonObject{
+             {QStringLiteral("frameRate"), QJsonObject{{QStringLiteral("num"), 30}, {QStringLiteral("den"), 1}}},
+             {QStringLiteral("resolutionWidth"), 1920},
+             {QStringLiteral("resolutionHeight"), 1080},
+             {QStringLiteral("trackInfos"), QJsonArray{
+                  QJsonObject{{QStringLiteral("trackType"), 1}, {QStringLiteral("trackTag"), 1},
+                              {QStringLiteral("clipList"), QJsonArray{stillClip}}},
+                  QJsonObject{{QStringLiteral("trackType"), 2}, {QStringLiteral("trackTag"), 1},
+                              {QStringLiteral("clipList"), QJsonArray{music}}},
+              }},
+         }}},
+    };
+    const QString wfp = dir.filePath(QStringLiteral("Trip.wfp"));
+    QVERIFY(writeStoredZip(wfp, {
+        {QStringLiteral("ProjectFolder/project_info.json"),
+         QJsonDocument(QJsonObject{{QStringLiteral("timeline_mediaId"), QStringLiteral("m1")}}).toJson()},
+        {QStringLiteral("ProjectFolder/Medias/m1/timeline.wesproj"), QJsonDocument(timeline).toJson()},
+    }));
+
+    const ProjectScanner::Info info = ProjectScanner::inspect(wfp, QString());
+    QVERIFY(info.inspected);
+    QCOMPARE(info.kind, QStringLiteral("filmora"));
+    QCOMPARE(info.durationUs, qint64(6'000'000));
+    QCOMPARE(QFileInfo(info.cover).canonicalFilePath(), QFileInfo(still).canonicalFilePath());
+
+    // A file that isn't a project of its kind is still listed, just without length or picture.
+    const QString broken = dir.filePath(QStringLiteral("Broken.prproj"));
+    {
+        QFile f(broken);
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        f.write("not a premiere project");
+    }
+    const ProjectScanner::Info none = ProjectScanner::inspect(broken, QString());
+    QVERIFY(none.inspected);
+    QCOMPARE(none.durationUs, qint64(0));
+    QVERIFY(none.cover.isEmpty());
 }
 
 QTEST_MAIN(EditorStateTest)

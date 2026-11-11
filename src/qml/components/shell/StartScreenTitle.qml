@@ -3,13 +3,13 @@ import Drift
 
 Column {
     width: parent.width
-    spacing: Theme.spacingXs
+    spacing: Theme.spacingSm
 
     Text {
         text: "Dafin"
         color: Theme.c.startScreenTitle.foreground
         font.family: Theme.fontFamily
-        font.pixelSize: 26
+        font.pixelSize: 44
         font.weight: Font.Bold
     }
 
@@ -17,6 +17,6 @@ Column {
         text: qsTr("Create polished videos fast")
         color: Theme.c.startScreenTitle.foregroundMuted
         font.family: Theme.fontFamily
-        font.pixelSize: Theme.fontSizeBase
+        font.pixelSize: 20
     }
 }

@@ -698,6 +698,30 @@
       "foreground": "$semantic.foreground",
       "foregroundMuted": "$semantic.mutedForeground"
     },
+    "startScreenProjectCard": {
+      "radius": "$metrics.radius.lg",
+      "placeholder": "$semantic.panel.accent",
+      "placeholderIcon": "$semantic.mutedForeground",
+      "border": "$semantic.panel.border",
+      "borderHover": "$semantic.primary",
+      "borderWidth": "$metrics.borderWidth",
+      "borderWidthHover": "$metrics.borderWidthFocus",
+      "foreground": "$semantic.foreground",
+      "foregroundMuted": "$semantic.mutedForeground",
+      "badgeBackground": "$semantic.scrimStrong",
+      "badgeForeground": "#ffffff",
+      "kindFilmora": "#1fc8a8",
+      "kindPremiere": "#9d8cff",
+      "kindForeground": "#0b0b10",
+      "icon": "$semantic.mutedForeground",
+      "iconHover": "$semantic.foreground"
+    },
+    "startScreenTabs": {
+      "foreground": "$semantic.mutedForeground",
+      "foregroundActive": "$semantic.foreground",
+      "indicator": "$semantic.primary",
+      "rule": "$semantic.border"
+    },
     "startScreenProjectRow": {
       "radius": "$metrics.radius.md",
       "backgroundHover": "$semantic.accent",

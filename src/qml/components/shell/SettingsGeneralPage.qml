@@ -64,6 +64,112 @@ SettingsPage {
         }
     }
 
+    // Dafin: the start screen's "On this computer" tab (ProjectScanner).
+    SettingsRow {
+        title: qsTr("Find projects on this computer")
+        searchId: "general-find-projects"
+        description: {
+            const scanner = EditorState.projectFile.scanner
+            const names = scanner ? scanner.defaultFolders.map(p => p.split(/[\\/]/).pop()) : []
+            return qsTr("The start screen lists Dafin, Filmora (.wfp) and Premiere Pro (.prproj) projects found in %1 and in the folders below. Filmora and Premiere projects open as a new Dafin project; the original is never changed.")
+                       .arg(names.length > 0 ? names.join(", ") : qsTr("your usual folders"))
+        }
+        keywords: "start screen recent projects filmora premiere wfp prproj scan search folders"
+        query: page.query
+
+        ThemedSwitch {
+            checked: EditorState.projectFile.scanner ? EditorState.projectFile.scanner.enabled : false
+            onToggled: if (EditorState.projectFile.scanner) EditorState.projectFile.scanner.enabled = checked
+        }
+    }
+
+    SettingsRow {
+        id: projectFoldersRow
+        readonly property var scanner: EditorState.projectFile.scanner
+        title: qsTr("Project folders")
+        searchId: "general-project-folders"
+        description: qsTr("More places to look, such as a projects drive. Each is searched six folders deep.")
+        keywords: "start screen projects folders scan add remove"
+        query: page.query
+        stacked: true
+        available: !!scanner && scanner.enabled
+
+        Column {
+            width: parent ? parent.width : 0
+            spacing: Theme.spacingSm
+
+            Repeater {
+                model: projectFoldersRow.scanner ? projectFoldersRow.scanner.folders : []
+
+                delegate: Rectangle {
+                    required property string modelData
+                    width: parent ? parent.width : 0
+                    height: 36
+                    radius: Theme.c.startScreenProjectRow.radius
+                    color: Theme.c.startScreenProjectRow.background
+                    border.width: Theme.c.startScreenProjectRow.borderWidth
+                    border.color: Theme.c.startScreenProjectRow.border
+
+                    IconGlyph {
+                        id: folderGlyph
+                        anchors.left: parent.left
+                        anchors.leftMargin: Theme.spacingMd
+                        anchors.verticalCenter: parent.verticalCenter
+                        glyph: Theme.icons.folder
+                        iconSize: Theme.iconSizeMd
+                        iconColor: Theme.c.startScreenProjectRow.icon
+                    }
+
+                    Text {
+                        anchors.left: folderGlyph.right
+                        anchors.leftMargin: Theme.spacingMd
+                        anchors.right: removeFolder.left
+                        anchors.rightMargin: Theme.spacingMd
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: parent.modelData
+                        color: Theme.c.startScreenProjectRow.foreground
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeSm
+                        elide: Text.ElideMiddle
+                    }
+
+                    IconButton {
+                        id: removeFolder
+                        anchors.right: parent.right
+                        anchors.rightMargin: Theme.spacingXs
+                        anchors.verticalCenter: parent.verticalCenter
+                        glyph: Theme.icons.x
+                        tooltip: qsTr("Stop searching this folder")
+                        onClicked: projectFoldersRow.scanner.removeFolder(parent.modelData)
+                    }
+                }
+            }
+
+            Row {
+                spacing: Theme.spacingSm
+
+                ThemedButton {
+                    variant: "secondary"
+                    glyph: Theme.icons.plus
+                    text: qsTr("Add folder…")
+                    onClicked: {
+                        const url = FileDialogs.openDirectory(qsTr("Add a folder to search for projects"))
+                        if (url && url.toString().length > 0 && !projectFoldersRow.scanner.addFolder(url))
+                            Toasts.error(qsTr("Couldn’t use that folder."))
+                    }
+                }
+
+                ThemedButton {
+                    variant: "ghost"
+                    glyph: Theme.icons.reset
+                    text: qsTr("Show removed projects again")
+                    tooltip: qsTr("Projects removed from the start screen's “On this computer” list come back")
+                    onClicked: projectFoldersRow.scanner.unhideAll()
+                }
+            }
+        }
+    }
+
     SettingsGroupHeader {
         text: qsTr("Saving")
         query: page.query

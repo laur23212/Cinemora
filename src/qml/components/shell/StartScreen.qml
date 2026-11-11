@@ -3,9 +3,11 @@ import Drift
 
 // Shown at startup in place of a fresh empty project whenever "Reopen last project
 // on startup" is off: what you were working on, and how to start something. The
-// mobile equivalent is AndroidProjectsPage; this mirrors its structure (new project,
-// open project, recent projects) with desktop-sized controls and ProjectRow's
-// styling (RecentProjectsPopup) for the recents list.
+// mobile equivalent is AndroidProjectsPage.
+//
+// Dafin: laid out like Filmora's launcher — a big title and buttons, then the projects as cards
+// under two tabs: Recent Projects (what Dafin opened) and On this computer (Dafin, Filmora and
+// Premiere Pro projects ProjectScanner finds in the usual folders). Grid or list, and Refresh.
 Item {
     id: root
 
@@ -19,6 +21,8 @@ Item {
     signal moreSettingsRequested()
     signal debugInfoRequested()
     signal agentAccessRequested()
+    // Dafin: Settings › General, where the searched folders are chosen.
+    signal projectFoldersRequested()
 
     ThemeSlot {
         anchors.fill: parent
@@ -33,6 +37,17 @@ Item {
     }
 
     readonly property var items: EditorState.projectFile.recentProjects
+    readonly property var scanner: EditorState.projectFile.scanner
+    readonly property var found: scanner ? scanner.projects : []
+    readonly property bool scanning: scanner ? scanner.scanning : false
+    readonly property string view: scanner ? scanner.startView : "grid"
+    // Recents first when there are any; a first start lands on what was found on disk.
+    property string tab: items.length > 0 ? "recent" : "found"
+
+    Component.onCompleted: {
+        if (root.scanner)
+            root.scanner.rescan()
+    }
 
     // Same order, icons and labels as the editor header, so they read as the same controls.
     Row {
@@ -82,36 +97,196 @@ Item {
         }
     }
 
+    component Tab: Item {
+        id: tabItem
+        property string label
+        property bool current: false
+        property bool busy: false
+        signal activated()
+
+        width: tabLabel.implicitWidth + (busy ? busyGlyph.width + Theme.spacingSm : 0)
+        height: parent.height
+
+        Text {
+            id: tabLabel
+            anchors.verticalCenter: parent.verticalCenter
+            text: tabItem.label
+            color: tabItem.current || tabArea.containsMouse ? Theme.c.startScreenTabs.foregroundActive
+                                                            : Theme.c.startScreenTabs.foreground
+            font.family: Theme.fontFamily
+            font.pixelSize: 20
+            font.weight: tabItem.current ? Font.DemiBold : Font.Medium
+        }
+
+        IconGlyph {
+            id: busyGlyph
+            visible: tabItem.busy
+            anchors.left: tabLabel.right
+            anchors.leftMargin: Theme.spacingSm
+            anchors.verticalCenter: parent.verticalCenter
+            glyph: Theme.icons.spinner
+            iconSize: Theme.iconSizeMd
+            iconColor: Theme.c.startScreenTabs.foreground
+            spinning: tabItem.busy
+        }
+
+        Rectangle {
+            anchors.bottom: parent.bottom
+            width: parent.width
+            height: 3
+            radius: 1.5
+            color: Theme.c.startScreenTabs.indicator
+            visible: tabItem.current
+        }
+
+        MouseArea {
+            id: tabArea
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: tabItem.activated()
+        }
+    }
+
     Flickable {
         id: flick
         anchors.fill: parent
         contentWidth: width
-        contentHeight: Math.max(height, column.implicitHeight + Theme.spacing3xl * 2)
+        contentHeight: column.y + column.implicitHeight + Theme.spacing3xl
         clip: true
         boundsBehavior: Flickable.StopAtBounds
         flickableDirection: Flickable.VerticalFlick
 
         Column {
             id: column
-            width: Math.min(560, flick.width - Theme.spacing3xl * 2)
+            width: Math.min(1060, flick.width - Theme.spacing3xl * 2)
             anchors.horizontalCenter: parent.horizontalCenter
-            y: Math.max(Theme.spacing3xl, (flick.height - implicitHeight) / 2)
+            y: Math.max(Theme.spacing3xl, Math.min(flick.height * 0.12, 112))
             spacing: Theme.spacing3xl
 
-            StartScreenTitle {
+            Column {
                 width: parent.width
+                spacing: Theme.spacing2xl + Theme.spacingSm
+
+                StartScreenTitle {
+                    width: parent.width
+                }
+
+                StartScreenActions {
+                    width: parent.width
+                    onNewProjectRequested: root.newProjectRequested()
+                    onOpenProjectRequested: root.openProjectRequested()
+                }
             }
 
-            StartScreenActions {
+            Column {
                 width: parent.width
-                onNewProjectRequested: root.newProjectRequested()
-                onOpenProjectRequested: root.openProjectRequested()
-            }
+                spacing: Theme.spacing2xl
 
-            StartScreenRecents {
-                width: parent.width
-                items: root.items
-                onOpenRecentRequested: (path) => root.openRecentRequested(path)
+                Item {
+                    id: tabBar
+                    width: parent.width
+                    height: 48
+
+                    Rectangle {
+                        anchors.bottom: parent.bottom
+                        anchors.bottomMargin: 1
+                        width: parent.width
+                        height: 1
+                        color: Theme.c.startScreenTabs.rule
+                    }
+
+                    Row {
+                        height: parent.height
+                        spacing: Theme.spacing2xl + Theme.spacingMd
+
+                        Tab {
+                            label: qsTr("Recent Projects")
+                            current: root.tab === "recent"
+                            onActivated: root.tab = "recent"
+                        }
+
+                        Tab {
+                            label: qsTr("On this computer")
+                            current: root.tab === "found"
+                            busy: root.scanning
+                            onActivated: root.tab = "found"
+                        }
+                    }
+
+                    Row {
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.verticalCenterOffset: -2
+                        spacing: Theme.spacingSm
+
+                        IconButton {
+                            glyph: Theme.icons.layoutGrid
+                            active: root.view !== "list"
+                            tooltip: qsTr("Grid")
+                            onClicked: if (root.scanner) root.scanner.startView = "grid"
+                        }
+
+                        IconButton {
+                            glyph: Theme.icons.list
+                            active: root.view === "list"
+                            tooltip: qsTr("List")
+                            onClicked: if (root.scanner) root.scanner.startView = "list"
+                        }
+
+                        IconButton {
+                            glyph: Theme.icons.refresh
+                            enabled: !root.scanning
+                            tooltip: root.scanning ? qsTr("Looking for projects…")
+                                                   : qsTr("Look for projects again")
+                            onClicked: if (root.scanner) root.scanner.rescan()
+                        }
+                    }
+                }
+
+                StartScreenRecents {
+                    width: parent.width
+                    items: root.tab === "recent" ? root.items : root.found
+                    view: root.view
+                    removeLabel: root.tab === "recent" ? qsTr("Remove from recents")
+                                                       : qsTr("Remove from this list")
+                    emptyText: root.tab === "recent"
+                               ? qsTr("Nothing here yet — projects you save will show up here.")
+                               : root.scanning
+                                 ? qsTr("Looking for projects…")
+                                 : (root.scanner && !root.scanner.enabled)
+                                   ? qsTr("Looking for projects on this computer is turned off.")
+                                   : qsTr("No Dafin, Filmora or Premiere Pro projects found in your usual folders.")
+                    onOpenRecentRequested: (path) => root.openRecentRequested(path)
+                    onRevealRequested: (path) => { if (root.scanner) root.scanner.revealInFolder(path) }
+                    onRemoveRequested: (path) => {
+                        if (root.tab === "recent")
+                            EditorState.projectFile.removeRecentProject(path)
+                        else if (root.scanner)
+                            root.scanner.hide(path)
+                    }
+                }
+
+                // Where "On this computer" looks, and the way to change it.
+                Row {
+                    visible: root.tab === "found"
+                    spacing: Theme.spacingSm
+
+                    ThemedLabel {
+                        anchors.verticalCenter: parent.verticalCenter
+                        size: "sm"
+                        text: root.scanner && root.scanner.folders.length > 0
+                              ? qsTr("Searched: Documents, Videos, Desktop, Downloads and your project folders.")
+                              : qsTr("Searched: Documents, Videos, Desktop and Downloads.")
+                    }
+
+                    ThemedButton {
+                        variant: "ghost"
+                        glyph: Theme.icons.folderInput
+                        text: qsTr("Project folders…")
+                        onClicked: root.projectFoldersRequested()
+                    }
+                }
             }
         }
     }

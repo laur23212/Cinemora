@@ -69,8 +69,9 @@ ApplicationWindow {
         if (window.startCompact)
             return
         window.startCompact = true
-        const w = Math.min(1100, Screen.width - 80)
-        const h = Math.min(700, Screen.height - 80)
+        // Dafin: room for three project cards across, as in Filmora's launcher.
+        const w = Math.min(1280, Screen.width - 80)
+        const h = Math.min(820, Screen.height - 80)
         window.visibility = Window.Windowed
         window.width = w
         window.height = h
@@ -1701,6 +1702,7 @@ ApplicationWindow {
                 onMoreSettingsRequested: window.openSettings()
                 onDebugInfoRequested: window.openDebugInfo()
                 onAgentAccessRequested: editorHeader.openAgentAccess()
+                onProjectFoldersRequested: window.openSettings("general")
             }
         }
     }
