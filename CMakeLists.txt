@@ -797,6 +797,8 @@ add_library(driftengine STATIC
     src/engine/media/waveforms/MediaWaveform.cpp
     src/engine/audio/analysis/LoudnessMeter.h
     src/engine/audio/analysis/LoudnessMeter.cpp
+    src/engine/audio/dsp/FfmpegAudioFilter.h
+    src/engine/audio/dsp/FfmpegAudioFilter.cpp
     src/engine/media/waveforms/WaveformBlockCache.h
     src/engine/media/waveforms/WaveformBlockCache.cpp
     src/engine/audio/analysis/AudioOnsets.h
@@ -1341,6 +1343,8 @@ target_sources(driftapp PRIVATE
     src/app/jobs/audio/AudioAlignController.cpp
     src/app/jobs/ai/AiToolsController.h
     src/app/jobs/ai/AiToolsController.cpp
+    src/app/jobs/audio/AudioToolsController.h
+    src/app/jobs/audio/AudioToolsController.cpp
     src/app/jobs/vision/RestoreController.h
     src/app/jobs/vision/RestoreController.cpp
     src/app/jobs/vision/FaceTrackingController.h
@@ -1846,6 +1850,7 @@ qt_add_qml_module(drift
         src/qml/components/properties/ShapeCropSection.qml
         src/qml/components/properties/StabilizeInspector.qml
         src/qml/components/properties/AudioInspector.qml
+        src/qml/components/properties/AudioToolsSection.qml
         src/qml/components/properties/AudioEffectsInspector.qml
         src/qml/components/properties/SpeedFadeInspector.qml
         src/qml/components/properties/AnimationInspector.qml

@@ -12,6 +12,7 @@
 #include "app/jobs/audio/DenoiseController.h"
 #include "app/jobs/audio/AudioAlignController.h"
 #include "app/jobs/ai/AiToolsController.h"
+#include "app/jobs/audio/AudioToolsController.h"
 #include "app/jobs/vision/DepthController.h"
 #include "app/jobs/vision/FaceTrackingController.h"
 #include "app/mcp/McpController.h"
@@ -615,6 +616,7 @@ AppController::AppController(AssetLibrary *assetLibrary, QObject *parent)
     m_denoise = new DenoiseController(this, this);
     m_audioAlign = new AudioAlignController(this, this);
     m_ai = new AiToolsController(this, this);
+    m_audioTools = new AudioToolsController(this, this);
     m_color = new ColorController(this, this);
     m_keyframes = new KeyframeController(this, this);
     m_masking = new MaskingController(this, this);

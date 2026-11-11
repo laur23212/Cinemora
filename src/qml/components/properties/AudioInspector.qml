@@ -266,6 +266,22 @@ Item {
             }
         }
 
+        // ----- Dafin: loudness, noise reduction, silence remover (FFmpeg, no model) -----
+        Rectangle {
+            visible: dafinAudioTools.visible
+            width: parent.width
+            height: Theme.c.audioInspector.ruleWidth
+            color: Theme.c.audioInspector.rule
+            opacity: Theme.c.audioInspector.ruleOpacity
+        }
+        AudioToolsSection {
+            id: dafinAudioTools
+            width: parent.width
+            trackIndex: root.hasSelection ? EditorState.selectedTrack : -1
+            clipIndex: root.hasSelection ? EditorState.selectedClip : -1
+            revision: root.clipDataRevision
+        }
+
         Rectangle {
             visible: root.fileAudio
             width: parent.width

@@ -181,6 +181,12 @@ target_include_directories(tst_projectbundle PRIVATE ../src)
 target_link_libraries(tst_projectbundle PRIVATE Qt6::Test driftengine ${DRIFT_ZSTD_TARGET})
 add_test(NAME ProjectBundle COMMAND tst_projectbundle)
 
+# Dafin's FFmpeg audio tools (loudnorm, afftdn, silencedetect) on synthetic audio.
+qt_add_executable(tst_audiotools tst_audiotools.cpp)
+target_include_directories(tst_audiotools PRIVATE ../src)
+target_link_libraries(tst_audiotools PRIVATE Qt6::Test driftengine)
+add_test(NAME AudioTools COMMAND tst_audiotools)
+
 qt_add_executable(tst_engine
     tst_engine.cpp
     # Diagnostics live in the playback layer but are engine-shaped: a collector plus a
