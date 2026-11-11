@@ -1,0 +1,180 @@
+{
+  "format": 1,
+  "id": "chatgpt.gaming-neon",
+  "label": "Gaming Neon",
+  "description": "Electric cyan gaming typography with a pulsing neon fill, tight cyan glow, wide violet aura, dark outline, and fast pop entrance.",
+  "category": "gaming",
+  "tags": [
+    "essentials-vol1"
+  ],
+  "kind": "title",
+  "sampleText": "GAME ON!",
+  "requires": {
+    "fonts": [
+      "Archivo Black"
+    ]
+  },
+  "style": {
+    "fontFamily": "Archivo Black",
+    "fontWeight": 400,
+    "pixelSize": 96,
+    "italic": false,
+    "align": "center",
+    "valign": "center",
+    "wordWrap": true,
+    "lineHeight": 1.12,
+    "letterSpacing": 0.5,
+    "textCase": "upper",
+    "layers": [
+      {
+        "id": "shadow",
+        "kind": "shadow",
+        "paint": {
+          "kind": "solid",
+          "color": "#050816"
+        },
+        "offsetX": 0,
+        "offsetY": 5,
+        "blur": 12,
+        "opacity": 0.7
+      },
+      {
+        "id": "wideglow",
+        "kind": "glow",
+        "paint": {
+          "kind": "solid",
+          "color": "#8754FF"
+        },
+        "blur": 34,
+        "spread": 4,
+        "opacity": 0.62
+      },
+      {
+        "id": "tightglow",
+        "kind": "glow",
+        "paint": {
+          "kind": "solid",
+          "color": "#00E6F8"
+        },
+        "blur": 10,
+        "spread": 1.5,
+        "opacity": 0.8
+      },
+      {
+        "id": "outline",
+        "kind": "stroke",
+        "paint": {
+          "kind": "solid",
+          "color": "#091427"
+        },
+        "width": 6,
+        "strokeAlign": "outside"
+      },
+      {
+        "id": "fill",
+        "kind": "fill",
+        "paint": {
+          "kind": "effect",
+          "color": "#FF39E4FF",
+          "effect": {
+            "id": "neon-pulse",
+            "params": {
+              "speed": 0.8,
+              "intensity": 0.48,
+              "flicker": 0.04,
+              "colorA": "#FF39E4FF"
+            }
+          }
+        }
+      }
+    ],
+    "animation": {
+      "in": {
+        "preset": "pop",
+        "params": {
+          "duration": 0.13,
+          "from": 78,
+          "ease": "back",
+          "unit": "block",
+          "stagger": 0
+        }
+      },
+      "out": {
+        "preset": "fade",
+        "params": {
+          "duration": 0.18,
+          "unit": "block",
+          "ease": "easeIn"
+        }
+      },
+      "timing": {
+        "fit": true,
+        "maxReadMs": 200
+      }
+    }
+  },
+  "effects": [],
+  "controls": [
+    {
+      "id": "text",
+      "label": "Title text",
+      "type": "text",
+      "bind": "text"
+    },
+    {
+      "id": "size",
+      "label": "Text size",
+      "type": "scalar",
+      "bind": "font.size",
+      "min": 68,
+      "max": 112,
+      "step": 1,
+      "unit": "px"
+    },
+    {
+      "id": "tightcolor",
+      "label": "Inner neon colour",
+      "type": "color",
+      "bind": "layer.tightglow.color",
+      "group": "Neon"
+    },
+    {
+      "id": "widecolor",
+      "label": "Outer aura colour",
+      "type": "color",
+      "bind": "layer.wideglow.color",
+      "group": "Neon"
+    },
+    {
+      "id": "aura",
+      "label": "Outer glow strength",
+      "type": "scalar",
+      "bind": "layer.wideglow.opacity",
+      "min": 0,
+      "max": 0.7,
+      "step": 0.01,
+      "group": "Neon"
+    },
+    {
+      "id": "pulse",
+      "label": "Neon pulse strength",
+      "type": "scalar",
+      "bind": "layer.fill.effect.intensity",
+      "min": 0,
+      "max": 0.6,
+      "step": 0.01,
+      "group": "Motion"
+    },
+    {
+      "id": "entrance",
+      "label": "Entrance duration",
+      "type": "scalar",
+      "bind": "animation.in.duration",
+      "min": 0,
+      "max": 0.2,
+      "step": 0.01,
+      "unit": "s",
+      "group": "Motion"
+    }
+  ]
+}

@@ -1,0 +1,135 @@
+{
+  "format": 1,
+  "id": "chatgpt.smooth-slide",
+  "label": "Smooth Slide",
+  "description": "Contemporary white typography on a softly rounded midnight-blue panel, with a fast horizontal slide and gentle fade-shift exit.",
+  "category": "modern",
+  "tags": [
+    "essentials-vol1"
+  ],
+  "kind": "title",
+  "sampleText": "Make it simple.",
+  "requires": {
+    "fonts": [
+      "Montserrat"
+    ]
+  },
+  "style": {
+    "fontFamily": "Montserrat",
+    "fontWeight": 600,
+    "pixelSize": 82,
+    "italic": false,
+    "align": "center",
+    "valign": "center",
+    "wordWrap": true,
+    "lineHeight": 1.14,
+    "letterSpacing": 0.5,
+    "textCase": "none",
+    "boxEnabled": true,
+    "boxColor": "#EE142335",
+    "boxPadding": 30,
+    "boxRadius": 16,
+    "layers": [
+      {
+        "id": "fill",
+        "kind": "fill",
+        "paint": {
+          "kind": "solid",
+          "color": "#FFFDF7"
+        }
+      }
+    ],
+    "animation": {
+      "in": {
+        "preset": "slide-right",
+        "params": {
+          "duration": 0.16,
+          "distance": 0.18,
+          "unit": "block",
+          "stagger": 0,
+          "ease": "smooth"
+        }
+      },
+      "out": {
+        "preset": "fade-shift",
+        "params": {
+          "duration": 0.22,
+          "rise": 0.16,
+          "blur": 0,
+          "unit": "block",
+          "ease": "easeIn"
+        }
+      },
+      "timing": {
+        "fit": true,
+        "maxReadMs": 200
+      }
+    }
+  },
+  "effects": [],
+  "controls": [
+    {
+      "id": "text",
+      "label": "Title text",
+      "type": "text",
+      "bind": "text"
+    },
+    {
+      "id": "size",
+      "label": "Text size",
+      "type": "scalar",
+      "bind": "font.size",
+      "min": 54,
+      "max": 100,
+      "step": 1,
+      "unit": "px"
+    },
+    {
+      "id": "textcolor",
+      "label": "Text colour",
+      "type": "color",
+      "bind": "layer.fill.color",
+      "group": "Appearance"
+    },
+    {
+      "id": "panelcolor",
+      "label": "Panel colour",
+      "type": "color",
+      "bind": "box.color",
+      "group": "Panel"
+    },
+    {
+      "id": "corners",
+      "label": "Corner radius",
+      "type": "scalar",
+      "bind": "box.radius",
+      "min": 6,
+      "max": 24,
+      "step": 1,
+      "unit": "px",
+      "group": "Panel"
+    },
+    {
+      "id": "padding",
+      "label": "Panel padding",
+      "type": "scalar",
+      "bind": "boxPadding",
+      "min": 24,
+      "max": 36,
+      "step": 1,
+      "unit": "px",
+      "group": "Panel"
+    },
+    {
+      "id": "entrance",
+      "label": "Entrance duration",
+      "type": "scalar",
+      "bind": "animation.in.duration",
+      "min": 0,
+      "max": 0.2,
+      "step": 0.01,
+      "unit": "s",
+      "group": "Motion"
+    }
+  ]
+}

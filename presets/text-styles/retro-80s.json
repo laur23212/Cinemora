@@ -1,0 +1,175 @@
+{
+  "format": 1,
+  "id": "chatgpt.retro-80s",
+  "label": "Retro 80s",
+  "description": "A nostalgic 1980s title with lavender chrome lettering, a magenta 3D extrusion, a slight arcade-style arc, and gentle motion.",
+  "category": "retro",
+  "tags": [
+    "essentials-vol1"
+  ],
+  "kind": "title",
+  "sampleText": "RETRO FUTURE",
+  "requires": {
+    "fonts": [
+      "Rubik One"
+    ]
+  },
+  "style": {
+    "fontFamily": "Rubik One",
+    "fontWeight": 400,
+    "pixelSize": 88,
+    "italic": false,
+    "align": "center",
+    "valign": "center",
+    "wordWrap": true,
+    "lineHeight": 1.14,
+    "letterSpacing": 2,
+    "textCase": "upper",
+    "pathBend": 10,
+    "layers": [
+      {
+        "id": "shadow",
+        "kind": "shadow",
+        "paint": {
+          "kind": "solid",
+          "color": "#130821"
+        },
+        "offsetX": 3,
+        "offsetY": 6,
+        "blur": 12,
+        "opacity": 0.65
+      },
+      {
+        "id": "depth",
+        "kind": "extrude",
+        "paint": {
+          "kind": "solid",
+          "color": "#E23B92"
+        },
+        "width": 16,
+        "opacity": 1
+      },
+      {
+        "id": "outline",
+        "kind": "stroke",
+        "paint": {
+          "kind": "solid",
+          "color": "#210C35"
+        },
+        "width": 5,
+        "strokeAlign": "outside"
+      },
+      {
+        "id": "fill",
+        "kind": "fill",
+        "paint": {
+          "kind": "effect",
+          "effect": {
+            "id": "chrome",
+            "params": {
+              "speed": 0,
+              "bands": 1.4,
+              "colorA": "#FFFFD5EF",
+              "colorB": "#FF66428E"
+            }
+          }
+        }
+      }
+    ],
+    "animation": {
+      "in": {
+        "preset": "stamp",
+        "params": {
+          "duration": 0.16,
+          "from": 145,
+          "ease": "easeIn"
+        }
+      },
+      "loop": {
+        "preset": "sway",
+        "params": {
+          "angle": 0.8,
+          "lift": 0.006,
+          "speed": 0.35
+        }
+      },
+      "out": {
+        "preset": "fade",
+        "params": {
+          "duration": 0.2,
+          "unit": "block",
+          "ease": "easeIn"
+        }
+      },
+      "timing": {
+        "fit": true,
+        "maxReadMs": 200
+      }
+    }
+  },
+  "effects": [],
+  "controls": [
+    {
+      "id": "text",
+      "label": "Title text",
+      "type": "text",
+      "bind": "text"
+    },
+    {
+      "id": "size",
+      "label": "Text size",
+      "type": "scalar",
+      "bind": "font.size",
+      "min": 64,
+      "max": 102,
+      "step": 1,
+      "unit": "px"
+    },
+    {
+      "id": "arc",
+      "label": "Title arc",
+      "type": "scalar",
+      "bind": "pathBend",
+      "min": 0,
+      "max": 16,
+      "step": 1,
+      "group": "Appearance"
+    },
+    {
+      "id": "depth",
+      "label": "3D depth",
+      "type": "scalar",
+      "bind": "layer.depth.width",
+      "min": 3,
+      "max": 20,
+      "step": 1,
+      "unit": "px",
+      "group": "3D"
+    },
+    {
+      "id": "depthcolor",
+      "label": "Extrusion colour",
+      "type": "color",
+      "bind": "layer.depth.color",
+      "group": "3D"
+    },
+    {
+      "id": "outlinecolor",
+      "label": "Outline colour",
+      "type": "color",
+      "bind": "layer.outline.color",
+      "group": "Appearance"
+    },
+    {
+      "id": "entrance",
+      "label": "Entrance duration",
+      "type": "scalar",
+      "bind": "animation.in.duration",
+      "min": 0.05,
+      "max": 0.2,
+      "step": 0.01,
+      "unit": "s",
+      "group": "Motion"
+    }
+  ]
+}

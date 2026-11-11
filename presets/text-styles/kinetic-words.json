@@ -1,0 +1,154 @@
+{
+  "format": 1,
+  "id": "chatgpt.kinetic-words",
+  "label": "Kinetic Words",
+  "description": "Bold editorial typography that rises into place word by word, with a hard 200 ms readability cap even for longer titles.",
+  "category": "kinetic",
+  "tags": [
+    "essentials-vol1"
+  ],
+  "kind": "title",
+  "sampleText": "CREATE MORE FEAR LESS",
+  "requires": {
+    "fonts": [
+      "League Spartan"
+    ]
+  },
+  "style": {
+    "fontFamily": "League Spartan",
+    "fontWeight": 700,
+    "pixelSize": 94,
+    "italic": false,
+    "align": "center",
+    "valign": "center",
+    "wordWrap": true,
+    "lineHeight": 1.1,
+    "letterSpacing": 0.5,
+    "textCase": "upper",
+    "layers": [
+      {
+        "id": "shadow",
+        "kind": "shadow",
+        "paint": {
+          "kind": "solid",
+          "color": "#000000"
+        },
+        "offsetX": 0,
+        "offsetY": 4,
+        "blur": 12,
+        "opacity": 0.52
+      },
+      {
+        "id": "outline",
+        "kind": "stroke",
+        "paint": {
+          "kind": "solid",
+          "color": "#172033"
+        },
+        "width": 4,
+        "strokeAlign": "outside"
+      },
+      {
+        "id": "fill",
+        "kind": "fill",
+        "paint": {
+          "kind": "solid",
+          "color": "#FFF8ED"
+        }
+      }
+    ],
+    "animation": {
+      "in": {
+        "preset": "rise-by-word",
+        "params": {
+          "duration": 0.12,
+          "stagger": 0.012,
+          "unit": "word",
+          "order": "forward",
+          "rise": 0.42,
+          "blur": 3,
+          "ease": "easeOut"
+        }
+      },
+      "out": {
+        "preset": "fade",
+        "params": {
+          "duration": 0.18,
+          "unit": "block",
+          "ease": "easeIn"
+        }
+      },
+      "timing": {
+        "fit": true,
+        "maxReadMs": 200
+      }
+    }
+  },
+  "effects": [],
+  "controls": [
+    {
+      "id": "text",
+      "label": "Title text",
+      "type": "text",
+      "bind": "text"
+    },
+    {
+      "id": "size",
+      "label": "Text size",
+      "type": "scalar",
+      "bind": "font.size",
+      "min": 64,
+      "max": 110,
+      "step": 1,
+      "unit": "px"
+    },
+    {
+      "id": "textcolor",
+      "label": "Text colour",
+      "type": "color",
+      "bind": "layer.fill.color",
+      "group": "Appearance"
+    },
+    {
+      "id": "outlinecolor",
+      "label": "Outline colour",
+      "type": "color",
+      "bind": "layer.outline.color",
+      "group": "Appearance"
+    },
+    {
+      "id": "stagger",
+      "label": "Word delay",
+      "type": "scalar",
+      "bind": "animation.in.param.stagger",
+      "min": 0,
+      "max": 0.025,
+      "step": 0.001,
+      "unit": "s",
+      "group": "Motion",
+      "description": "Spacing between word entrances. The 200 ms readability cap automatically compresses longer sequences."
+    },
+    {
+      "id": "rise",
+      "label": "Word rise",
+      "type": "scalar",
+      "bind": "animation.in.param.rise",
+      "min": 0.1,
+      "max": 0.65,
+      "step": 0.01,
+      "unit": "em",
+      "group": "Motion"
+    },
+    {
+      "id": "entrance",
+      "label": "Entrance duration",
+      "type": "scalar",
+      "bind": "animation.in.duration",
+      "min": 0.04,
+      "max": 0.16,
+      "step": 0.01,
+      "unit": "s",
+      "group": "Motion"
+    }
+  ]
+}

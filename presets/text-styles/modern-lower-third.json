@@ -1,0 +1,168 @@
+{
+  "format": 1,
+  "id": "chatgpt.modern-lower-third",
+  "label": "Modern Lower Third",
+  "description": "A refined left-aligned nameplate with a rounded navy panel, crisp white typography, and a turquoise underline that draws on.",
+  "category": "lower-thirds",
+  "tags": [
+    "essentials-vol1"
+  ],
+  "kind": "lower-third",
+  "sampleText": "JORDAN LEE",
+  "requires": {
+    "fonts": [
+      "Montserrat"
+    ]
+  },
+  "style": {
+    "fontFamily": "Montserrat",
+    "fontWeight": 600,
+    "pixelSize": 76,
+    "italic": false,
+    "align": "left",
+    "valign": "bottom",
+    "wordWrap": true,
+    "lineHeight": 1.16,
+    "letterSpacing": 0.5,
+    "textCase": "none",
+    "boxEnabled": true,
+    "boxColor": "#F0142233",
+    "boxPadding": 26,
+    "boxRadius": 10,
+    "underlineEnabled": true,
+    "underlineColor": "#38D5C5",
+    "underlineWidth": 5,
+    "underlineOffset": 10,
+    "underlineReveal": 1,
+    "layers": [
+      {
+        "id": "shadow",
+        "kind": "shadow",
+        "paint": {
+          "kind": "solid",
+          "color": "#050B14"
+        },
+        "offsetX": 0,
+        "offsetY": 3,
+        "blur": 8,
+        "opacity": 0.35
+      },
+      {
+        "id": "fill",
+        "kind": "fill",
+        "paint": {
+          "kind": "solid",
+          "color": "#F7FAFC"
+        }
+      }
+    ],
+    "animation": {
+      "in": {
+        "preset": "slide-right",
+        "params": {
+          "duration": 0.15,
+          "distance": 0.18,
+          "unit": "block",
+          "stagger": 0,
+          "ease": "smooth"
+        }
+      },
+      "out": {
+        "preset": "slide-left",
+        "params": {
+          "duration": 0.2,
+          "distance": 0.14,
+          "unit": "block",
+          "ease": "easeIn"
+        }
+      },
+      "timing": {
+        "fit": true,
+        "maxReadMs": 200
+      }
+    },
+    "keyframes": {
+      "underlineReveal": {
+        "keyframes": [
+          {
+            "timeUs": 0,
+            "value": 0
+          },
+          {
+            "timeUs": 320000,
+            "value": 1
+          }
+        ]
+      }
+    }
+  },
+  "effects": [],
+  "controls": [
+    {
+      "id": "text",
+      "label": "Name or label",
+      "type": "text",
+      "bind": "text"
+    },
+    {
+      "id": "size",
+      "label": "Text size",
+      "type": "scalar",
+      "bind": "font.size",
+      "min": 48,
+      "max": 94,
+      "step": 1,
+      "unit": "px"
+    },
+    {
+      "id": "textcolor",
+      "label": "Text colour",
+      "type": "color",
+      "bind": "layer.fill.color",
+      "group": "Appearance"
+    },
+    {
+      "id": "panelcolor",
+      "label": "Panel colour",
+      "type": "color",
+      "bind": "box.color",
+      "group": "Panel"
+    },
+    {
+      "id": "corners",
+      "label": "Corner radius",
+      "type": "scalar",
+      "bind": "box.radius",
+      "min": 4,
+      "max": 20,
+      "step": 1,
+      "unit": "px",
+      "group": "Panel"
+    },
+    {
+      "id": "underline",
+      "label": "Accent underline",
+      "type": "bool",
+      "bind": "underline.enabled",
+      "group": "Accent"
+    },
+    {
+      "id": "accentcolor",
+      "label": "Accent colour",
+      "type": "color",
+      "bind": "underline.color",
+      "group": "Accent"
+    },
+    {
+      "id": "entrance",
+      "label": "Entrance duration",
+      "type": "scalar",
+      "bind": "animation.in.duration",
+      "min": 0,
+      "max": 0.2,
+      "step": 0.01,
+      "unit": "s",
+      "group": "Motion"
+    }
+  ]
+}
