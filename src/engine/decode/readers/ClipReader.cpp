@@ -578,7 +578,33 @@ void rememberSoftwareOnly(const QString &path)
     QSettings().setValue(kSoftwareOnlyKey, g_softwareOnly);
     qWarning("ClipReader: %s will use software decoding from now on", qUtf8Printable(path));
 }
+
+std::atomic<bool> g_logDecodeProblems{false};
+QMutex g_decodeProblemMutex;
+QList<ClipReader::DecodeProblem> g_decodeProblems;
+
+void noteDecodeProblem(const QString &path, drift::TimeUs sourceUs, const QString &what)
+{
+    if (!g_logDecodeProblems.load(std::memory_order_relaxed))
+        return;
+    QMutexLocker lock(&g_decodeProblemMutex);
+    if (g_decodeProblems.size() < 1000)
+        g_decodeProblems.append(ClipReader::DecodeProblem{path, sourceUs, what});
+}
 } // namespace
+
+void ClipReader::setDecodeProblemLogging(bool enabled)
+{
+    QMutexLocker lock(&g_decodeProblemMutex);
+    g_decodeProblems.clear();
+    g_logDecodeProblems.store(enabled, std::memory_order_relaxed);
+}
+
+QList<ClipReader::DecodeProblem> ClipReader::takeDecodeProblems()
+{
+    QMutexLocker lock(&g_decodeProblemMutex);
+    return std::exchange(g_decodeProblems, {});
+}
 
 bool ClipReader::isSoftwareOnlySource(const QString &path)
 {
@@ -1819,8 +1845,10 @@ bool ClipReader::advanceVideoTo(drift::TimeUs sourceUs, bool *hwFailure,
 {
     if (hwFailure)
         *hwFailure = false;
-    if (!ensureVideoDecoder())
+    if (!ensureVideoDecoder()) {
+        noteDecodeProblem(m_path, sourceUs, QStringLiteral("the video decoder could not be opened"));
         return false;
+    }
 
     while (m_hasPeek && sourceUs >= m_peekPtsUs)
         promotePeekToCover();
@@ -1867,6 +1895,8 @@ bool ClipReader::advanceVideoTo(drift::TimeUs sourceUs, bool *hwFailure,
                 // decode picture". The frame may be partially initialized —
                 // unref before any further use or free.
                 av_frame_unref(frame);
+                if (!m_hwAccelActive && !m_mediaCodecActive)
+                    noteDecodeProblem(m_path, sourceUs, QStringLiteral("decoding failed: %1").arg(avErrorText(rc)));
                 markHwFailure(QStringLiteral("receiving a frame failed: %1").arg(avErrorText(rc)));
                 break;
             }
@@ -1947,6 +1977,9 @@ bool ClipReader::advanceVideoTo(drift::TimeUs sourceUs, bool *hwFailure,
             // Decoder is full; drain below then retry is handled by the next read.
             // Fall through to receive.
         } else if (sendRc < 0) {
+            if (!m_hwAccelActive && !m_mediaCodecActive)
+                noteDecodeProblem(m_path, sourceUs,
+                                  QStringLiteral("a damaged packet: %1").arg(avErrorText(sendRc)));
             markHwFailure(QStringLiteral("sending a packet failed: %1").arg(avErrorText(sendRc)));
             continue;
         }

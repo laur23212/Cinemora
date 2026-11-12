@@ -150,6 +150,18 @@ public:
     static QStringList softwareOnlySources();
     static void clearSoftwareOnlySources();
 
+    // Dafin: decode errors seen while an export runs, so the export can say which clip and time
+    // came out black or repeated instead of a frame that silently lost a layer. Off (and free)
+    // outside an export; at most 1000 are kept between takes.
+    struct DecodeProblem
+    {
+        QString path;
+        drift::TimeUs sourceUs = 0;
+        QString what;
+    };
+    static void setDecodeProblemLogging(bool enabled);
+    static QList<DecodeProblem> takeDecodeProblems();
+
     // For drift::diag::ProbeScope alone: the raw stored backend (-1 for "nothing yet") and the
     // means to put both counters back after a diagnostics sweep has written its own answers
     // over them. Nothing else should be setting what the last decoder landed on.
