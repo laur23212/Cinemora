@@ -187,6 +187,8 @@ private slots:
     void dropShapeOnTrackUsesThatTrack();
     void stickerLandsOnRequestedTrack();
     void dropEffectOnGapAddsAdjustmentLayer();
+    void dropTitleStyleOnTitleRestylesIt();
+    void presetHoverPreviewChangesNothing();
     void dropRejectsClipKindOverEmptyNonVideoTrack();
     void transitionJunctionFindsTheCut();
     void previewDropCentresOverlayInOneUndo();
@@ -8096,6 +8098,53 @@ void EditorStateTest::stickerLandsOnRequestedTrack()
     state.addStickerClip(stickers.first().toMap().value(QStringLiteral("id")).toString(), 0.0, 1);
     QCOMPARE(state.project()->tracks().at(0).clips.size(), 0);
     QCOMPARE(state.project()->tracks().at(1).clips.size(), 1);
+}
+
+// Dafin: a title style dropped on a title that is already there restyles it; on empty track it
+// still adds a new title.
+void EditorStateTest::dropTitleStyleOnTitleRestylesIt()
+{
+    AssetLibrary library;
+    AppController state(&library);
+    state.addTextClip(QStringLiteral("Hello"), 0.0);
+    const int track = state.selectedTrack();
+    const int clip = state.selectedClip();
+    QVERIFY(track >= 0 && clip >= 0);
+    const int clipsBefore = state.project()->tracks().at(track).clips.size();
+
+    const QVariantMap onTitle = state.planAssetDrop(QStringLiteral("textStyle"), QStringLiteral("title"), track, 0.5, -1);
+    QVERIFY(onTitle.value(QStringLiteral("accepted")).toBool());
+    QCOMPARE(onTitle.value(QStringLiteral("mode")).toString(), QStringLiteral("clip"));
+    QCOMPARE(onTitle.value(QStringLiteral("track")).toInt(), track);
+    QCOMPARE(onTitle.value(QStringLiteral("clip")).toInt(), clip);
+
+    state.dropAsset(QStringLiteral("textStyle"), QStringLiteral("title"), QString(), track, 0.5, -1);
+    QCOMPARE(state.project()->tracks().at(track).clips.size(), clipsBefore);
+
+    // Well past the title: nothing to restyle, so the style lands as a new title.
+    const QVariantMap onGap = state.planAssetDrop(QStringLiteral("textStyle"), QStringLiteral("title"), track, 600.0, -1);
+    QVERIFY(onGap.value(QStringLiteral("mode")).toString() != QLatin1String("clip"));
+}
+
+// Dafin: hovering a preset in the library is a preview only. It never edits the project and
+// leaves nothing on the undo stack.
+void EditorStateTest::presetHoverPreviewChangesNothing()
+{
+    AssetLibrary library;
+    AppController state(&library);
+    buildOneClipProject(state, 0.0, 4.0);
+    const bool undoBefore = state.undoAvailable();
+    const int effectsBefore = state.project()->tracks().at(0).clips.at(0).effects.size();
+
+    // An unknown preset shows nothing; a known one may or may not (it depends on the catalog
+    // loaded in the test run), but neither touches the project.
+    QVERIFY(!state.previewPresetOnPlayhead(QStringLiteral("effect"), QStringLiteral("no-such-effect")));
+    state.previewPresetOnPlayhead(QStringLiteral("effect"), QStringLiteral("adjust.brightness"));
+    state.previewPresetOnPlayhead(QStringLiteral("effectStack"), QStringLiteral("no-such-stack"));
+    state.clearPresetPreview();
+
+    QCOMPARE(state.undoAvailable(), undoBefore);
+    QCOMPARE(state.project()->tracks().at(0).clips.at(0).effects.size(), effectsBefore);
 }
 
 void EditorStateTest::dropEffectOnGapAddsAdjustmentLayer()

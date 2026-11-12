@@ -1301,6 +1301,7 @@ target_sources(driftapp PRIVATE
     src/app/editor/appcontroller/AppControllerDafin.cpp
     src/app/editor/appcontroller/AppControllerSpeed.cpp
     src/app/editor/appcontroller/AppControllerBeatsDucking.cpp
+    src/app/editor/appcontroller/AppControllerPresetPreview.cpp
     src/app/editor/appcontroller/AppControllerTemplates.cpp
     src/app/mcp/AgentImageLog.h
     src/app/mcp/AgentImageLog.cpp
@@ -2060,6 +2061,7 @@ qt_add_qml_module(drift
         src/qml/components/assets/MarketSectionTab.qml
         src/qml/components/assets/EffectTemplateCard.qml
         src/qml/components/assets/EffectStackCard.qml
+        src/qml/components/assets/PresetHoverPreview.qml
         src/qml/components/assets/EffectPresetCard.qml
         src/qml/components/assets/DownloadsJobRow.qml
         src/qml/components/assets/AudioEffectPresetCard.qml
@@ -2167,6 +2169,7 @@ qt_add_qml_module(drift
         src/qml/components/timeline/PlayheadInterpolator.qml
         src/qml/components/timeline/TimelineTrackArea.qml
         src/qml/components/timeline/TimelineDropRouter.qml
+        src/qml/components/timeline/TimelineHoverScrub.qml
         src/qml/components/timeline/VoiceoverTransportButton.qml
         src/qml/components/timeline/VoiceoverTransport.qml
         src/qml/components/timeline/VoiceoverTimerReadout.qml
@@ -2301,6 +2304,7 @@ qt_add_qml_module(drift
         src/qml/components/shell/PanelFrame.qml
         src/qml/components/shell/PanelSplitHandle.qml
         src/qml/components/ClipFilmstrip.qml
+        src/qml/components/HoverScrubFrame.qml
         src/qml/components/controls/AppScrollBar.qml
         src/qml/components/KeyframeDiamond.qml
         src/qml/components/ChannelKeyButton.qml
