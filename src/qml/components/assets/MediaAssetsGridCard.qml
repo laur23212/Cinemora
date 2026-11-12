@@ -113,6 +113,9 @@ Column {
         selected: root.selected
         hovered: cardHover.hovered
         host: root.host
+        filmstripPath: root.filmstripPath
+        sourcePath: root.path
+        durationSeconds: root.durationSeconds
     }
 
     MediaAssetsGridNameRow {

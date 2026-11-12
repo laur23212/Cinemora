@@ -21,6 +21,10 @@ Rectangle {
     required property real cardSize
     required property bool selected
     required property bool hovered
+    // Dafin: hover scrub. Optional so other users of the frame are untouched.
+    property string filmstripPath: ""
+    property string sourcePath: ""
+    property real durationSeconds: 0
     // Avoid a QML type-resolution cycle: MediaAssetsTab instantiates
     // MediaAssetsGridCard, which in turn instantiates this frame.
     required property var host
@@ -95,6 +99,22 @@ Rectangle {
         Behavior on opacity {
             NumberAnimation { duration: Theme.durationBase; easing.type: Theme.easing }
         }
+    }
+
+    // Dafin: move the mouse across a video card to skim through the video (HoverScrubFrame).
+    HoverHandler {
+        id: scrubHover
+        enabled: !root.isFolder && root.kind === "video" && !root.dragActive && !root.menusVisible
+    }
+    HoverScrubFrame {
+        anchors.fill: parent
+        active: scrubHover.enabled && scrubHover.hovered
+        fraction: root.width > 0 ? scrubHover.point.position.x / root.width : 0
+        filmstripPath: root.filmstripPath
+        sourcePath: root.sourcePath
+        inPoint: 0
+        outPoint: root.durationSeconds
+        sourceDuration: root.durationSeconds
     }
 
     IconGlyph {

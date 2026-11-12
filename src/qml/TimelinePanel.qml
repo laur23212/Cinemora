@@ -2021,6 +2021,14 @@ PanelFrame {
                         }
                     }
 
+                    // Dafin: hover scrub — rest on a video clip to see the frame under the mouse.
+                    TimelineHoverScrub {
+                        panel: root
+                        viewX: flick.contentX
+                        viewWidth: flick.width
+                        z: 260
+                    }
+
                     // Library asset drops — declared after track rows so Wayland's
                     // Z-order DnD hit-test prefers this overlay. Do not set
                     // opacity: 0: Item docs say opacity 0 disables mouse events,
