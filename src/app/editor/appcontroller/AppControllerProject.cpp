@@ -14,7 +14,9 @@
 #include "engine/decode/readers/ClipReaderPool.h"
 #include "engine/diagnostics/DebugReport.h"
 #include "engine/project/ProjectDependencies.h"
+#include "engine/EngineTuning.h"
 #include "engine/encode/export/Exporter.h"
+#include "engine/encode/export/HwEncodeFallback.h"
 #include "engine/packages/assets/EmojiCatalog.h"
 // Engine-internal by its own header comment, and included here only for releaseCaches(): the GPU
 // caches have no other owner outside src/engine to ask. A one-line forwarder on GpuCompositor
@@ -696,7 +698,34 @@ void AppController::exportWithSettings(const QUrl &outputUrl, const QVariantMap 
         };
         // On the worker: probing a disconnected network share can block for many seconds.
         error = exportTargetProblem(outputUrl, outputPath);
-        bool ok = error.isEmpty() && Exporter::run(snapshot, exportSettings, outputPath, &error, report);
+        const bool targetOk = error.isEmpty();
+        bool ok = targetOk && Exporter::run(snapshot, exportSettings, outputPath, &error, report);
+        // Dafin: a GPU encoder that refused to open or stopped part-way gets one more run on the
+        // matching software encoder (Settings > Performance). Same snapshot, same frames, same
+        // settings apart from the encoder, so the picture is the one the preview shows.
+        bool finishedOnCpu = false;
+        if (!ok
+            && drift::hwencode::shouldRetryOnCpu(
+                drift::tuning::cpuFallbackOnGpuEncodeFailure.load(std::memory_order_relaxed),
+                exportSettings.videoCodecId, targetOk, error)) {
+            ExportSettings cpuSettings = exportSettings;
+            cpuSettings.videoCodecId = drift::hwencode::softwareFallbackCodec(exportSettings.videoCodecId);
+            const QVariantMap cpuCodec = Exporter::videoCodecById(cpuSettings.videoCodecId);
+            if (cpuCodec.value(QStringLiteral("available")).toBool()) {
+                // GPU presets (p4, balanced…) mean nothing to x264/x265/SVT; CRF/bitrate carry over.
+                const QString preset = cpuCodec.value(QStringLiteral("defaultPreset")).toString();
+                cpuSettings.videoPreset = preset.isEmpty() ? QStringLiteral("medium") : preset;
+                qWarning("Export: GPU encoder %s failed (%s); exporting again on %s",
+                         qPrintable(exportSettings.videoCodecId), qPrintable(error),
+                         qPrintable(cpuSettings.videoCodecId));
+                const QString gpuError = error;
+                error.clear();
+                ok = Exporter::run(snapshot, cpuSettings, outputPath, &error, report);
+                finishedOnCpu = ok;
+                if (!ok && error.isEmpty())
+                    error = gpuError;
+            }
+        }
         // Before the commit: on Android the staged file is gone once it has been streamed out.
         const qint64 sizeBytes = ok ? QFileInfo(outputPath).size() : 0;
         // Android: the encoder needs a real file, and the document the user picked is only
@@ -740,7 +769,7 @@ void AppController::exportWithSettings(const QUrl &outputUrl, const QVariantMap 
 
         QMetaObject::invokeMethod(
             this,
-            [this, ok, error, outputUrl, sizeBytes, thumbnail, durationSeconds]() {
+            [this, ok, finishedOnCpu, error, outputUrl, sizeBytes, thumbnail, durationSeconds]() {
                 m_exportInProgress = false;
                 m_exportProgress = ok ? 1.0 : 0.0;
                 if (ok)
@@ -759,7 +788,9 @@ void AppController::exportWithSettings(const QUrl &outputUrl, const QVariantMap 
                 const QString severity = ok          ? QStringLiteral("success")
                                          : cancelled ? QStringLiteral("info")
                                                      : QStringLiteral("error");
-                setLastMessage(ok ? tr("Export complete")
+                setLastMessage(ok ? (finishedOnCpu
+                                         ? tr("Export complete. The GPU encoder failed, so it finished on the CPU.")
+                                         : tr("Export complete"))
                                   : error.isEmpty() ? tr("Export failed") : error,
                                severity);
                 emit exportFinished(ok);
