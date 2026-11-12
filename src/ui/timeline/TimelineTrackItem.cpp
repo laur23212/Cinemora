@@ -7,12 +7,15 @@
 #include "app/editor/TimelineClipsModel.h"
 #include "playback/stats/PerfLog.h"
 #include "playback/PlaybackEngine.h"
+#include "ui/theme/ReducedMotion.h"
 
 #include <QAccessible>
 #include <QAccessibleObject>
 #include <QFont>
 #include <QFontMetricsF>
 #include <QCursor>
+#include <QDateTime>
+#include <QTimer>
 #include <QGuiApplication>
 #include <QMatrix4x4>
 #include <QPointingDevice>
@@ -1212,9 +1215,36 @@ void TimelineTrackItem::buildWaveform(int index, const QRectF &area, double clip
         return;
     }
 
-    if (cached.peaks.isEmpty())
-        return;
     const double mid = area.top() + area.height() / 2.0;
+    if (cached.peaks.isEmpty()) {
+        // Dafin: still decoding. A faint centre line instead of blank space; the waveform
+        // fades in over it when rangeReady brings us back.
+        // Audio tracks only: a silent video clip never gets peaks and should stay clean.
+        if (m_trackType != QLatin1String("audio"))
+            return;
+        m_waveFade.insert(row.id, 0);
+        appendQuad(m_over, vertex(left - ox, mid - 0.5, color, 0.35),
+                   vertex(left - ox + w, mid - 0.5, color, 0.35),
+                   vertex(left - ox + w, mid + 0.5, color, 0.35),
+                   vertex(left - ox, mid + 0.5, color, 0.35));
+        return;
+    }
+    // Dafin: fade in once, only for a waveform that was waiting (not on every zoom or scroll).
+    double fade = 1.0;
+    const auto fadeIt = m_waveFade.find(row.id);
+    if (fadeIt != m_waveFade.end()) {
+        constexpr qint64 kWaveFadeMs = 150;
+        const qint64 now = QDateTime::currentMSecsSinceEpoch();
+        if (fadeIt.value() == 0)
+            fadeIt.value() = now;
+        const qint64 age = now - fadeIt.value();
+        if (drift::motion::reduced() || age >= kWaveFadeMs) {
+            m_waveFade.erase(fadeIt);
+        } else {
+            fade = double(age) / double(kWaveFadeMs);
+            QTimer::singleShot(16, this, [this] { scheduleRebuild(); });
+        }
+    }
     const double halfHeight = area.height() / 2.0;
     for (int x = 0; x < w; ++x) {
         const double amp = std::min(columnPeak(cached.peaks, x) * halfHeight * 0.9 * volumeAt(x),
@@ -1222,8 +1252,8 @@ void TimelineTrackItem::buildWaveform(int index, const QRectF &area, double clip
         if (amp <= 0.5)
             continue;
         const double x0 = left + x - ox;
-        appendQuad(m_over, vertex(x0, mid - amp, color), vertex(x0 + 1.0, mid - amp, color),
-                   vertex(x0 + 1.0, mid + amp, color), vertex(x0, mid + amp, color));
+        appendQuad(m_over, vertex(x0, mid - amp, color, fade), vertex(x0 + 1.0, mid - amp, color, fade),
+                   vertex(x0 + 1.0, mid + amp, color, fade), vertex(x0, mid + amp, color, fade));
     }
 }
 

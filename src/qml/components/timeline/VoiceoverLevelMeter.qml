@@ -3,9 +3,24 @@ import Drift
 
 // Live voice level, green through amber to red.
 Item {
+    id: meter
     width: 44
     height: 12
     anchors.verticalCenter: parent.verticalCenter
+
+    // Dafin: the raw recorder level jumps every audio buffer, which made the bar flicker.
+    // Rises at once, falls at a fixed speed (about 1.5 per second), polled at ~33 fps and only
+    // while the bar is on screen.
+    property real level: 0
+    Timer {
+        interval: 30
+        repeat: true
+        running: meter.visible && (EditorState.audioRecordLevel > 0 || meter.level > 0)
+        onTriggered: {
+            const target = EditorState.audioRecordLevel
+            meter.level = target >= meter.level ? target : Math.max(target, meter.level - 0.045)
+        }
+    }
 
     Rectangle {
         anchors.fill: parent
@@ -20,11 +35,11 @@ Item {
         anchors.top: parent.top
         anchors.bottom: parent.bottom
         anchors.margins: 1
-        width: Math.max(1, Math.min(parent.width - 2, (parent.width - 2) * EditorState.audioRecordLevel))
+        width: Math.max(1, Math.min(parent.width - 2, (parent.width - 2) * meter.level))
         radius: Theme.c.voiceoverLevelMeter.levelRadius
-        color: EditorState.audioRecordLevel > 0.85
+        color: meter.level > 0.85
                ? Theme.c.voiceoverLevelMeter.levelHot
-               : (EditorState.audioRecordLevel > 0.6 ? Theme.c.voiceoverLevelMeter.levelWarm : Theme.c.voiceoverLevelMeter.level)
+               : (meter.level > 0.6 ? Theme.c.voiceoverLevelMeter.levelWarm : Theme.c.voiceoverLevelMeter.level)
     }
 
     ThemedToolTip {

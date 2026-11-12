@@ -268,6 +268,9 @@ private:
     QHash<QString, LivePreview> m_livePreviews;
     bool m_rippleShiftDrawn = false;
     QHash<QString, WaveCacheEntry> m_waveCache;
+    // Dafin: clips whose waveform was still being decoded when last drawn (value 0), then the
+    // time its peaks arrived, so the line placeholder gives way to the waveform with a short fade.
+    QHash<QString, qint64> m_waveFade;
     QString m_hoverId;
     bool m_hoverBody = false;
     QString m_hoverToolTip;
