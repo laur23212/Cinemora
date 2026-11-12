@@ -27,7 +27,45 @@ Slider {
     // For sliders that edit the clip: greyed out while playing. Disabling a pressed slider
     // releases it, which commits the drag the caller began on press.
     property bool lockWhilePlaying: false
-    enabled: !(root.lockWhilePlaying && EditorState.playing)
+    enabled: !(root.lockWhilePlaying && EditorState.playing) && !root._escaped
+
+    // --- Dafin: detents, double-click reset, Escape ----------------------------------------
+    // All opt-in: a slider that sets none of these behaves as before.
+    // `defaultValue` (NaN = none) is what a double-click restores; `detents` are values the handle
+    // clicks gently onto while dragging (within `detentRange` of the span). Continuous sliders only.
+    property real defaultValue: NaN
+    property var detents: []
+    property real detentRange: 0.015
+    // Escape during a drag restores the value from the press and releases the slider.
+    property bool escapeCancels: false
+
+    // Double-click: the caller applies the value (a slider's own `moved` is for user drags).
+    signal defaultRestored(real value)
+    // Escape while pressed; the value has already been put back. Emitted before the release.
+    signal pressCanceled()
+
+    property real _pressValue: 0
+    property bool _escaped: false
+    property real _lastDetent: NaN
+    property bool _snapping: false
+
+    function resetToDefault() {
+        if (!Number.isFinite(defaultValue) || !enabled)
+            return
+        value = defaultValue
+        defaultRestored(defaultValue)
+    }
+
+    function _detentTargets() {
+        const out = []
+        if (Number.isFinite(defaultValue))
+            out.push(defaultValue)
+        for (const d of detents) {
+            if (Number.isFinite(d))
+                out.push(d)
+        }
+        return out
+    }
 
     from: 0
     to: 1
@@ -92,6 +130,62 @@ Slider {
     }
 
     Component.onDestruction: restoreFlickable()
+
+    Connections {
+        target: root
+        function onPressedChanged() {
+            if (root.pressed) {
+                root._pressValue = root.value
+                root._lastDetent = NaN
+            }
+        }
+        function onValueChanged() {
+            if (!root.pressed || root._snapping || root.stepSize > 0)
+                return
+            const span = root.to - root.from
+            if (span <= 0)
+                return
+            const tol = span * root.detentRange
+            let hit = NaN
+            for (const c of root._detentTargets()) {
+                if (Math.abs(root.value - c) <= tol) {
+                    hit = c
+                    break
+                }
+            }
+            if (Number.isNaN(hit)) {
+                root._lastDetent = NaN
+                return
+            }
+            if (hit !== root.value) {
+                root._snapping = true
+                root.value = hit
+                root._snapping = false
+            }
+            if (root._lastDetent !== hit) {
+                root._lastDetent = hit
+                Haptics.detent()
+            }
+        }
+    }
+
+    TapHandler {
+        acceptedButtons: Qt.LeftButton
+        onDoubleTapped: Qt.callLater(root.resetToDefault)
+    }
+
+    Keys.onEscapePressed: (event) => {
+        if (!root.escapeCancels || !root.pressed) {
+            event.accepted = false
+            return
+        }
+        root.value = root._pressValue
+        root.pressCanceled()
+        // Disabling a pressed slider releases it; switched back on straight away.
+        root._escaped = true
+        Qt.callLater(function () { root._escaped = false })
+        event.accepted = true
+    }
 
     background: ThemeSlot {
         x: root.leftPadding

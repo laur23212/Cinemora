@@ -94,6 +94,11 @@ ThemedTextField {
         }
         onScrubbed: steps => root._scrubTo(root._scrubStart + steps * root.step)
         onScrubFinished: EditorState.endEditGroup(qsTr("Edit value"))
+        // Dafin: Escape puts the value back; the (now empty) edit group is closed as usual.
+        onScrubCanceled: {
+            root._scrubTo(root._scrubStart)
+            EditorState.endEditGroup(qsTr("Edit value"))
+        }
         onActivated: {
             root.forceActiveFocus()
             root.selectAll()

@@ -197,6 +197,43 @@ Column {
                                            propDef.key, EditorState.playheadSeconds, liveValue)
     }
 
+    // Dafin: Escape during a scrub drops the preview instead of committing it.
+    function cancelScrub() {
+        EditorState.cancelPreviewDrag()
+        editing = false
+        syncEditors()
+    }
+
+    // Dafin: slider detents (0, the property's default, and 100 % for percent properties).
+    function sliderDetents() {
+        const out = []
+        const add = v => {
+            if (typeof v === "number" && v >= sliderFrom && v <= sliderTo && out.indexOf(v) < 0)
+                out.push(v)
+        }
+        add(0)
+        add(propDef.def)
+        if (percent)
+            add(1)
+        return out
+    }
+
+    // Dafin: double-click on the slider restores the default as one undo step.
+    property bool sliderCanceled: false
+    function applySliderDefault(v) {
+        if (scrubLocked)
+            return
+        editing = true
+        liveValue = v
+        EditorState.showKeyframeGraphProperty(propDef.key)
+        EditorState.beginPreviewDrag(qsTr("Reset %1").arg(propDef.label))
+        EditorState.previewSetClipKeyframe(EditorState.selectedTrack, EditorState.selectedClip,
+                                           propDef.key, EditorState.playheadSeconds, v)
+        EditorState.commitPreviewDrag()
+        editing = false
+        syncEditors()
+    }
+
     function endScrub() {
         EditorState.commitPreviewDrag()
         editing = false
@@ -557,6 +594,7 @@ Column {
                     onScrubStarted: root.beginScrub()
                     onScrubbed: steps => root.scrubTo(steps)
                     onScrubFinished: root.endScrub()
+                    onScrubCanceled: root.cancelScrub()
                     onActivated: {
                         valueField.forceActiveFocus()
                         valueField.selectAll()
@@ -593,6 +631,11 @@ Column {
                 from: root.sliderFrom
                 to: root.sliderTo
                 stepSize: root.sliderStep
+                defaultValue: typeof root.propDef.def === "number" ? root.propDef.def : NaN
+                detents: root.sliderDetents()
+                escapeCancels: true
+                onDefaultRestored: v => root.applySliderDefault(v)
+                onPressCanceled: root.sliderCanceled = true
                 // Keep the playhead/model binding off while pressed — same as
                 // PreviewPanel scrub — so preview ticks cannot fight the drag.
                 // displayedValue, so a scrub on the readout moves the thumb along with it.
@@ -616,7 +659,11 @@ Column {
                         EditorState.showKeyframeGraphProperty(root.propDef.key)
                         EditorState.beginPreviewDrag(qsTr("Edit %1").arg(root.propDef.label))
                     } else {
-                        EditorState.commitPreviewDrag()
+                        if (root.sliderCanceled)
+                            EditorState.cancelPreviewDrag()
+                        else
+                            EditorState.commitPreviewDrag()
+                        root.sliderCanceled = false
                         root.editing = false
                     }
                 }
@@ -708,6 +755,7 @@ Column {
                     onScrubStarted: root.beginScrub()
                     onScrubbed: steps => root.scrubTo(steps)
                     onScrubFinished: root.endScrub()
+                    onScrubCanceled: root.cancelScrub()
                     onActivated: readoutBox.startTyping()
                     onWheelStepped: steps => root.nudge(editField, steps)
                 }

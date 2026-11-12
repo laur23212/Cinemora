@@ -10,11 +10,15 @@ MouseArea {
     property bool editing: false
     readonly property bool scrubbing: _scrubbing
 
-    // `steps` is cumulative since the press: one per pixel, Shift ×10, Alt ×0.1. Modifiers apply
+    // `steps` is cumulative since the press: one per pixel, Ctrl ×10 (coarse), Shift or Alt ×0.1
+    // (fine; Dafin: Shift used to be coarse). Escape mid-drag emits scrubCanceled. Modifiers apply
     // per move, so switching them mid-drag changes the rate without a jump.
     signal scrubStarted()
     signal scrubbed(real steps)
     signal scrubFinished()
+    // Dafin: Escape during a drag. Emitted instead of scrubFinished(); the release that follows
+    // is ignored (neither a finish nor a click).
+    signal scrubCanceled()
     signal activated()
     signal wheelStepped(real steps)
 
@@ -23,15 +27,16 @@ MouseArea {
     property real _lastX: 0
     property real _steps: 0
     property real _wheelAccum: 0
+    property bool _canceled: false
 
     acceptedButtons: Qt.LeftButton
     preventStealing: true
     cursorShape: editing ? Qt.IBeamCursor : Qt.SizeHorCursor
 
     function _rate(modifiers) {
-        if (modifiers & Qt.ShiftModifier)
+        if (modifiers & Qt.ControlModifier)
             return 10
-        if (modifiers & Qt.AltModifier)
+        if (modifiers & (Qt.ShiftModifier | Qt.AltModifier))
             return 0.1
         return 1
     }
@@ -50,11 +55,22 @@ MouseArea {
         }
         _pressX = mouse.x
         _steps = 0
+        _canceled = false
+        forceActiveFocus() // so Escape reaches Keys.onEscapePressed below
+    }
+
+    Keys.onEscapePressed: event => {
+        if (!_scrubbing)
+            return
+        _scrubbing = false
+        _canceled = true
+        scrubCanceled()
+        event.accepted = true
     }
 
     // Hover-enabled areas also get moves with no button down; those must never scrub.
     onPositionChanged: mouse => {
-        if (!pressed)
+        if (!pressed || _canceled)
             return
         if (!_scrubbing) {
             if (Math.abs(mouse.x - _pressX) < Application.styleHints.startDragDistance)
@@ -70,6 +86,10 @@ MouseArea {
     }
 
     onReleased: {
+        if (_canceled) {
+            _canceled = false
+            return
+        }
         if (_scrubbing)
             _finish()
         else
