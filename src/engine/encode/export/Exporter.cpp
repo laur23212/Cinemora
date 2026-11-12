@@ -5,6 +5,7 @@
 #include "engine/encode/export/HwEncodeFallback.h"
 
 #include "engine/audio/AudioMixer.h"
+#include "engine/decode/readers/ClipReader.h"
 #include "engine/decode/readers/ClipReaderPool.h"
 #include "engine/compositor/FrameCompositor.h"
 #include "engine/compositor/GpuCompositor.h"
@@ -13,7 +14,10 @@
 #include "core/project/Project.h"
 #include "core/base/Time.h"
 
+#include <QDir>
 #include <QFile>
+#include <QFileInfo>
+#include <QSet>
 #include <QHash>
 #include <QImage>
 #include <QMutex>
@@ -35,6 +39,8 @@
 #endif
 
 #include <climits>
+#include <filesystem>
+#include <system_error>
 #include <cmath>
 #include <cstring>
 #include <vector>
@@ -2161,14 +2167,144 @@ ExportSettings Exporter::settingsFromMap(const QVariantMap &map)
     return s;
 }
 
-bool Exporter::run(const drift::Project &project, const ExportSettings &settings, const QString &outputPath,
-                   QString *errorOut, const ProgressFn &onProgress)
+QString Exporter::stagingPathFor(const QString &outputPath)
 {
+    if (outputPath.isEmpty())
+        return {};
+    const QFileInfo info(outputPath);
+    const QString suffix = info.suffix();
+    const QString name = suffix.isEmpty()
+                             ? QStringLiteral(".%1.dafin-part").arg(info.fileName())
+                             : QStringLiteral(".%1.dafin-part.%2").arg(info.completeBaseName(), suffix);
+    return QDir(info.absolutePath()).filePath(name);
+}
+
+bool Exporter::commitStaged(const QString &stagingPath, const QString &finalPath, QString *errorOut)
+{
+    // One step where the filesystem allows it: rename(2) on POSIX and MoveFileEx with
+    // REPLACE_EXISTING on Windows both replace an existing file atomically.
+    std::error_code ec;
+    std::filesystem::rename(std::filesystem::path(stagingPath.toStdU16String()),
+                            std::filesystem::path(finalPath.toStdU16String()), ec);
+    if (!ec)
+        return true;
+
+    // Some locations take writes but not renames (a document-portal file, some network shares,
+    // a file another app holds open without delete sharing): copy the bytes over instead.
+    qWarning("Export: could not move %s into place (%s); copying it instead", qUtf8Printable(stagingPath),
+             ec.message().c_str());
+    QFile src(stagingPath);
+    QFile dst(finalPath);
+    bool ok = src.open(QIODevice::ReadOnly) && dst.open(QIODevice::WriteOnly | QIODevice::Truncate);
+    QByteArray chunk;
+    while (ok && !src.atEnd()) {
+        chunk = src.read(4 * 1024 * 1024);
+        ok = !chunk.isEmpty() && dst.write(chunk) == chunk.size();
+    }
+    ok = ok && dst.flush();
+    const QString why = !ok ? (dst.error() != QFileDevice::NoError ? dst.errorString() : src.errorString()) : QString();
+    src.close();
+    dst.close();
+    QFile::remove(stagingPath);
+    if (!ok && errorOut)
+        *errorOut = QStringLiteral("Could not save the finished export as %1: %2")
+                        .arg(QDir::toNativeSeparators(finalPath), why);
+    return ok;
+}
+
+qint64 Exporter::estimateOutputBytes(const drift::Project &project, const ExportSettings &settings)
+{
+    if (settings.gifExport)
+        return -1;
+    drift::TimeUs startUs = 0;
+    drift::TimeUs endUs = 0;
+    resolveExportRange(project, settings, &startUs, &endUs, nullptr);
+    const double seconds = double(qMax<drift::TimeUs>(0, endUs - startUs)) / 1e6;
+    if (seconds <= 0)
+        return -1;
+
+    double bitsPerSecond = 0;
+    const AudioCodecDef *adef = findAudioDef(settings.audioCodecId);
+    if (adef && adef->lossless)
+        bitsPerSecond += 1'500'000.0; // 48 kHz stereo FLAC/PCM, roughly
+    else
+        bitsPerSecond += double(qMax(32, settings.audioBitrateKbps)) * 1000.0;
+
+    if (!settings.audioOnly) {
+        const VideoCodecDef *vdef = findVideoDef(settings.videoCodecId);
+        if (!vdef)
+            return -1;
+        if (vdef->rateMode != RateMode::Lossless && settings.rateControl == QLatin1String("bitrate")) {
+            bitsPerSecond += double(qMax(100, settings.videoBitrateKbps)) * 1000.0;
+        } else {
+            int w = 0;
+            int h = 0;
+            scaleSize(project.width(), project.height(), settings.targetHeight, w, h);
+            const double fps = settings.fpsNum > 0 && settings.fpsDen > 0
+                                   ? double(settings.fpsNum) / settings.fpsDen
+                                   : double(qMax(1, project.fps()));
+            // Bits per pixel at Dafin's default quality, on the generous side: a busy shot at
+            // CRF 18 in x264 runs about this high; quieter footage comes in well under it.
+            const QString id = QString::fromUtf8(vdef->id);
+            double bpp = 0.15;
+            if (vdef->rateMode == RateMode::Lossless)
+                bpp = 6.0;
+            else if (id.startsWith(QLatin1String("prores")) || id.startsWith(QLatin1String("dnx")))
+                bpp = 2.0;
+            else if (id.startsWith(QLatin1String("h265")) || id.startsWith(QLatin1String("vp9")))
+                bpp = 0.09;
+            else if (id.startsWith(QLatin1String("av1")))
+                bpp = 0.07;
+            bitsPerSecond += double(w) * double(h) * fps * bpp;
+        }
+    }
+    return qint64(bitsPerSecond / 8.0 * seconds * 1.1);
+}
+
+bool Exporter::run(const drift::Project &project, const ExportSettings &settings, const QString &outputPath,
+                   QString *errorOut, const ProgressFn &onProgress, QStringList *warningsOut)
+{
+    if (warningsOut)
+        warningsOut->clear();
 #ifdef Q_OS_ANDROID
+    // Android already renders into the app's cache and copies the result out (runToDocument,
+    // commitWriteTarget), so the user's document never holds a half-written file.
     if (const QUrl target(outputPath); AndroidUri::isContentUri(target))
         return runToDocument(project, settings, target, errorOut, onProgress);
-#endif
+    return runDirect(project, settings, outputPath, errorOut, onProgress, warningsOut);
+#else
+    const QString staging = stagingPathFor(outputPath);
+    bool canStage = !staging.isEmpty();
+    if (canStage) {
+        QFile::remove(staging); // left by a crash during an earlier export of this same file
+        QFile probe(staging);
+        canStage = probe.open(QIODevice::WriteOnly);
+        probe.close();
+        QFile::remove(staging);
+    }
+    if (!canStage) {
+        qInfo("Export: no room for a temporary file beside %s; writing it in place",
+              qUtf8Printable(outputPath));
+        return runDirect(project, settings, outputPath, errorOut, onProgress, warningsOut);
+    }
 
+    // runDirect deletes its own output (the staging file) on failure or cancel.
+    if (!runDirect(project, settings, staging, errorOut, onProgress, warningsOut)) {
+        QFile::remove(staging);
+        return false;
+    }
+    if (!commitStaged(staging, outputPath, errorOut)) {
+        QFile::remove(staging);
+        return false;
+    }
+    return true;
+#endif
+}
+
+bool Exporter::runDirect(const drift::Project &project, const ExportSettings &settings,
+                         const QString &outputPath, QString *errorOut, const ProgressFn &onProgress,
+                         QStringList *warningsOut)
+{
     if (settings.gifExport)
         return runGifExport(project, settings, outputPath, errorOut, onProgress);
     if (settings.audioOnly)
@@ -2256,6 +2392,36 @@ bool Exporter::run(const drift::Project &project, const ExportSettings &settings
     bool cancelled = false;
     bool headerWritten = false;
     QString error;
+
+    // Dafin: frames patched over so the export can carry on (see run()). One line per clip and
+    // second, so a long damaged stretch doesn't flood the log.
+    QStringList warnings;
+    QSet<QString> warnedKeys;
+    const auto clock = [](drift::TimeUs us) {
+        const qint64 ms = qMax<qint64>(0, us / 1000);
+        return QStringLiteral("%1:%2:%3.%4")
+            .arg(ms / 3'600'000, 2, 10, QLatin1Char('0'))
+            .arg((ms / 60'000) % 60, 2, 10, QLatin1Char('0'))
+            .arg((ms / 1000) % 60, 2, 10, QLatin1Char('0'))
+            .arg(ms % 1000, 3, 10, QLatin1Char('0'));
+    };
+    const auto warn = [&](const QString &key, const QString &line) {
+        if (warnedKeys.contains(key))
+            return;
+        warnedKeys.insert(key);
+        warnings.append(line);
+        qWarning("Export warning: %s", qUtf8Printable(line));
+    };
+    // Decode errors the readers saw while composing the frame at timeline time `t`.
+    const auto collectDecodeProblems = [&](drift::TimeUs t) {
+        for (const ClipReader::DecodeProblem &p : ClipReader::takeDecodeProblems()) {
+            const QString name = QFileInfo(p.path).fileName();
+            warn(QStringLiteral("%1@%2").arg(p.path).arg(p.sourceUs / 1'000'000),
+                 QStringLiteral("%1 at %2 (clip time %3): %4 — that part of the frame was left out")
+                     .arg(name, clock(t), clock(p.sourceUs), p.what));
+        }
+    };
+    ClipReader::setDecodeProblemLogging(true);
 
     // Encoded straight into the chosen path: a file handed over by the documents portal cannot be
     // renamed or replaced, so writing a sibling ".part" and moving it into place would strand the
@@ -2651,11 +2817,15 @@ bool Exporter::run(const drift::Project &project, const ExportSettings &settings
                     fillTransparentFrame(vframe);
                 else
                     fillLimitedBlackFrame(vframe);
+                warn(QStringLiteral("readback@%1").arg(job.timeUs / 1'000'000),
+                     QStringLiteral("The frame at %1 could not be read back from the GPU; a black frame was used")
+                         .arg(clock(job.timeUs)));
             }
 
             return sendVideoAndAudio(job.pts);
         };
 
+        QImage lastGoodFrame;
         for (int64_t i = 0; i < totalFrames; ++i) {
             if (onProgress && !onProgress(static_cast<double>(i) / totalFrames)) {
                 cancelled = true;
@@ -2676,7 +2846,10 @@ bool Exporter::run(const drift::Project &project, const ExportSettings &settings
                     scene = GpuScene{};
                     scene.canvasSize = QSize(outW, outH);
                     scene.backgroundColor = Qt::black;
+                    warn(QStringLiteral("frame@%1").arg(t / 1'000'000),
+                         QStringLiteral("The frame at %1 could not be drawn; a black frame was used").arg(clock(t)));
                 }
+                collectDecodeProblems(t);
 
                 const int slot = int(i % GpuCompositor::kExportNv12Slots);
                 const bool packed =
@@ -2686,14 +2859,27 @@ bool Exporter::run(const drift::Project &project, const ExportSettings &settings
             }
 
             QImage img = renderAtOutput ? compositor.compositeAt(t, composeOptions) : compositor.compositeAt(t);
+            collectDecodeProblems(t);
             if (img.isNull()) {
-                img = QImage(canvasW, canvasH, QImage::Format_RGBA8888);
-                img.fill(vdef->hasAlpha ? Qt::transparent : Qt::black);
+                // Dafin: repeat the last good frame rather than flash black in the middle of a
+                // shot; black only when nothing has been drawn yet.
+                if (!lastGoodFrame.isNull()) {
+                    img = lastGoodFrame;
+                    warn(QStringLiteral("frame@%1").arg(t / 1'000'000),
+                         QStringLiteral("The frame at %1 could not be drawn; the previous frame was repeated")
+                             .arg(clock(t)));
+                } else {
+                    img = QImage(canvasW, canvasH, QImage::Format_RGBA8888);
+                    img.fill(vdef->hasAlpha ? Qt::transparent : Qt::black);
+                    warn(QStringLiteral("frame@%1").arg(t / 1'000'000),
+                         QStringLiteral("The frame at %1 could not be drawn; a black frame was used").arg(clock(t)));
+                }
             } else if (img.format() != QImage::Format_RGBA8888) {
                 img = img.convertToFormat(QImage::Format_RGBA8888);
             }
             if (img.width() != canvasW || img.height() != canvasH)
                 img = img.scaled(canvasW, canvasH, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+            lastGoodFrame = img;
 
             if (av_frame_make_writable(vframe) < 0) {
                 error = QStringLiteral("Video frame not writable");
@@ -2773,6 +2959,10 @@ cleanup:
     // failure anyway.
     if (!ok && QFile::exists(outputPath))
         QFile::remove(outputPath);
+
+    ClipReader::setDecodeProblemLogging(false);
+    if (warningsOut)
+        *warningsOut = warnings;
 
     if (!ok && errorOut) {
         *errorOut = cancelled ? QStringLiteral("Export cancelled")

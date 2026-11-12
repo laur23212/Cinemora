@@ -127,8 +127,26 @@ public:
 
     // `outputPath` is a filesystem path, or — on Android — the fully encoded content:// URI of a
     // document the save picker created (AndroidUri::filePath of what FileDialogs returned).
+    //
+    // Dafin: on desktop the file is rendered to a hidden sibling (stagingPathFor) and moved onto
+    // `outputPath` only when it is complete, so a failed, cancelled or crashed export never leaves
+    // a broken file under the final name, and an existing file there survives until the new one is
+    // ready. Where no sibling can be created (a document-portal file) it renders in place as before.
+    // `warningsOut` lists what was patched over to keep going — a clip that would not decode at a
+    // given time (black or the previous frame instead) — one line each, also logged.
     static bool run(const drift::Project &project, const ExportSettings &settings, const QString &outputPath,
-                    QString *errorOut, const ProgressFn &onProgress = {});
+                    QString *errorOut, const ProgressFn &onProgress = {}, QStringList *warningsOut = nullptr);
+
+    // ".<name>.dafin-part.<ext>" next to `outputPath` (the extension stays last so the muxer is
+    // still guessed from it). Empty for an empty path.
+    static QString stagingPathFor(const QString &outputPath);
+    // Moves a finished staging file onto `finalPath`, replacing what is there in one step where the
+    // filesystem allows it, else copying the bytes over. The staging file is gone afterwards.
+    static bool commitStaged(const QString &stagingPath, const QString &finalPath, QString *errorOut = nullptr);
+
+    // Rough size of the file this export will write: bitrate (or a per-codec bits-per-pixel guess
+    // for CRF/lossless) × duration, plus audio, plus 10 %. -1 when it can't be told (GIF).
+    static qint64 estimateOutputBytes(const drift::Project &project, const ExportSettings &settings);
 
     // Copies a finished export into the shared Movies (or Music) collection and returns the
     // MediaStore URI it now lives at, so the gallery and the share sheet can see it: a file left
@@ -136,4 +154,9 @@ public:
     // empty on desktop, where an export already lands wherever the user pointed it.
     static QUrl publishToGallery(const QUrl &source, const QString &displayName,
                                  QString *errorOut = nullptr);
+
+private:
+    static bool runDirect(const drift::Project &project, const ExportSettings &settings,
+                          const QString &outputPath, QString *errorOut, const ProgressFn &onProgress,
+                          QStringList *warningsOut);
 };
