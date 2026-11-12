@@ -5191,9 +5191,13 @@ void EditorStateTest::uiScalePersistsAcrossSessions()
         QCOMPARE(spy.count(), 1);
         QCOMPARE(state.preferences()->uiScale(), 1.25);
 
+        // Dafin: the interface size now runs from 80% to 150%.
         state.preferences()->setUiScale(9.0);
-        QCOMPARE(state.preferences()->uiScale(), 2.0);
+        QCOMPARE(state.preferences()->uiScale(), 1.5);
         state.preferences()->setUiScale(0.1);
+        QCOMPARE(state.preferences()->uiScale(), 0.8);
+        QVERIFY(QSettings().contains(QStringLiteral("ui/scale")));
+        state.preferences()->setUiScale(1.0);
         QCOMPARE(state.preferences()->uiScale(), 1.0);
         QVERIFY(!QSettings().contains(QStringLiteral("ui/scale")));
 
@@ -9845,6 +9849,7 @@ struct ProxyTestScope
         drift::ReverseProxyCache::previewProxyShortSide.store(m_side);
         drift::ReverseProxyCache::instance().clearSidecars();
         QSettings().remove(QStringLiteral("proxy"));
+        QSettings().remove(QStringLiteral("dafin/proxyBesideSource"));
         QCoreApplication::setOrganizationName(m_org);
         QCoreApplication::setApplicationName(m_app);
         QStandardPaths::setTestModeEnabled(false);
@@ -9934,6 +9939,8 @@ void EditorStateTest::proxyGenerationWritesBesideSource()
     AssetLibrary library;
     AppController state(&library);
     ProxyTestScope scope(state);
+    // Dafin: proxies go to the cache folder unless "beside the source" is switched on.
+    QSettings().setValue(QStringLiteral("dafin/proxyBesideSource"), true);
     QVERIFY(importAndAwait(library, source));
     const QString id = library.assetIdAt(0);
 
@@ -9964,6 +9971,8 @@ void EditorStateTest::proxyGenerationFallsBackToCacheWhenFolderIsReadOnly()
     AssetLibrary library;
     AppController state(&library);
     ProxyTestScope scope(state);
+    // Dafin: proxies go to the cache folder unless "beside the source" is switched on.
+    QSettings().setValue(QStringLiteral("dafin/proxyBesideSource"), true);
     QVERIFY(importAndAwait(library, source));
     const QString id = library.assetIdAt(0);
 

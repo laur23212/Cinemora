@@ -8530,7 +8530,7 @@ void CoreTest::closeAllGapsAndMarkerColor()
     };
     track.clips = {make("b", 5.0, 2.0), make("a", 1.0, 2.0), make("c", 7.0, 1.0)};
     const QSet<QString> moved = drift::closeAllGapsInTrack(track);
-    QCOMPARE(moved.size(), 2);
+    QCOMPARE(moved.size(), 3); // a, b and c all move (c follows b to its new end)
     QCOMPARE(track.clips[1].timelineStart, drift::secondsToUs(0.0)); // a: leading gap closed
     QCOMPARE(track.clips[0].timelineStart, drift::secondsToUs(2.0)); // b: right after a
     QCOMPARE(track.clips[2].timelineStart, drift::secondsToUs(4.0)); // c: already touched b's old end, follows b
