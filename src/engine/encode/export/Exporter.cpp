@@ -137,6 +137,29 @@ void resolveExportRange(const drift::Project &project, const ExportSettings &set
     *endUsOut = endUs;
 }
 
+// The rate frames are sampled at: the project's, or the one the dialog asked for.
+AVRational exportFrameRate(const drift::Project &project, const ExportSettings &settings)
+{
+    AVRational frameRate{qMax(1, project.fps()), 1};
+    if (settings.fpsNum > 0 && settings.fpsDen > 0)
+        frameRate = AVRational{settings.fpsNum, settings.fpsDen};
+    av_reduce(&frameRate.num, &frameRate.den, frameRate.num, frameRate.den, INT_MAX);
+    return frameRate;
+}
+
+int64_t rangeFrameCount(drift::TimeUs durationUs, AVRational frameRate)
+{
+    return qMax<int64_t>(1, std::llround(static_cast<double>(durationUs) * av_q2d(frameRate) / 1e6));
+}
+
+// Offset of frame `index` from the start of the export range. One formula for the whole-range
+// export and every segment of a resumable one, so both sample the timeline at the same instants.
+drift::TimeUs frameTimeUs(int64_t index, AVRational frameRate)
+{
+    return static_cast<drift::TimeUs>(
+        std::llround(static_cast<double>(index) * 1e6 * frameRate.den / frameRate.num));
+}
+
 } // namespace
 
 namespace {
@@ -2072,6 +2095,27 @@ bool Exporter::testEncode(const QString &videoCodecId, QString *reasonOut)
     return true;
 }
 
+int64_t Exporter::frameCount(const drift::Project &project, const ExportSettings &settings, int *fpsNum,
+                             int *fpsDen, QString *errorOut)
+{
+    const AVRational frameRate = exportFrameRate(project, settings);
+    if (fpsNum)
+        *fpsNum = frameRate.num;
+    if (fpsDen)
+        *fpsDen = frameRate.den;
+    if (project.width() <= 0 || project.height() <= 0) {
+        if (errorOut)
+            *errorOut = QStringLiteral("Invalid project resolution");
+        return 0;
+    }
+    drift::TimeUs startUs = 0;
+    drift::TimeUs endUs = 0;
+    resolveExportRange(project, settings, &startUs, &endUs, errorOut);
+    if (endUs <= startUs)
+        return 0;
+    return rangeFrameCount(endUs - startUs, frameRate);
+}
+
 ExportSettings Exporter::defaultSettings()
 {
     ExportSettings s;
@@ -2357,10 +2401,7 @@ bool Exporter::runDirect(const drift::Project &project, const ExportSettings &se
     // The export rate is independent of the project rate: sampling the timeline
     // faster pulls extra frames out of the source wherever it has them, which is
     // what makes slowed clips look smooth.
-    AVRational frameRate{qMax(1, project.fps()), 1};
-    if (settings.fpsNum > 0 && settings.fpsDen > 0)
-        frameRate = AVRational{settings.fpsNum, settings.fpsDen};
-    av_reduce(&frameRate.num, &frameRate.den, frameRate.num, frameRate.den, INT_MAX);
+    const AVRational frameRate = exportFrameRate(project, settings);
     const AVRational frameTb{frameRate.den, frameRate.num};
     const double fpsValue = av_q2d(frameRate);
 
@@ -2372,10 +2413,27 @@ bool Exporter::runDirect(const drift::Project &project, const ExportSettings &se
     if (durationUs <= 0)
         return false;
 
-    const int64_t totalFrames =
-        qMax<int64_t>(1, std::llround(static_cast<double>(durationUs) * fpsValue / 1e6));
+    const int64_t rangeFrames = rangeFrameCount(durationUs, frameRate);
+    // Dafin: a resumable export encodes one slice of the range per call. `firstFrame` keeps every
+    // frame on the timeline time the whole-range export gives it; the slice's own audio starts on
+    // its first frame (SegmentedExport drops it and encodes the audio in one piece).
+    int64_t firstFrame = 0;
+    int64_t totalFrames = rangeFrames;
+    if (settings.segmentFrameCount > 0) {
+        firstFrame = settings.segmentFirstFrame;
+        if (firstFrame < 0 || firstFrame >= rangeFrames) {
+            if (errorOut)
+                *errorOut = QStringLiteral("Export segment is outside the export range");
+            return false;
+        }
+        totalFrames = qMin(settings.segmentFrameCount, rangeFrames - firstFrame);
+    }
+    const drift::TimeUs segmentStartUs = rangeStartUs + frameTimeUs(firstFrame, frameRate);
+    const drift::TimeUs segmentDurationUs = settings.segmentFrameCount > 0
+        ? frameTimeUs(firstFrame + totalFrames, frameRate) - frameTimeUs(firstFrame, frameRate)
+        : durationUs;
     const int64_t totalAudioSamples =
-        qMax<int64_t>(0, std::llround(static_cast<double>(durationUs) * sampleRate / 1e6));
+        qMax<int64_t>(0, std::llround(static_cast<double>(segmentDurationUs) * sampleRate / 1e6));
 
     AVFormatContext *fmt = nullptr;
     AVCodecContext *vctx = nullptr;
@@ -2713,7 +2771,7 @@ bool Exporter::runDirect(const drift::Project &project, const ExportSettings &se
             if (need > 0) {
                 const size_t base = audioBuffer.size();
                 audioBuffer.resize(base + static_cast<size_t>(need) * 2);
-                const drift::TimeUs audioStartUs = rangeStartUs
+                const drift::TimeUs audioStartUs = segmentStartUs
                     + static_cast<drift::TimeUs>(
                         (static_cast<int64_t>(audioSamplesGenerated) * drift::kUsPerSecond)
                         / sampleRate);
@@ -2832,8 +2890,7 @@ bool Exporter::runDirect(const drift::Project &project, const ExportSettings &se
                 break;
             }
 
-            const drift::TimeUs t = rangeStartUs + static_cast<drift::TimeUs>(
-                std::llround(static_cast<double>(i) * 1e6 * frameRate.den / frameRate.num));
+            const drift::TimeUs t = rangeStartUs + frameTimeUs(firstFrame + i, frameRate);
 
             if (useGpuNv12) {
                 if (inflightCount == GpuCompositor::kExportNv12Slots) {

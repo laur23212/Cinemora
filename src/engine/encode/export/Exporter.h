@@ -52,6 +52,12 @@ struct ExportSettings
     // Optional export slice on the timeline. Both zero = encode the full project.
     drift::TimeUs startUs = 0;
     drift::TimeUs endUs = 0;
+    // Dafin: one segment of a resumable export (SegmentedExport). Frames count from the start of
+    // the resolved range above, and each frame is rendered at the same timeline time a single-pass
+    // export gives it, so a transition across a segment boundary renders identically. The file's
+    // own timestamps start at zero. 0 frames = the whole range (a normal export).
+    int64_t segmentFirstFrame = 0;
+    int64_t segmentFrameCount = 0;
 };
 
 // WYSIWYG exporter: encodes frames straight from FrameCompositor and audio from
@@ -93,6 +99,11 @@ public:
     // that opens is not an encoder that works — old drivers, a laptop on its integrated GPU, all
     // NVENC sessions in use — so EncoderProbe runs this once per GPU/driver and caches it.
     static bool testEncode(const QString &videoCodecId, QString *reasonOut = nullptr);
+
+    // Dafin: how many video frames a single-pass export of `settings` encodes, and at what rate.
+    // 0 with *errorOut set when the range is empty or the project has no size.
+    static int64_t frameCount(const drift::Project &project, const ExportSettings &settings,
+                              int *fpsNum, int *fpsDen, QString *errorOut = nullptr);
 
     static ExportSettings defaultSettings();
     static ExportSettings settingsFromMap(const QVariantMap &map);
