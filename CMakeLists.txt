@@ -1172,6 +1172,8 @@ qt_add_executable(drift
     src/app/platform/Haptics.cpp
     src/app/platform/PointerDevices.h
     src/app/platform/PointerDevices.cpp
+    src/app/platform/ReducedMotion.h
+    src/app/platform/ReducedMotion.cpp
     src/ui/preview/PreviewItem.h
     src/ui/preview/PreviewItem.cpp
     src/ui/preview/BrushStrokeItem.h
@@ -2294,6 +2296,7 @@ qt_add_qml_module(drift
         src/qml/components/controls/BarReorderHandle.qml
         src/qml/components/controls/BarReorderLayer.qml
         src/qml/components/controls/BarSlot.qml
+        src/qml/components/controls/ClickableArea.qml
         src/qml/components/controls/IconButton.qml
         src/qml/components/shell/PanelFrame.qml
         src/qml/components/shell/PanelSplitHandle.qml

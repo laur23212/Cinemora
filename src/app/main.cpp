@@ -71,6 +71,8 @@
 #include "ui/preview/TrackerOverlayItem.h"
 #include "ui/preview/PreviewItem.h"
 #include "ui/theme/ThemeManager.h"
+#include "ui/theme/ReducedMotion.h"
+#include "app/platform/ReducedMotion.h"
 #include "ui/theme/backdrop/WindowBackdrop.h"
 #include "ui/timeline/TimelineTrackItem.h"
 #include "ui/timeline/TimelineViewState.h"
@@ -536,8 +538,12 @@ private:
 
 } // namespace
 
+// Dafin: time since main() began, for the "startup:" lines in the log.
+[[maybe_unused]] static QElapsedTimer g_dafinStartupClock;
+
 int main(int argc, char *argv[])
 {
+    g_dafinStartupClock.start();
 #if !defined(Q_OS_ANDROID) && !defined(Q_OS_WASM)
     // Dafin: an export running in its own process for the editor (ExportWorker.h). Before the
     // crash report: a crash there is reported by the editor, and the report's message box would
@@ -694,6 +700,8 @@ int main(int argc, char *argv[])
 #endif
 
     QApplication app(argc, argv);
+    // Dafin: the system's "reduce motion" choice, read before the first theme is applied.
+    drift::motion::setReduced(drift::platform::systemPrefersReducedMotion());
     // A missing image plugin is silent everywhere else: the reader just returns a null QImage,
     // so the bin card is blank and the clip renders as nothing with no hint why. On a released
     // APK this line is the only way to tell that from a corrupt file, over adb logcat.
@@ -1012,8 +1020,13 @@ int main(int argc, char *argv[])
         if (first)
             splash->finishOn(window);
         if (window && first) {
+            // Dafin: how long the first window took to reach the screen (splash included), and the
+            // startup guard's "started fine" mark.
             QObject::connect(window, &QQuickWindow::frameSwapped, &app, [] {
                 drift::startup::markStarted();
+                const double ms = double(g_dafinStartupClock.nsecsElapsed()) / 1'000'000.0;
+                qInfo("startup: first window drawn %.0f ms after main()", ms);
+                drift::perf::record("startup.firstFrame", ms);
             }, static_cast<Qt::ConnectionType>(Qt::QueuedConnection | Qt::SingleShotConnection));
         }
         if (window && graphicsApiGuarded) {
