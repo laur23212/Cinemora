@@ -58,6 +58,9 @@ QtObject {
                          shortcut: "deleteRight" },
         "undo": { glyph: Theme.icons.undo, label: qsTr("Undo"), shortcut: "undo" },
         "redo": { glyph: Theme.icons.redo, label: qsTr("Redo"), shortcut: "redo" },
+        // Dafin: opens the History panel (every edit by name; click one to jump there).
+        "history": { glyph: Theme.icons.clock, label: qsTr("History"),
+                     tip: qsTr("History — list of your edits; click one to go back or forward to that point") },
         "delete": { glyph: Theme.icons.trash, label: qsTr("Delete clip"), shortcut: "delete" },
         "copy": { glyph: Theme.icons.copy, label: qsTr("Copy selection"), shortcut: "copy" },
         "paste": { glyph: Theme.icons.clipboardPaste, label: qsTr("Paste at current time"),
@@ -97,7 +100,7 @@ QtObject {
     // Delete last and apart. Only the default: a stored (customised) layout is used as saved.
     readonly property var defaultToolbarItems: [
         "select", "cut", "keyframe", "snap", "speedControl", "freezeFrame", "deleteLeft", "deleteRight",
-        "separator", "undo", "redo",
+        "separator", "undo", "redo", "history",
         "separator", "chromaKey", "motionTrack", "syncAudio", "beatMarkers", "autoDuck", "separator",
         "separateAudio",
         "unlink", "link", "separator", "delete"

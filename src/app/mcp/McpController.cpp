@@ -862,7 +862,7 @@ bool McpController::setWorkArea(double inSeconds, double outSeconds)
     const drift::Project before = m_app->m_project;
     m_app->m_project.setWorkAreaInUs(inUs);
     m_app->m_project.setWorkAreaOutUs(outUs);
-    m_app->pushProjectEdit(before, QStringLiteral("Work area"));
+    m_app->pushProjectEdit(before, QStringLiteral("Set work area"));
     m_app->finishEdit(QStringLiteral("Work area set"));
     emit m_app->workAreaChanged();
     return true;
@@ -942,7 +942,7 @@ bool McpController::setClipCanvas(int trackIndex, int clipIndex, const QVariantM
         return false;
 
     if (!m_undoSuspended) {
-        m_app->pushProjectEdit(before, QStringLiteral("MCP canvas"));
+        m_app->pushProjectEdit(before, QStringLiteral("Change canvas size"));
         m_app->finishEdit(QStringLiteral("MCP canvas"));
     } else {
         m_app->emitPreviewFrame();

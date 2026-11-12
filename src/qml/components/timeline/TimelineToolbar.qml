@@ -162,6 +162,7 @@ Item {
         case "link": EditorState.linkSelectedClips(); break
         case "undo": EditorState.undo(); break
         case "redo": EditorState.redo(); break
+        case "history": ShellBridge.navigate("panel:undoHistory"); break
         case "delete": EditorState.deleteSelectedClip(); break
         case "copy": EditorState.copySelection(); break
         case "paste": EditorState.pasteAtPlayhead(); break

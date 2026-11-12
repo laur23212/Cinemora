@@ -754,7 +754,8 @@ void AppController::pushProjectEdit(const drift::Project &before, const QString 
         return;
     {
         const QScopedValueRollback quietPush(m_quietUndoPush, true);
-        m_undoStack.push(new drift::ProjectSnapshotCommand(&m_project, before, m_project, text));
+        m_undoStack.push(new drift::ProjectSnapshotCommand(&m_project, before, m_project,
+                                                           text.isEmpty() ? tr("Edit") : text));
     }
     // Normally finishEdit settles it straight after; this catches an edit that never calls it.
     if (m_undoRefreshOwed)

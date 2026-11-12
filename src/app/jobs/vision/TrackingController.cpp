@@ -3242,7 +3242,7 @@ void TrackingController::finishJob(const QString &message, const QString &severi
                 shownSeverity = QStringLiteral("warning");
             }
         }
-        m_app->pushProjectEdit(before, tr("Track"));
+        m_app->pushProjectEdit(before, tr("Track motion"));
         m_app->finishEdit(tr("Tracked"));
     }
     m_jobClipId.clear();

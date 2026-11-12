@@ -481,7 +481,7 @@ void ProjectFileController::setProjectSetup(int width, int height, int fps)
     m_app->m_project.setFps(fps);
     if (!pristine)
         m_app->pushProjectEdit(before, fpsChanged && width == before.width() && height == before.height()
-                                    ? tr("Frame rate")
+                                    ? tr("Change frame rate")
                                     : tr("Project setup"));
     m_app->finishEdit(tr("Project setup updated"));
     if (fpsChanged && m_app->m_playback.isPlaying())

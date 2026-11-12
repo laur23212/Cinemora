@@ -209,6 +209,7 @@ private slots:
     void undoBookmarkAdd();
     void bookmarkColorUndoAndSave();
     void undoHistorySurvivesSaveAndLoad();
+    void undoHistoryNamesAreReadableAndJumpable();
     void savedBundleKeepsHistoryAndShrinksIt();
     void editDuringSaveKeepsProjectModified();
     void overlappingSavesRunInOrder();
@@ -2215,6 +2216,27 @@ void EditorStateTest::bookmarkColorUndoAndSave()
     state.undo();
     QVERIFY(state.project()->bookmarks().at(0).color.isEmpty());
     QCOMPARE(state.bookmarks().size(), 1);
+}
+
+// Dafin: the History panel lists undoHistory() and jumps with setUndoIndex().
+void EditorStateTest::undoHistoryNamesAreReadableAndJumpable()
+{
+    AssetLibrary library;
+    AppController state(&library);
+    state.addBookmark(1.0, QStringLiteral("A"));
+    state.addBookmark(2.0, QStringLiteral("B"));
+    state.addBookmark(3.0, QStringLiteral("C"));
+    const QStringList names = state.undoHistory();
+    QCOMPARE(names.size(), 3);
+    for (const QString &name : names)
+        QVERIFY2(!name.trimmed().isEmpty(), "every history entry needs a readable name");
+    QCOMPARE(state.undoIndex(), 3);
+    state.setUndoIndex(1);
+    QCOMPARE(state.undoIndex(), 1);
+    QCOMPARE(state.bookmarks().size(), 1);
+    QCOMPARE(state.undoHistory().size(), 3); // undone entries stay listed
+    state.setUndoIndex(3);
+    QCOMPARE(state.bookmarks().size(), 3);
 }
 
 void EditorStateTest::undoHistorySurvivesSaveAndLoad()

@@ -81,6 +81,11 @@ Platform.MenuBar {
             enabled: !menuBar.appWindow.showStartScreen && EditorState.canRedo
             onTriggered: menuBar.appWindow.dispatchAction("redo")
         }
+        Platform.MenuItem {
+            text: qsTr("&History")
+            enabled: !menuBar.appWindow.showStartScreen
+            onTriggered: ShellBridge.navigate("panel:undoHistory")
+        }
         Platform.MenuSeparator {}
         Platform.MenuItem {
             text: qsTr("Cu&t")
