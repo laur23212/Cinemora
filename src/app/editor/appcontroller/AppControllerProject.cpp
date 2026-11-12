@@ -604,6 +604,8 @@ void AppController::savePreviewScreenshot()
                     self->setLastMessage(message, severity);
             }, Qt::QueuedConnection);
     });
+}
+
 #if !defined(Q_OS_ANDROID) && !defined(Q_OS_WASM)
 namespace {
 
