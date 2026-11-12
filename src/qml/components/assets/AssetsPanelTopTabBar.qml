@@ -124,6 +124,9 @@ Item {
                     width: isDivider ? Theme.spacingMd : root.cellWidth
                     height: tabRow.height
 
+                    // Dafin tutorial: "assets.tab.<tab id>".
+                    TourTarget { tourId: cell.isDivider ? "" : "assets.tab." + cell.tabId; target: cell }
+
                     Rectangle {
                         visible: cell.isDivider
                         anchors.centerIn: parent

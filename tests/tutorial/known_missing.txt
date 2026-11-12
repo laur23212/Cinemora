@@ -1,0 +1,3 @@
+# Tour targets in resources/tutorial/tutorial.json that have no UI element in the code yet, one per
+# line. check_tutorial.py fails if a listed target does exist (remove it here) or if a target is
+# neither found in the code nor listed. Currently every target has an element.

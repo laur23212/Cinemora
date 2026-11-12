@@ -5,6 +5,15 @@ import Drift
 PanelFrame {
     id: root
 
+    // Dafin tutorial: guided-tour id and the "?" that opens this panel's page.
+    TourTarget { tourId: "panel.preview"; target: root }
+    TutorialHelpButton {
+        featureId: "preview-panel"
+        anchors.top: parent.top
+        anchors.right: parent.right
+        anchors.margins: 3
+    }
+
     // The crop overlay's gesture hint, dismissed once per session rather than per crop.
     property bool cropHintDismissed: false
 

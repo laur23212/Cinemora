@@ -726,6 +726,51 @@ ApplicationWindow {
         }
     }
 
+    // Dafin tutorial: the feature list, the first-run welcome and the guided-tour overlay.
+    LazyLoader {
+        id: tutorialDialogLoader
+        sourceComponent: Component {
+            TutorialDialog { }
+        }
+    }
+
+    LazyLoader {
+        id: tutorialWelcomeLoader
+        sourceComponent: Component {
+            TutorialWelcomeDialog { }
+        }
+    }
+
+    TourOverlay {
+        id: tourOverlay
+    }
+
+    // The welcome shows once, on the first time the editor itself is up (not over the start
+    // screen, not while another dialog or the what's-new pop-up is open). Seen is remembered the
+    // moment it appears, whichever button is pressed.
+    property bool tutorialWelcomeHandled: false
+    function maybeShowTutorialWelcome() {
+        if (window.tutorialWelcomeHandled)
+            return
+        if (Qt.platform.os === "android"
+                || LayoutMemory.layoutString("tutorial/welcomeSeen", "") !== "") {
+            window.tutorialWelcomeHandled = true
+            return
+        }
+        if (window.showStartScreen || window.overlayModalCount > 0 || Updates.whatsNewPending)
+            return
+        window.tutorialWelcomeHandled = true
+        LayoutMemory.setLayoutString("tutorial/welcomeSeen", "1")
+        tutorialWelcomeLoader.ensure().open()
+    }
+
+    Timer {
+        interval: 2500
+        repeat: true
+        running: !window.tutorialWelcomeHandled
+        onTriggered: window.maybeShowTutorialWelcome()
+    }
+
     // Kept after its first close: it holds the last benchmark result.
     LazyLoader {
         id: debugInfoDialogLoader
@@ -1198,6 +1243,21 @@ ApplicationWindow {
 
     function openWhatsNew() {
         whatsNewDialogLoader.ensure().open()
+    }
+
+    // Dafin tutorial: the feature list, or one feature's page when `featureId` names it.
+    function openTutorial(featureId) {
+        tutorialDialogLoader.ensure().openFor(featureId || "")
+    }
+
+    // Starts the guided tour of a feature (object or id). Steps whose element is not on screen
+    // are skipped; with none left to show, say so.
+    function startTour(feature) {
+        const f = (typeof feature === "string") ? Tutorial.featureById(feature) : feature
+        if (!f)
+            return
+        if (!tourOverlay.startTour(f))
+            Toasts.info(qsTr("Nothing on screen to point at for this one right now. Try it from a workspace that shows it."))
     }
 
     function openUpdateDialog() {

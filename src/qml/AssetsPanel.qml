@@ -6,6 +6,16 @@ import Drift
 PanelFrame {
     id: root
 
+    // Dafin tutorial: guided-tour id and the "?" that opens this panel's page.
+    TourTarget { tourId: !root.railHidden ? "panel.assets" : ""; target: root }
+    TutorialHelpButton {
+        featureId: "asset-panel"
+        allowed: !root.railHidden
+        anchors.top: parent.top
+        anchors.right: parent.right
+        anchors.margins: 3
+    }
+
     // When true (Android bottom sheet), hide the side tab rail — the phone
     // bottom rail already picks the active library tab.
     property bool sheetMode: false

@@ -5,6 +5,15 @@ import Drift
 PanelFrame {
     id: root
 
+    // Dafin tutorial: guided-tour id and the "?" that opens this panel's page.
+    TourTarget { tourId: "panel.timeline"; target: root }
+    TutorialHelpButton {
+        featureId: "timeline-panel"
+        anchors.top: parent.top
+        anchors.right: parent.right
+        anchors.margins: 3
+    }
+
     // Keyframe lane height the user dragged to; session-only, kept here because the graph
     // itself is unloaded whenever no clip or no keyframe tab is selected.
     property real keyframeLaneHeight: 88

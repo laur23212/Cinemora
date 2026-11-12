@@ -379,10 +379,10 @@ Item {
         id: headerReorder
         defaults: ({
             "left": ["projects", "save", "video", "workspace"],
-            "right": ["downloads", "settings", "separator1", "extras", "notifications", "separator2",
+            "right": ["tutorial", "downloads", "settings", "separator1", "extras", "notifications", "separator2",
                       "agent", "shortcuts", "separator3", "exportQueue", "exportBadge", "export"]
         })
-        stored: root.withShortcutsButton(EditorState.preferences.barLayouts["header"])
+        stored: root.withTutorialButton(root.withShortcutsButton(EditorState.preferences.barLayouts["header"]))
         layer: headerReorderLayer
         onSaveRequested: (layout) => EditorState.preferences.setBarLayout("header", layout)
     }
@@ -410,11 +410,39 @@ Item {
         return result
     }
 
+    // Dafin: a header arranged before the Tutorial button existed gets it left of the Marketplace
+    // button (else left of Settings), not at the end of the right side.
+    function withTutorialButton(saved) {
+        if (!saved)
+            return saved
+        for (const group in saved) {
+            if ((saved[group] || []).indexOf("tutorial") >= 0)
+                return saved
+        }
+        const result = {}
+        let placed = false
+        for (const group in saved) {
+            const list = (saved[group] || []).slice()
+            if (!placed) {
+                let at = list.indexOf("downloads")
+                if (at < 0)
+                    at = list.indexOf("settings")
+                if (at >= 0) {
+                    list.splice(at, 0, "tutorial")
+                    placed = true
+                }
+            }
+            result[group] = list
+        }
+        return result
+    }
+
     readonly property var headerItems: ({
         "projects": projectsComponent,
         "save": saveComponent,
         "video": videoComponent,
         "workspace": workspaceComponent,
+        "tutorial": tutorialComponent,
         "downloads": downloadsComponent,
         "settings": settingsComponent,
         "separator1": separatorComponent,
@@ -472,6 +500,7 @@ Item {
         }
     }
 
+    Component { id: tutorialComponent; EditorHeaderTutorialButton { } }
     Component { id: downloadsComponent; EditorHeaderDownloadsButton { } }
     Component { id: settingsComponent; EditorHeaderSettingsButton { } }
     Component { id: separatorComponent; EditorHeaderSeparator { } }
@@ -539,7 +568,7 @@ Item {
             Component.onCompleted: headerReorder.registerGroup("left", headerLeftRow)
             Repeater {
                 model: headerReorder.layout["left"]
-                delegate: BarSlot { reorder: headerReorder; group: "left"; items: root.headerItems }
+                delegate: BarSlot { reorder: headerReorder; group: "left"; items: root.headerItems; tourPrefix: "bar." }
             }
         }
 
@@ -576,10 +605,14 @@ Item {
             Component.onCompleted: headerReorder.registerGroup("right", headerRightRow)
             Repeater {
                 model: headerReorder.layout["right"]
-                delegate: BarSlot { reorder: headerReorder; group: "right"; items: root.headerItems }
+                delegate: BarSlot { reorder: headerReorder; group: "right"; items: root.headerItems; tourPrefix: "bar." }
             }
         }
     }
+
+    // Dafin tutorial: the search field is a tour target ("header.search"); the buttons get theirs
+    // from BarSlot ("bar.<item id>").
+    TourTarget { tourId: "header.search"; target: searchField }
 
     BarReorderLayer {
         id: headerReorderLayer

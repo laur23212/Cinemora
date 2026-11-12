@@ -1686,6 +1686,15 @@ qt_add_resources(drift "drift_workspaces"
         resources/workspaces/3d.json
 )
 
+# Dafin tutorial content (feature list + guided-tour steps), compiled into the app so it ships in
+# the installer and works offline. Tutorial.qml reads qrc:/tutorial/tutorial.json.
+qt_add_resources(drift "drift_tutorial"
+    PREFIX "/tutorial"
+    BASE resources/tutorial
+    FILES
+        resources/tutorial/tutorial.json
+)
+
 # Dafin Open Library (stickers + title templates), bundled so the panels work offline; the
 # provider prefers the published copy of asset-library/index.json when it can reach it.
 qt_add_resources(drift "drift_asset_library"
@@ -1769,6 +1778,8 @@ set_source_files_properties(src/qml/TouchDrag.qml PROPERTIES QT_QML_SINGLETON_TY
 set_source_files_properties(src/qml/AssetDrag.qml PROPERTIES QT_QML_SINGLETON_TYPE true)
 # The editor main window, for panels that may live in a secondary window.
 set_source_files_properties(src/qml/ShellBridge.qml PROPERTIES QT_QML_SINGLETON_TYPE true)
+# Dafin tutorial: content, guided-tour target registry.
+set_source_files_properties(src/qml/Tutorial.qml PROPERTIES QT_QML_SINGLETON_TYPE true)
 
 # Lucide icons: use the original scalable SVG sources in QML.
 file(GLOB DRIFT_LUCIDE_ICONS RELATIVE "${CMAKE_SOURCE_DIR}" CONFIGURE_DEPENDS
@@ -1847,6 +1858,13 @@ qt_add_qml_module(drift
         src/qml/TouchDrag.qml
         src/qml/AssetDrag.qml
         src/qml/ShellBridge.qml
+        src/qml/Tutorial.qml
+        src/qml/components/tutorial/TourTarget.qml
+        src/qml/components/tutorial/TourOverlay.qml
+        src/qml/components/tutorial/TutorialDialog.qml
+        src/qml/components/tutorial/TutorialWelcomeDialog.qml
+        src/qml/components/tutorial/TutorialHelpButton.qml
+        src/qml/components/shell/EditorHeaderTutorialButton.qml
         src/qml/EditorHeader.qml
         src/qml/AssetsPanel.qml
         src/qml/PreviewPanel.qml

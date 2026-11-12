@@ -1,0 +1,624 @@
+{
+  "features": [
+    {
+      "id": "workspace-layout",
+      "category": "Workspace",
+      "title": "Workspace layout",
+      "summary": "The workspace keeps your files, editing controls, preview, and timeline in separate areas. Use it to find what you need while editing.",
+      "tour": [
+        {
+          "target": "panel.assets",
+          "text": "Look in the Assets panel to browse files and editing resources."
+        },
+        {
+          "target": "panel.properties",
+          "text": "Look in the Properties panel to inspect the selected item."
+        },
+        {
+          "target": "panel.preview",
+          "text": "Look at the Preview panel to see your video."
+        },
+        {
+          "target": "panel.timeline",
+          "text": "Look at the Timeline panel to see how your clips are arranged."
+        }
+      ]
+    },
+    {
+      "id": "asset-panel",
+      "category": "Workspace",
+      "title": "Asset panel",
+      "summary": "The Assets panel holds your media and other items you can add to a project. Use its tabs to find them.",
+      "tour": [
+        {
+          "target": "panel.assets",
+          "text": "Look in the Assets panel for items to add to your project."
+        },
+        {
+          "target": "assets.tab.media",
+          "text": "Click Media to view the files in your project."
+        }
+      ]
+    },
+    {
+      "id": "preview-panel",
+      "category": "Workspace",
+      "title": "Preview",
+      "summary": "The Preview panel shows what your video looks like at the current position. Use it to check your edits.",
+      "tour": [
+        {
+          "target": "panel.preview",
+          "text": "Look at the Preview panel to check how your video looks."
+        }
+      ]
+    },
+    {
+      "id": "properties-panel",
+      "category": "Workspace",
+      "title": "Properties",
+      "summary": "The Properties panel shows settings for the item you select. Use it to make changes to clips and other items.",
+      "tour": [
+        {
+          "target": "panel.properties",
+          "text": "Select an item, then look in Properties to see its settings."
+        }
+      ]
+    },
+    {
+      "id": "timeline-panel",
+      "category": "Workspace",
+      "title": "Timeline",
+      "summary": "The timeline arranges video, audio, and other clips over time. Use it to build and adjust your video.",
+      "tour": [
+        {
+          "target": "panel.timeline",
+          "text": "Look at the timeline to see your clips and their order."
+        }
+      ]
+    },
+    {
+      "id": "movable-buttons",
+      "category": "Workspace",
+      "title": "Movable buttons",
+      "summary": "You can rearrange buttons in the top bar and editing toolbars. Move the ones you use most to convenient places.",
+      "tour": [
+        {
+          "target": "bar.shortcuts|bar.agent|bar.export",
+          "text": "Press and hold a top-bar button, then drag it to a new position."
+        },
+        {
+          "target": "bar.snap|bar.keyframe|bar.cut|bar.select",
+          "text": "Press and hold a timeline tool button, then drag it along its toolbar."
+        }
+      ]
+    },
+    {
+      "id": "global-search",
+      "category": "Workspace",
+      "title": "Search and workspace switcher",
+      "summary": "The top search area helps you find commands, and its workspace menu changes the layout. Use either to move around Dafin.",
+      "tour": [
+        {
+          "target": "header.search",
+          "text": "Click the search field to find commands, or click the workspace name to switch layouts."
+        }
+      ]
+    },
+    {
+      "id": "media-library",
+      "category": "Media",
+      "title": "Media library",
+      "summary": "The Media library holds files added to your project. Open it to find footage, pictures, and sound for your edit.",
+      "tour": [
+        {
+          "target": "assets.tab.media",
+          "text": "Click Media to find files you have added to the project."
+        }
+      ]
+    },
+    {
+      "id": "scenes",
+      "category": "Media",
+      "title": "Scenes",
+      "summary": "Scenes finds shot changes in a selected video and lists the results. Use it to jump to parts of a long clip.",
+      "tour": [
+        {
+          "target": "assets.tab.scenes",
+          "text": "Click Scenes to find shot changes in a selected video."
+        }
+      ]
+    },
+    {
+      "id": "your-own-files",
+      "category": "Media",
+      "title": "Your own files",
+      "summary": "You can add your own animations, sounds, and title files to the matching tabs. Use this to keep your assets available in Dafin.",
+      "tour": [
+        {
+          "target": "assets.tab.stickers",
+          "text": "Drag an animation file onto Stickers to add it to your library."
+        },
+        {
+          "target": "assets.tab.sounds",
+          "text": "Drag an audio file onto Audio to add it to your library."
+        },
+        {
+          "target": "assets.tab.text",
+          "text": "Drag a title template onto Titles to add it to your library."
+        }
+      ]
+    },
+    {
+      "id": "stock-media",
+      "category": "Online assets",
+      "title": "Stock media",
+      "summary": "Stock media lets you find video clips from online collections. Use them when you need footage you have not recorded.",
+      "tour": [
+        {
+          "target": "assets.tab.stock",
+          "text": "Click Stock Video to browse available footage."
+        }
+      ]
+    },
+    {
+      "id": "sound-effects",
+      "category": "Online assets",
+      "title": "Sound effects and music",
+      "summary": "The Audio tab contains music and sound effects, including sounds supplied with Dafin. Use them to add sound to your video.",
+      "tour": [
+        {
+          "target": "assets.tab.sounds",
+          "text": "Click Audio to browse music and sound effects."
+        }
+      ]
+    },
+    {
+      "id": "titles",
+      "category": "Titles and graphics",
+      "title": "Titles",
+      "summary": "Titles add words to your video, such as headings or names. Use Properties to change how the selected text looks.",
+      "tour": [
+        {
+          "target": "assets.tab.text",
+          "text": "Click Titles to browse text options for your video."
+        },
+        {
+          "target": "panel.properties",
+          "text": "Select a title, then open Properties to change its appearance."
+        }
+      ]
+    },
+    {
+      "id": "title-templates",
+      "category": "Titles and graphics",
+      "title": "Title templates",
+      "summary": "Title templates provide ready-made text styles and animations. Use them when you want a starting point for on-screen words.",
+      "tour": [
+        {
+          "target": "assets.tab.text",
+          "text": "Click Titles to browse title templates."
+        },
+        {
+          "target": "panel.properties",
+          "text": "Select a template title, then use Properties to change its text and style."
+        }
+      ]
+    },
+    {
+      "id": "mogrt-titles",
+      "category": "Titles and graphics",
+      "title": ".mogrt titles",
+      "summary": "Dafin can add supported .mogrt templates as titles, though some need a separate converter. Use Properties to edit their available controls.",
+      "tour": [
+        {
+          "target": "assets.tab.text",
+          "text": "Click Titles to find imported .mogrt templates."
+        },
+        {
+          "target": "panel.properties",
+          "text": "Select a .mogrt title, then look in Properties for its available controls."
+        }
+      ]
+    },
+    {
+      "id": "stickers",
+      "category": "Titles and graphics",
+      "title": "Stickers (Lottie)",
+      "summary": "Stickers add graphics and animations to your video. Use them to draw attention to something on screen.",
+      "tour": [
+        {
+          "target": "assets.tab.stickers",
+          "text": "Click Stickers to browse available graphics and animations."
+        }
+      ]
+    },
+    {
+      "id": "shapes",
+      "category": "Titles and graphics",
+      "title": "Shapes",
+      "summary": "Shapes add simple graphic elements, such as rectangles or circles. Use them to highlight or frame parts of your video.",
+      "tour": [
+        {
+          "target": "assets.tab.shapes",
+          "text": "Click Shapes to browse the available shapes."
+        }
+      ]
+    },
+    {
+      "id": "effects",
+      "category": "Effects and transitions",
+      "title": "Effects",
+      "summary": "Effects change how a clip looks or sounds. Use Properties to adjust an effect after adding it.",
+      "tour": [
+        {
+          "target": "assets.tab.effects",
+          "text": "Click Effects to browse the available effects."
+        },
+        {
+          "target": "panel.properties",
+          "text": "Select a clip with an effect, then open Properties to adjust its settings."
+        }
+      ]
+    },
+    {
+      "id": "transitions",
+      "category": "Effects and transitions",
+      "title": "Transitions",
+      "summary": "Transitions change how one clip leads into another. Use them when you want a different change between shots.",
+      "tour": [
+        {
+          "target": "assets.tab.transitions",
+          "text": "Click Transitions to browse ways to move between clips."
+        }
+      ]
+    },
+    {
+      "id": "templates-split-screen",
+      "category": "Effects and transitions",
+      "title": "Templates and split screen",
+      "summary": "Templates include layouts that can show several clips at once. Use a split-screen layout to put multiple views in one frame.",
+      "tour": [
+        {
+          "target": "assets.tab.templates",
+          "text": "Click Templates to find ready-made layouts, including split screens."
+        }
+      ]
+    },
+    {
+      "id": "masks",
+      "category": "Effects and transitions",
+      "title": "Masks",
+      "summary": "Masks control which parts of a clip remain visible. Use them to reveal one area while hiding another.",
+      "tour": [
+        {
+          "target": "assets.tab.masks",
+          "text": "Click Masks to browse shapes that can hide parts of a clip."
+        }
+      ]
+    },
+    {
+      "id": "subtitles",
+      "category": "Captions and speech",
+      "title": "Subtitles",
+      "summary": "Subtitles show spoken words as text on your video. Use them to help viewers follow the dialogue.",
+      "tour": [
+        {
+          "target": "assets.tab.subtitles",
+          "text": "Click Subtitles to open the subtitle tools."
+        }
+      ]
+    },
+    {
+      "id": "speech",
+      "category": "Captions and speech",
+      "title": "Speech",
+      "summary": "Speech turns written text into spoken audio using a chosen voice. Use it to add narration without recording it yourself.",
+      "tour": [
+        {
+          "target": "assets.tab.speech",
+          "text": "Click Speech to open the text-to-speech tools."
+        }
+      ]
+    },
+    {
+      "id": "ai-tools",
+      "category": "AI",
+      "title": "AI tools",
+      "summary": "The AI tab groups tools that can help with tasks such as making captions. Open it to see which tools are available.",
+      "tour": [
+        {
+          "target": "assets.tab.ai",
+          "text": "Click AI to see the available tools and those coming later."
+        }
+      ]
+    },
+    {
+      "id": "auto-captions",
+      "category": "AI",
+      "title": "Auto captions",
+      "summary": "Auto captions turns speech in a clip into timed subtitles. Use it when you want captions without typing every line.",
+      "tour": [
+        {
+          "target": "assets.tab.ai",
+          "text": "Click AI to find the Auto captions tool."
+        },
+        {
+          "target": "panel.timeline",
+          "text": "Look at the timeline to see where generated captions are placed."
+        }
+      ]
+    },
+    {
+      "id": "edit-tools",
+      "category": "Timeline editing",
+      "title": "Select and cut",
+      "summary": "Select lets you work with clips, while Cut splits them into pieces. Switch between the tools as you edit.",
+      "tour": [
+        {
+          "target": "bar.select",
+          "text": "Click Select to choose and move clips on the timeline."
+        },
+        {
+          "target": "bar.cut",
+          "text": "Click Cut to split a clip where you need a break."
+        }
+      ]
+    },
+    {
+      "id": "keyframes",
+      "category": "Timeline editing",
+      "title": "Keyframes",
+      "summary": "Keyframes let a setting change at different points in a clip. Use them to make changes happen over time.",
+      "tour": [
+        {
+          "target": "bar.keyframe",
+          "text": "Click Keyframe to use the keyframe tool."
+        },
+        {
+          "target": "panel.timeline",
+          "text": "Look at the timeline to choose where a change should happen."
+        }
+      ]
+    },
+    {
+      "id": "snapping",
+      "category": "Timeline editing",
+      "title": "Snapping",
+      "summary": "Snapping helps clips and the playhead line up with nearby positions. Turn it on when you want clips to meet neatly.",
+      "tour": [
+        {
+          "target": "bar.snap",
+          "text": "Click Snap to turn timeline snapping on or off."
+        }
+      ]
+    },
+    {
+      "id": "chroma-key",
+      "category": "Timeline editing",
+      "title": "Chroma key",
+      "summary": "Chroma key hides a chosen color in a clip, often a green background. Use it to place another picture behind a subject.",
+      "tour": [
+        {
+          "target": "bar.chromaKey",
+          "text": "Click Chroma Key to open the background-color removal tool."
+        },
+        {
+          "target": "panel.properties",
+          "text": "Look in Properties to adjust the selected clip."
+        }
+      ]
+    },
+    {
+      "id": "motion-tracking",
+      "category": "Timeline editing",
+      "title": "Motion tracking",
+      "summary": "Motion tracking follows movement in a clip. Use it to track where an object goes across the picture.",
+      "tour": [
+        {
+          "target": "bar.motionTrack",
+          "text": "Click Motion Tracking to start working with a moving subject."
+        },
+        {
+          "target": "panel.preview",
+          "text": "Look at the Preview panel to see the picture you are tracking."
+        }
+      ]
+    },
+    {
+      "id": "sync-audio",
+      "category": "Timeline editing",
+      "title": "Sync audio",
+      "summary": "Sync audio lines up recordings that share the same sound. Use it to match camera footage with separately recorded audio.",
+      "tour": [
+        {
+          "target": "bar.syncAudio",
+          "text": "Select the recordings, then click Sync Audio to line them up."
+        }
+      ]
+    },
+    {
+      "id": "volume-dots",
+      "category": "Timeline editing",
+      "title": "Volume dots",
+      "summary": "Volume dots let you raise or lower sound at different moments in a clip. Use them for gradual fades or quieter sections.",
+      "tour": [
+        {
+          "target": "panel.timeline",
+          "text": "Look at audio clips in the timeline to find their volume lines."
+        }
+      ]
+    },
+    {
+      "id": "stacking",
+      "category": "Timeline editing",
+      "title": "Automatic track stacking",
+      "summary": "Automatic track stacking places overlapping clips on separate tracks when needed. Use it to keep clips aligned without replacing each other.",
+      "tour": [
+        {
+          "target": "panel.timeline",
+          "text": "Drag a clip onto an occupied part of the timeline to place it on a free track."
+        }
+      ]
+    },
+    {
+      "id": "projects",
+      "category": "Project",
+      "title": "Projects: new, open, save",
+      "summary": "Projects store your clips and editing choices. Use the project controls to start, reopen, and save your work.",
+      "tour": [
+        {
+          "target": "bar.projects",
+          "text": "Click Projects to start a new project or open an existing one."
+        },
+        {
+          "target": "bar.save",
+          "text": "Click Save to keep your latest project changes."
+        }
+      ]
+    },
+    {
+      "id": "other-editors-projects",
+      "category": "Project",
+      "title": "Open Premiere Pro and Filmora projects",
+      "summary": "Dafin can open supported Premiere Pro and Filmora projects as new edits. Use this to bring their clip arrangements into Dafin.",
+      "tour": [
+        {
+          "target": "bar.projects",
+          "text": "Click Projects, then choose Open to select a supported project file."
+        }
+      ]
+    },
+    {
+      "id": "video-size",
+      "category": "Project",
+      "title": "Video size and layout",
+      "summary": "Video size and layout control the shape and dimensions of your project. Use these settings for landscape or portrait videos.",
+      "tour": [
+        {
+          "target": "bar.video",
+          "text": "Click Video to open the video size and layout settings."
+        }
+      ]
+    },
+    {
+      "id": "export",
+      "category": "Project",
+      "title": "Export",
+      "summary": "Export creates a video file from your finished project. Use it when you want to watch or share the result outside Dafin.",
+      "tour": [
+        {
+          "target": "bar.export",
+          "text": "Click Export to choose how to save the finished video."
+        }
+      ]
+    },
+    {
+      "id": "export-presets",
+      "category": "Project",
+      "title": "Export presets (YouTube, TikTok, Instagram, WhatsApp)",
+      "summary": "Export presets provide starting settings for YouTube, TikTok, Instagram, and WhatsApp. Use one before adjusting any settings yourself.",
+      "tour": [
+        {
+          "target": "bar.export",
+          "text": "Click Export to find the presets for common sharing platforms."
+        }
+      ]
+    },
+    {
+      "id": "shortcuts",
+      "category": "App",
+      "title": "Keyboard shortcuts",
+      "summary": "Keyboard shortcuts let you control editing actions with keys. Use the shortcut list to find or change them.",
+      "tour": [
+        {
+          "target": "bar.shortcuts",
+          "text": "Click Shortcuts to view or change your keyboard shortcuts."
+        }
+      ]
+    },
+    {
+      "id": "marketplace",
+      "category": "App",
+      "title": "Marketplace",
+      "summary": "The Marketplace lets you find optional items for Dafin and manage downloads. Use it when you want to add more content.",
+      "tour": [
+        {
+          "target": "bar.downloads",
+          "text": "Click Marketplace to browse items and check downloads."
+        }
+      ]
+    },
+    {
+      "id": "extras",
+      "category": "App",
+      "title": "Extras",
+      "summary": "Extras contains optional packs and related updates. Open it to see what is available or needs attention.",
+      "tour": [
+        {
+          "target": "bar.extras",
+          "text": "Click Extras to view optional packs and updates."
+        }
+      ]
+    },
+    {
+      "id": "notifications",
+      "category": "App",
+      "title": "Notifications",
+      "summary": "Notifications show messages about activity and updates in Dafin. Open them to review anything you have missed.",
+      "tour": [
+        {
+          "target": "bar.notifications",
+          "text": "Click Notifications to read recent messages."
+        }
+      ]
+    },
+    {
+      "id": "agent-access",
+      "category": "App",
+      "title": "Agent access",
+      "summary": "Agent access lets a compatible assistant connect to Dafin during your editing session. Use it when you want an assistant to help.",
+      "tour": [
+        {
+          "target": "bar.agent",
+          "text": "Click Agent to open the access controls."
+        }
+      ]
+    },
+    {
+      "id": "settings",
+      "category": "App",
+      "title": "Settings",
+      "summary": "Settings let you change how Dafin looks and works. Open them to adjust the editor to your needs.",
+      "tour": [
+        {
+          "target": "bar.settings",
+          "text": "Click Settings to change your editor preferences."
+        }
+      ]
+    },
+    {
+      "id": "updates",
+      "category": "App",
+      "title": "Updates",
+      "summary": "Updates help you check whether a newer version of Dafin is available. Use them to keep your editor current.",
+      "tour": [
+        {
+          "target": "bar.settings",
+          "text": "Click Settings to find the update options."
+        }
+      ]
+    },
+    {
+      "id": "tutorial",
+      "category": "App",
+      "title": "Tutorial",
+      "summary": "The Tutorial lists Dafin features and offers guided tours. Use it to learn where tools are and what they do.",
+      "tour": [
+        {
+          "target": "bar.tutorial",
+          "text": "Click Tutorial to browse features and start a guided tour."
+        }
+      ]
+    }
+  ]
+}

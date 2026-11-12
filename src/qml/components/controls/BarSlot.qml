@@ -21,10 +21,19 @@ Loader {
     readonly property int barItemIndex: index
     readonly property string barGroup: group
 
+    // Dafin tutorial: when set, this slot answers to the guided-tour id prefix + item id
+    // ("bar." + "export" = "bar.export"), wherever the user has moved it.
+    property string tourPrefix: ""
+
     sourceComponent: items[modelData] !== undefined ? items[modelData] : null
     active: sourceComponent !== null
     visible: item !== null && (item.barVisible === undefined || item.barVisible)
     anchors.verticalCenter: parent ? parent.verticalCenter : undefined
+
+    TourTarget {
+        tourId: slot.tourPrefix !== "" && slot.item !== null ? slot.tourPrefix + slot.modelData : ""
+        target: slot
+    }
 
     BarReorderHandle {
         reorder: slot.reorder

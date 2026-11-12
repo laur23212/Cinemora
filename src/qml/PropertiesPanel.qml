@@ -5,6 +5,16 @@ import Drift
 PanelFrame {
     id: root
 
+    // Dafin tutorial: guided-tour id and the "?" that opens this panel's page.
+    TourTarget { tourId: !root.railHidden ? "panel.properties" : ""; target: root }
+    TutorialHelpButton {
+        featureId: "properties-panel"
+        allowed: !root.railHidden
+        anchors.top: parent.top
+        anchors.right: parent.right
+        anchors.margins: 3
+    }
+
     // Android bottom sheet: keep the inspector tab rail but drop the panel border
     // chrome that fights the sheet frame.
     property bool sheetMode: false

@@ -17,6 +17,9 @@ Column {
     width: parent ? parent.width : 0
     spacing: 0
 
+    // Dafin tutorial: "assets.tab.<tab id>" (the top tab bar tags its own buttons the same way).
+    TourTarget { tourId: "assets.tab." + root.model.tabId; target: root }
+
     ThemeSlot {
         width: root.width
         slot: "AssetsPanelTabButton"

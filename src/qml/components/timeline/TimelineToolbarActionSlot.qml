@@ -29,6 +29,9 @@ Item {
         color: Theme.c.timelineToolbarActionSlot.foreground
     }
 
+    // Dafin tutorial: "bar.<action id>" (bar.cut, bar.snap, bar.chromaKey…), wherever it sits.
+    TourTarget { tourId: slot.isSeparator ? "" : "bar." + slot.modelData; target: actionButton }
+
     TimelineToolbarToolButton {
         id: actionButton
         visible: !slot.isSeparator
