@@ -1149,6 +1149,7 @@ qt_add_executable(drift
     src/app/online/updates/UpdateChecker.cpp
     src/app/online/updates/UpdateAsset.h
     src/app/online/updates/UpdateAsset.cpp
+    src/app/online/updates/UpdateSafety.cpp
     src/app/StartupSplash.h
     src/app/StartupSplash.cpp
     src/app/editor/sessions/PolylineDraft.h

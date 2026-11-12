@@ -123,7 +123,8 @@ target_include_directories(tst_diagnosticslog PRIVATE ../src)
 target_link_libraries(tst_diagnosticslog PRIVATE Qt6::Test Qt6::Core Qt6::Gui driftcore)
 add_test(NAME DiagnosticsLog COMMAND tst_diagnosticslog)
 
-qt_add_executable(tst_updateasset tst_updateasset.cpp ../src/app/online/updates/UpdateAsset.cpp)
+qt_add_executable(tst_updateasset tst_updateasset.cpp ../src/app/online/updates/UpdateAsset.cpp
+    ../src/app/online/updates/UpdateSafety.cpp)
 target_include_directories(tst_updateasset PRIVATE ../src)
 target_link_libraries(tst_updateasset PRIVATE Qt6::Test)
 add_test(NAME UpdateAsset COMMAND tst_updateasset)

@@ -4,6 +4,10 @@
 #include <QJsonObject>
 
 #include "app/online/updates/UpdateAsset.h"
+#include "app/online/updates/UpdateSafety.h"
+
+#include <QCryptographicHash>
+#include <QTemporaryFile>
 
 class UpdateAssetTest : public QObject
 {
@@ -19,6 +23,7 @@ private slots:
     void rejectsNonGitHubUrl();
     void releaseUrlsFollowTheVersion();
     void installerFileName();
+    void fileChecksumIsChecked();
 };
 
 void UpdateAssetTest::versionText()
@@ -183,6 +188,21 @@ void UpdateAssetTest::installerFileName()
     QCOMPARE(drift::installerFileName(QStringLiteral("macos"), QStringLiteral("x86_64"),
                                       QStringLiteral("0.7.5")),
              QStringLiteral("Drift-0.7.5-x86_64.dmg"));
+}
+
+void UpdateAssetTest::fileChecksumIsChecked()
+{
+    QTemporaryFile file;
+    QVERIFY(file.open());
+    file.write("installer bytes");
+    file.flush();
+    const QString good = QString::fromLatin1(
+            QCryptographicHash::hash("installer bytes", QCryptographicHash::Sha256).toHex());
+    QVERIFY(drift::fileMatchesSha256(file.fileName(), good));
+    QVERIFY(drift::fileMatchesSha256(file.fileName(), good.toUpper()));
+    QVERIFY(!drift::fileMatchesSha256(file.fileName(), QString(64, QLatin1Char('0'))));
+    QVERIFY(!drift::fileMatchesSha256(file.fileName(), QString()));
+    QVERIFY(!drift::fileMatchesSha256(file.fileName() + QStringLiteral(".missing"), good));
 }
 
 QTEST_GUILESS_MAIN(UpdateAssetTest)

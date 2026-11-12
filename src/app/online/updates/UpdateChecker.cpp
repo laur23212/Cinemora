@@ -2,6 +2,7 @@
 #include "core/base/CacheRoot.h"
 
 #include "app/online/updates/UpdateAsset.h"
+#include "app/online/updates/UpdateSafety.h"
 #include "core/base/VersionCompare.h"
 
 #include <QCoreApplication>
@@ -1151,6 +1152,15 @@ void UpdateChecker::launchStagedInstall()
     if (!m_installOnQuit || m_stagedPath.isEmpty() || !QFileInfo::exists(m_stagedPath))
         return;
     m_installOnQuit = false;
+
+#if !defined(Q_OS_MACOS)
+    // The installer sat in the cache between its download and now; run it only if it is still
+    // the file whose hash was checked. A changed one is deleted and nothing is installed.
+    if (!drift::fileMatchesSha256(m_stagedPath, m_assetSha256)) {
+        QFile::remove(m_stagedPath);
+        return;
+    }
+#endif
 
     const QString dir = updatesDir();
     const qint64 pid = QCoreApplication::applicationPid();
