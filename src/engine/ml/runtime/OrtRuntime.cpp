@@ -633,4 +633,38 @@ QString askForOtherProvider(const QString &failedVariant, const QString &error)
     return g_failureHandler(failedVariant, error);
 }
 
+bool isOutOfMemoryFailure(const QString &error)
+{
+    static const char *const needles[] = {"out of memory", "out_of_memory", "outofmemory", "bad_alloc",
+                                          "failed to allocate", "cannot allocate", "e_outofmemory",
+                                          "cudaerrormemoryallocation", "memory allocation"};
+    for (const char *needle : needles) {
+        if (error.contains(QLatin1String(needle), Qt::CaseInsensitive))
+            return true;
+    }
+    return false;
+}
+
+namespace {
+QMutex g_notifyMutex;
+CpuFallbackNotifier g_cpuFallbackNotifier;
+} // namespace
+
+void setCpuFallbackNotifier(CpuFallbackNotifier notifier)
+{
+    QMutexLocker lock(&g_notifyMutex);
+    g_cpuFallbackNotifier = std::move(notifier);
+}
+
+void notifyCpuFallback(const QString &tag, const QString &reason, bool outOfMemory)
+{
+    CpuFallbackNotifier notifier;
+    {
+        QMutexLocker lock(&g_notifyMutex);
+        notifier = g_cpuFallbackNotifier;
+    }
+    if (notifier)
+        notifier(tag, reason, outOfMemory);
+}
+
 } // namespace drift::ort

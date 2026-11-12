@@ -573,6 +573,12 @@ ApplicationWindow {
         function onAccelerationFailed(variant, error, waiting) {
             accelerationFailedDialogLoader.ensure().openFor(variant, error, waiting)
         }
+        function onCpuFallback(model, outOfMemory) {
+            EditorState.setLastMessage(outOfMemory
+                ? qsTr("The graphics card ran out of memory, so this AI tool runs on the CPU instead. It will be slower.")
+                : qsTr("This AI tool could not use the graphics card and runs on the CPU instead. It will be slower."),
+                "warning")
+        }
     }
 
     Connections {

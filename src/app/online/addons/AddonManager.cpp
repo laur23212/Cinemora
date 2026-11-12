@@ -140,6 +140,10 @@ AddonManager::AddonManager(QObject *parent)
     drift::ort::setProviderFailureHandler([this](const QString &failed, const QString &error) {
         return askForOtherAcceleration(failed, error);
     });
+    drift::ort::setCpuFallbackNotifier([this](const QString &tag, const QString &, bool outOfMemory) {
+        QMetaObject::invokeMethod(this, [this, tag, outOfMemory] { emit cpuFallback(tag, outOfMemory); },
+                                  Qt::QueuedConnection);
+    });
     // A load paused on the question must not outlive the window that would answer it.
     connect(qApp, &QCoreApplication::aboutToQuit, this, [this] {
         QMutexLocker lock(&m_askMutex);
@@ -151,6 +155,7 @@ AddonManager::AddonManager(QObject *parent)
 AddonManager::~AddonManager()
 {
     drift::ort::setProviderFailureHandler({});
+    drift::ort::setCpuFallbackNotifier({});
 }
 
 QString AddonManager::status() const

@@ -222,11 +222,15 @@ bool buildSessions(Ort::Env &env, const char *tag, bool sharedArena, QString *er
         } catch (const Ort::Exception &e) {
             failure = QString::fromUtf8(e.what());
         }
-        if (!explicitEp) {
-            qInfo("[%s] the auto-selected execution provider could not create a session (%s); "
+        // Running out of GPU memory is not a mistaken setting, so it never needs the user's
+        // answer: the model is retried on CPU (slower, but it works) and the user is told.
+        const bool outOfMemory = isOutOfMemoryFailure(failure);
+        if (!explicitEp || outOfMemory) {
+            qInfo("[%s] the %s execution provider could not create a session (%s); "
                   "retrying on CPU.",
-                  tag, qUtf8Printable(failure));
+                  tag, explicitEp ? "chosen" : "auto-selected", qUtf8Printable(failure));
             markAutoProviderFailed(tag, ep);
+            notifyCpuFallback(QString::fromLatin1(tag), failure, outOfMemory);
             break;
         }
         // The user picked this provider, so the user picks what replaces it.

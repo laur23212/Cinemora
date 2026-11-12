@@ -191,6 +191,9 @@ signals:
     // An explicitly chosen AI engine could not load a model. When `waiting`, the load is paused
     // on its own thread until answerAccelerationFailure() and is retried with the answer.
     void accelerationFailed(const QString &variant, const QString &error, bool waiting);
+    // A model could not be built on the GPU and was loaded on the CPU instead (`outOfMemory`: the
+    // GPU ran out of memory). The feature works, only slower; the UI says so.
+    void cpuFallback(const QString &model, bool outOfMemory);
 
 private:
     struct Transfer;

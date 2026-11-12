@@ -116,4 +116,15 @@ using ProviderFailureHandler =
 void setProviderFailureHandler(ProviderFailureHandler handler);
 QString askForOtherProvider(const QString &failedVariant, const QString &error);
 
+// True when a provider failure message means the device ran out of memory (CUDA, DirectML, ROCm
+// or host). That is not a setting the user got wrong, so a model that hits it is retried on CPU
+// even under an explicit provider choice.
+bool isOutOfMemoryFailure(const QString &error);
+
+// Called (from the loading thread) when a model had to fall back to CPU, so the GUI can say it
+// will be slower. `tag` names the model, `reason` is the provider's own message.
+using CpuFallbackNotifier = std::function<void(const QString &tag, const QString &reason, bool outOfMemory)>;
+void setCpuFallbackNotifier(CpuFallbackNotifier notifier);
+void notifyCpuFallback(const QString &tag, const QString &reason, bool outOfMemory);
+
 } // namespace drift::ort
