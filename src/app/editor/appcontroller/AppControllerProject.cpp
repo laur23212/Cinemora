@@ -36,6 +36,8 @@
 #include <QGuiApplication>
 
 #include <QFileInfo>
+#include <QLocale>
+#include <QStorageInfo>
 #include <QMimeDatabase>
 #include <QPointer>
 #include <QUrl>
@@ -712,6 +714,30 @@ void AppController::exportWithSettings(const QUrl &outputUrl, const QVariantMap 
         // On the worker: probing a disconnected network share can block for many seconds.
         error = exportTargetProblem(outputUrl, outputPath);
         const bool targetOk = error.isEmpty();
+        // Dafin: a rough size check before minutes of rendering. Only a warning: CRF sizes depend
+        // on the footage, and the export still stops cleanly (no file left behind) if it runs out.
+        if (targetOk) {
+            const qint64 needed = Exporter::estimateOutputBytes(snapshot, exportSettings);
+            const QStorageInfo storage(QFileInfo(outputPath).absolutePath());
+            const qint64 available = storage.isValid() && storage.isReady() ? storage.bytesAvailable() : -1;
+            if (needed > 0 && available >= 0 && needed > available) {
+                const QLocale locale;
+                const QString neededText = locale.formattedDataSize(needed);
+                const QString availableText = locale.formattedDataSize(available);
+                qWarning("Export: about %s needed, %s free at %s", qUtf8Printable(neededText),
+                         qUtf8Printable(availableText), qUtf8Printable(outputPath));
+                QMetaObject::invokeMethod(
+                    this,
+                    [this, neededText, availableText]() {
+                        setLastMessage(tr("This export may need about %1, but only %2 is free on that drive. "
+                                          "Exporting anyway.")
+                                           .arg(neededText, availableText),
+                                       QStringLiteral("warning"));
+                    },
+                    Qt::QueuedConnection);
+            }
+        }
+        QStringList warnings;
         // Dafin: the encoder chain (HwEncodeFallback.h). A GPU pick runs on itself, then on the
         // GPU encoders after it (NVENC, AMF, QuickSync, VAAPI), then on the matching software
         // encoder — skipping any that failed the start-up test encode or an earlier export on
@@ -758,7 +784,7 @@ void AppController::exportWithSettings(const QUrl &outputUrl, const QVariantMap 
                     Qt::QueuedConnection);
                 error.clear();
             }
-            ok = Exporter::run(snapshot, attempt, outputPath, &error, report);
+            ok = Exporter::run(snapshot, attempt, outputPath, &error, report, &warnings);
             if (ok) {
                 usedCodecId = codecId;
                 finishedOnCpu = !fallbacks.isEmpty() && !drift::hwencode::isGpuEncoderId(codecId);
@@ -821,7 +847,7 @@ void AppController::exportWithSettings(const QUrl &outputUrl, const QVariantMap 
 
         QMetaObject::invokeMethod(
             this,
-            [this, ok, finishedOnCpu, usedFallback = !fallbacks.isEmpty(), error, outputUrl, sizeBytes, thumbnail, durationSeconds]() {
+            [this, ok, finishedOnCpu, usedFallback = !fallbacks.isEmpty(), warningCount = int(warnings.size()), error, outputUrl, sizeBytes, thumbnail, durationSeconds]() {
                 m_exportInProgress = false;
                 m_exportProgress = ok ? 1.0 : 0.0;
                 if (ok)
@@ -840,6 +866,13 @@ void AppController::exportWithSettings(const QUrl &outputUrl, const QVariantMap 
                 const QString severity = ok          ? QStringLiteral("success")
                                          : cancelled ? QStringLiteral("info")
                                                      : QStringLiteral("error");
+                // Dafin: frames patched over during the export (Exporter::run), detailed in the log.
+                if (ok && warningCount > 0) {
+                    setLastMessage(tr("Export finished with %n warning(s). Details are in the log.", "", warningCount),
+                                   QStringLiteral("warning"));
+                    emit exportFinished(ok);
+                    return;
+                }
                 setLastMessage(ok ? (finishedOnCpu
                                          ? tr("Export complete. The GPU encoder failed, so it finished on the CPU.")
                                          : usedFallback ? tr("Export complete. The first GPU encoder failed, so another one finished it.")
