@@ -69,7 +69,14 @@ QtObject {
         "clearWorkArea": { glyph: Theme.icons.x, label: qsTr("Clear work area"),
                            shortcut: "clearInOut" },
         "merge": { glyph: Theme.icons.linkTwo, label: qsTr("Merge adjacent clips"), shortcut: "merge" },
-        "freeze": { glyph: Theme.icons.snowflake, label: qsTr("Freeze frame at current time") },
+        // Dafin: Filmora's freeze frame holds the frame inside the selected clip; Drift's lays a
+        // still on a new track over it and stays in the menu.
+        "speedControl": { glyph: Theme.icons.gauge, label: qsTr("Speed control"),
+                          tip: qsTr("Speed control — shows the speed bar on the selected clip; drag either end of the clip to speed it up or slow it down instead of trimming. Click again to hide it") },
+        "freezeFrame": { glyph: Theme.icons.snowflake, label: qsTr("Freeze frame"),
+                         tip: qsTr("Freeze frame — holds the frame at the playhead inside the selected video clip for 5 s; the rest of the clip moves later. Change the length in Speed") },
+        "freeze": { glyph: Theme.icons.snowflake, label: qsTr("Freeze frame on a new track"),
+                    tip: qsTr("Freeze frame on a new track — lays a still of the frame at the playhead over the timeline, leaving the clip as it is") },
         "adjustmentLayer": { glyph: Theme.icons.wand, label: qsTr("Add adjustment layer") },
         "transformLayer": { glyph: Theme.icons.group, label: qsTr("Add transform layer"),
                             tip: qsTr("Add transform layer — moves the selected clips' tracks as one"),
@@ -79,7 +86,8 @@ QtObject {
     })
 
     readonly property var defaultToolbarItems: [
-        "select", "cut", "keyframe", "snap", "deleteLeft", "deleteRight", "separator", "undo", "redo",
+        "select", "cut", "keyframe", "snap", "speedControl", "freezeFrame", "deleteLeft", "deleteRight",
+        "separator", "undo", "redo",
         "delete", "separator", "chromaKey", "motionTrack", "syncAudio", "separator", "separateAudio",
         "unlink", "link"
     ]
@@ -139,6 +147,22 @@ QtObject {
                 toolbarItems.splice(at + 1, 0, ...group, "separator")
             else
                 toolbarItems.push(...group)
+        }
+        // ...and speed control and freeze frame, after the snapping magnet (else after the
+        // keyframe button, Cut or Select), so a toolbar arranged before them gets them too.
+        for (const id of ["speedControl", "freezeFrame"]) {
+            if (seen[id])
+                continue
+            seen[id] = true
+            let at = -1
+            for (const anchor of ["freezeFrame", "speedControl", "snap", "keyframe", "cut", "select"]) {
+                if (anchor === id)
+                    continue
+                at = toolbarItems.indexOf(anchor)
+                if (at >= 0)
+                    break
+            }
+            toolbarItems.splice(at + 1, 0, id)
         }
         for (const id of Object.keys(actionMeta)) {
             if (!seen[id])

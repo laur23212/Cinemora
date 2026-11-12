@@ -138,6 +138,44 @@ Item {
         EditorState.setClipMask(trackIndex, clipIndex, Object.assign({}, root.mask, changes))
     }
 
+    // Draw Mask: Drift's mask brush, aimed at this clip's own mask (MaskingController.brushOnHost),
+    // so strokes on the preview paint it and the clip stays selected. A painted mask is a "media"
+    // mask whose file the brush wrote, which is what tells it apart from Import.
+    readonly property bool maskIsBrush: root.maskShape === "media" && !!root.mask.brush
+    readonly property string maskTile: maskIsBrush ? "brush" : maskShape
+    readonly property bool drawing: EditorState.preview.maskingTool === "brush" && EditorState.masking.brushOnHost
+    function startDrawing() {
+        EditorState.masking.brushErase = false
+        EditorState.masking.brushOnHost = true
+        EditorState.preview.maskingTool = "brush"
+    }
+    function stopDrawing() {
+        if (!EditorState.masking.brushOnHost)
+            return
+        if (EditorState.preview.maskingTool === "brush")
+            EditorState.preview.maskingTool = ""
+        EditorState.masking.brushOnHost = false
+    }
+    // Fill or empty the clip's own mask; the brush's commit reads brushOnHost synchronously.
+    function fillMask(clear) {
+        const was = EditorState.masking.brushOnHost
+        EditorState.masking.brushOnHost = true
+        EditorState.masking.brushFill(root.trackIndex, root.clipIndex, clear)
+        if (!was)
+            EditorState.masking.brushOnHost = false
+    }
+    onPageChanged: if (page !== "mask") stopDrawing()
+    onVisibleChanged: if (!visible) stopDrawing()
+    Component.onDestruction: stopDrawing()
+    Connections {
+        target: EditorState.preview
+        // Another tool took the preview (the Masking panel, crop…): Draw Mask is over.
+        function onMaskingToolChanged() {
+            if (EditorState.preview.maskingTool !== "brush" && EditorState.masking.brushOnHost)
+                EditorState.masking.brushOnHost = false
+        }
+    }
+
     height: column.height
     implicitHeight: column.height
 
@@ -148,6 +186,42 @@ Item {
         function onSelectionChanged() { root.clipDataRevision++ }
         function onSelectedClipDataChanged() { root.clipDataRevision++ }
         function onTracksChanged() { root.clipDataRevision++ }
+    }
+
+    // A labelled slider for the brush settings (as the Masking panel lays them out).
+    component BrushSlider: Row {
+        id: brushRow
+        property string label: ""
+        property real from: 0
+        property real to: 100
+        property real current: 0
+        property string suffix: " %"
+        signal moved(real value)
+        width: parent ? parent.width : 0
+        spacing: Theme.spacingSm
+        Text {
+            width: 70
+            anchors.verticalCenter: parent.verticalCenter
+            text: brushRow.label
+            color: Theme.c.transformInspector.foregroundMuted
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSizeXs
+            elide: Text.ElideRight
+        }
+        ThemedSlider {
+            id: brushSlider
+            width: brushRow.width - 70 - brushRow.spacing
+            anchors.verticalCenter: parent.verticalCenter
+            label: brushRow.label
+            from: brushRow.from
+            to: brushRow.to
+            valueFormatter: function (v) { return Number(v).toFixed(brushRow.to <= 50 ? 1 : 0) + brushRow.suffix }
+            Binding on value {
+                when: !brushSlider.pressed
+                value: brushRow.current
+            }
+            onMoved: brushRow.moved(value)
+        }
     }
 
     // A section's header: an optional switch, the title, and the arrow that folds it.
@@ -601,12 +675,15 @@ Item {
                         { id: "heart", label: qsTr("Heart") },
                         { id: "star", label: qsTr("Star") },
                         { id: "freeform", label: qsTr("Polygon") },
+                        { id: "brush", label: qsTr("Draw Mask — paint the mask on the preview") },
                         { id: "media", label: qsTr("Import") }
                     ]
                     delegate: Rectangle {
                         id: shapeTile
                         required property var modelData
-                        readonly property bool selected: root.maskShape === modelData.id
+                        readonly property bool selected: modelData.id === "brush"
+                                                         ? root.drawing || root.maskIsBrush
+                                                         : root.maskTile === modelData.id && !root.drawing
                         width: shapeGrid.tile
                         height: shapeGrid.tile
                         radius: 6
@@ -614,20 +691,21 @@ Item {
                         border.width: selected ? 2 : 1
                         border.color: selected ? Theme.primary : Theme.panelBorder
 
+                        readonly property bool iconTile: modelData.id === "none" || modelData.id === "media"
+                                                         || modelData.id === "freeform" || modelData.id === "brush"
                         IconGlyph {
-                            visible: shapeTile.modelData.id === "none" || shapeTile.modelData.id === "media"
-                                     || shapeTile.modelData.id === "freeform"
+                            visible: shapeTile.iconTile
                             anchors.centerIn: parent
                             iconSize: Math.round(shapeTile.width * 0.38)
                             glyph: shapeTile.modelData.id === "none" ? Theme.icons.x
                                  : shapeTile.modelData.id === "media" ? Theme.icons.upload
+                                 : shapeTile.modelData.id === "brush" ? Theme.icons.brush
                                  : Theme.icons.pentagon
                             iconColor: shapeTile.selected ? Theme.primary : Theme.panelForeground
                         }
                         // The shape the compositor cuts, from the same path (as the Masks browser).
                         Item {
-                            visible: !(shapeTile.modelData.id === "none" || shapeTile.modelData.id === "media"
-                                       || shapeTile.modelData.id === "freeform")
+                            visible: !shapeTile.iconTile
                             width: 100
                             height: 100
                             anchors.centerIn: parent
@@ -640,8 +718,7 @@ Item {
                                     strokeWidth: 100 / (shapeTile.width * 0.62) * 1.5
                                     fillColor: "transparent"
                                     PathSvg {
-                                        path: shapeTile.modelData.id === "none" || shapeTile.modelData.id === "media"
-                                              || shapeTile.modelData.id === "freeform"
+                                        path: shapeTile.iconTile
                                               ? "" : EditorState.maskShapeSvgPath(shapeTile.modelData.id)
                                     }
                                 }
@@ -658,6 +735,14 @@ Item {
                             cursorShape: Qt.PointingHandCursor
                             onClicked: {
                                 const id = shapeTile.modelData.id
+                                if (id === "brush") {
+                                    if (root.drawing)
+                                        root.stopDrawing()
+                                    else
+                                        root.startDrawing()
+                                    return
+                                }
+                                root.stopDrawing()
                                 if (id === "media") {
                                     const url = FileDialogs.openFile(
                                         qsTr("Choose a mask image or video"),
@@ -675,6 +760,82 @@ Item {
                                              ? { shape: id, invert: false } : { shape: id })
                             }
                         }
+                    }
+                }
+            }
+
+            // ---- Draw Mask: the brush ----
+            Column {
+                visible: root.drawing || root.maskIsBrush
+                width: parent.width
+                spacing: Theme.spacingMd
+
+                SectionHeader {
+                    title: qsTr("Draw Mask")
+                    hasSwitch: true
+                    switchOn: root.drawing
+                    open: true
+                    onSwitched: (on) => on ? root.startDrawing() : root.stopDrawing()
+                }
+
+                Text {
+                    width: parent.width
+                    wrapMode: Text.WordWrap
+                    text: root.drawing
+                          ? qsTr("Paint on the preview to show the clip there. Right-drag erases; Shift-drag changes the brush size.")
+                          : qsTr("Turn Draw Mask on to keep painting.")
+                    color: Theme.c.transformInspector.foregroundMuted
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeXs
+                }
+
+                BrushSlider {
+                    label: qsTr("Size")
+                    from: 0.2
+                    to: 50
+                    current: EditorState.masking.brushSize * 100
+                    onMoved: (v) => EditorState.masking.brushSize = v / 100
+                }
+                BrushSlider {
+                    label: qsTr("Hardness")
+                    to: 100
+                    current: EditorState.masking.brushHardness * 100
+                    onMoved: (v) => EditorState.masking.brushHardness = v / 100
+                }
+                BrushSlider {
+                    label: qsTr("Opacity")
+                    from: 1
+                    to: 100
+                    current: EditorState.masking.brushOpacity * 100
+                    onMoved: (v) => EditorState.masking.brushOpacity = v / 100
+                }
+
+                Row {
+                    spacing: Theme.spacingSm
+                    ThemedToggleButton {
+                        text: qsTr("Paint")
+                        tooltip: qsTr("Left-drag paints the mask")
+                        checked: !EditorState.masking.brushErase
+                        onClicked: EditorState.masking.brushErase = false
+                    }
+                    ThemedToggleButton {
+                        text: qsTr("Erase")
+                        tooltip: qsTr("Left-drag erases the mask")
+                        checked: EditorState.masking.brushErase
+                        onClicked: EditorState.masking.brushErase = true
+                    }
+                    ThemedButton {
+                        text: qsTr("Fill")
+                        variant: "secondary"
+                        tooltip: qsTr("Cover the whole clip with the mask, then erase what should go")
+                        onClicked: root.fillMask(false)
+                    }
+                    ThemedButton {
+                        text: qsTr("Clear")
+                        variant: "secondary"
+                        enabled: root.maskIsBrush
+                        tooltip: qsTr("Empty the mask")
+                        onClicked: root.fillMask(true)
                     }
                 }
             }

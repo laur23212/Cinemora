@@ -59,6 +59,10 @@ class MaskingController : public QObject
     Q_PROPERTY(bool brushErase READ brushErase WRITE setBrushErase NOTIFY brushSettingsChanged)
     // Whether a pen's pressure scales the dab radius (0.3..1 of the brush size).
     Q_PROPERTY(bool brushPressureSize READ brushPressureSize WRITE setBrushPressureSize NOTIFY brushSettingsChanged)
+    // Dafin: the Video tab's Draw Mask. While on, strokes paint into the clip's own mask (the first
+    // mask pinned to it, the one the Video tab shows), turning a shape mask there into the painted
+    // one, and the media clip stays selected instead of the new mask. Off: Drift's Masking panel rules.
+    Q_PROPERTY(bool brushOnHost READ brushOnHost WRITE setBrushOnHost NOTIFY brushSettingsChanged)
     Q_PROPERTY(bool strokeActive READ strokeActive NOTIFY strokePreviewChanged)
     // Strokes released whose matte has not landed yet; BrushStrokeItem index 0.. draws them.
     Q_PROPERTY(int pendingStrokeCount READ pendingStrokeCount NOTIFY strokePreviewChanged)
@@ -80,6 +84,8 @@ public:
     void setBrushOpacity(double opacity);
     bool brushErase() const { return m_brushErase; }
     void setBrushErase(bool erase);
+    bool brushOnHost() const { return m_brushOnHost; }
+    void setBrushOnHost(bool on);
     bool brushPressureSize() const { return m_brushPressureSize; }
     void setBrushPressureSize(bool on);
     bool strokeActive() const { return m_stroke.active; }
@@ -255,15 +261,20 @@ private:
     // The brush matte's pixel size for a clip: its asset's size (else the canvas), longest side <= 2048.
     QSize brushMatteSize(int trackIndex, int clipIndex) const;
     // The (track, clip) of the selected brush mask pinned to the target, or {-1, -1}.
+    // In brushOnHost mode the clip's own first mask comes first, when it is a brush matte.
     QPair<int, int> selectedBrushMask(int trackIndex, int clipIndex) const;
+    // The first mask pinned to the clip when it is a brush matte, else {-1, -1}.
+    QPair<int, int> hostBrushMask(int trackIndex, int clipIndex) const;
     // The matte to paint on: the selected brush mask's image, else a black one of the matte's size.
     QImage brushImage(int trackIndex, int clipIndex) const;
     // Saves `image` as a new matte file on m_brushPool and then points the selected brush mask at it, or
     // creates the mask (finishBrushSave).
     void commitBrushMatte(int trackIndex, int clipIndex, const QImage &image, const QString &undoText,
                           quint64 strokeSeq = 0);
+    // `onHost` is brushOnHost as it was when the stroke was committed, so turning Draw Mask off
+    // while a save is in flight cannot send that stroke into a new mask.
     void finishBrushSave(bool ok, const QString &path, const QString &clipId, const QString &undoText,
-                         quint64 strokeSeq);
+                         quint64 strokeSeq, bool onHost = false);
     void paintStroke(int trackIndex, int clipIndex, const BrushPreviewStroke &stroke, quint64 strokeSeq);
     bool isBrushTarget(int trackIndex, int clipIndex) const;
     // The (track, clip) of the selected AI cutout mask pinned to the target, or {-1, -1}.
@@ -291,6 +302,7 @@ private:
     double m_brushOpacity = 1.0;
     bool m_brushErase = false;
     bool m_brushPressureSize = true;
+    bool m_brushOnHost = false;
     struct LiveStroke
     {
         bool active = false;

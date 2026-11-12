@@ -56,7 +56,7 @@ Item {
             label = qsTr("Remove keyframe — the playhead is on a keyframe of the selected clip")
         else if (id === "chromaKey" && toolbar.chromaKeyState.present)
             label = toolbar.chromaKeyState.enabled
-                    ? qsTr("Chroma key is on for the selected clip — click to turn it off. Its settings are in Effects")
+                    ? qsTr("Chroma key is on for the selected clip — click to turn it off. Its settings are in the Video tab")
                     : qsTr("Chroma key is off for the selected clip — click to turn it back on")
         else if (id === "motionTrack" && toolbar.selectedFollows)
             label = qsTr("Motion tracking — the selected element follows a point. Click to correct the point, pick a new one or stop")
@@ -76,6 +76,25 @@ Item {
         !!EditorState.selectedClipData.id
         && EditorState.tracking.motionInfo(EditorState.selectedClipData.id).following === true)
 
+    // Dafin: the selected clip can be retimed (video, audio, compound), and shows its speed bar —
+    // the speed control button lights up while it does.
+    readonly property bool speedControlEligible: {
+        const kind = EditorState.selectedClipData.kind
+        return EditorState.selectedTrack >= 0 && EditorState.selectedClip >= 0
+               && (kind === "video" || kind === "audio" || kind === "composite")
+    }
+    readonly property bool speedControlOn: (EditorState.selectedClipData, EditorState.tracksRevision,
+        toolbar.speedControlEligible
+        && EditorState.speedControlVisible(EditorState.selectedTrack, EditorState.selectedClip))
+    // ...and the playhead is on the selected video clip, outside a freeze frame: freeze frame can act.
+    readonly property bool freezeFrameAvailable: {
+        const data = EditorState.selectedClipData
+        const start = data.start || 0
+        return EditorState.selectedTrack >= 0 && data.kind === "video"
+               && EditorState.playheadSeconds >= start
+               && EditorState.playheadSeconds < start + (data.duration || 0)
+    }
+
     // The playhead sits on a keyframe of the selected clip: the keyframe button lights up and
     // a click removes that keyframe instead of adding one (as Filmora's diamonds do).
     readonly property bool keyframeAtPlayhead: (EditorState.selectedClipData, EditorState.playheadSeconds,
@@ -89,6 +108,10 @@ Item {
         case "cut": panel.timelineTool = panel.timelineTool === "split" ? "" : "split"; break
         case "keyframe": EditorState.toggleKeyframeAtPlayhead(); break
         case "snap": EditorState.snapEnabled = !EditorState.snapEnabled; break
+        case "speedControl":
+            EditorState.setSpeedControlVisible(EditorState.selectedTrack, EditorState.selectedClip,
+                                               !toolbar.speedControlOn)
+            break
         case "chromaKey": EditorState.toggleChromaKey(-1, -1); break
         case "motionTrack": ShellBridge.motionTrackingRequested(); break
         case "syncAudio":
@@ -118,6 +141,7 @@ Item {
         case "loop": EditorState.toggleLoopWorkArea(); break
         case "clearWorkArea": EditorState.clearWorkArea(); break
         case "merge": EditorState.mergeSelectedClips(); break
+        case "freezeFrame": EditorState.insertFreezeFrame(-1, -1, 5.0); break
         case "freeze": EditorState.freezeFrameAtPlayhead(); break
         case "adjustmentLayer": EditorState.addAdjustmentClip(-1, -1); break
         case "transformLayer": EditorState.addTransformLayerForSelection(); break
@@ -127,6 +151,8 @@ Item {
 
     function actionEnabled(id) {
         switch (id) {
+        case "speedControl": return toolbar.speedControlEligible
+        case "freezeFrame": return toolbar.freezeFrameAvailable
         case "separateAudio": return EditorState.separateAudioAvailable
         case "unlink": return EditorState.unlinkAvailable
         case "link": return EditorState.linkAvailable
@@ -148,6 +174,7 @@ Item {
         case "cut": return panel.timelineTool === "split"
         case "keyframe": return toolbar.keyframeAtPlayhead
         case "snap": return EditorState.snapEnabled
+        case "speedControl": return toolbar.speedControlOn
         case "chromaKey": return toolbar.chromaKeyState.enabled === true
         case "motionTrack": return !!ShellBridge.motionPick || toolbar.selectedFollows
         case "syncAudio": return EditorState.audioAlign.running

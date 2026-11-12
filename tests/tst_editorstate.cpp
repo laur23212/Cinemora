@@ -474,6 +474,7 @@ private slots:
     void maskingStrokeBeginAddEndCommitsByClipId();
     void maskingStrokeIgnoresNonMediaAndCancels();
     void maskingBrushStrokeCreatesAndUpdatesAMatte();
+    void drawMaskPaintsTheClipsOwnMaskAndKeepsItSelected();
     void maskingBrushStrokesChainBeforeSaving();
     void freeformPointsCrossToQmlAsNamedFields();
     void trackMovesAndDeletesCarryTheirAdjustmentLanes();
@@ -13154,6 +13155,60 @@ void EditorStateTest::maskingBrushStrokeCreatesAndUpdatesAMatte()
     QCOMPARE(state.project()->tracks().at(afterUndo.constFirst().trackIndex)
                  .clips.at(afterUndo.constFirst().clipIndex).mask.mediaPath,
              firstMask.mediaPath);
+}
+
+// The Video tab's Draw Mask: the clip's own mask (a rectangle here) turns into the painted one,
+// keeping its invert, every later stroke paints that same mask, and the video stays selected.
+void EditorStateTest::drawMaskPaintsTheClipsOwnMaskAndKeepsItSelected()
+{
+    QStandardPaths::setTestModeEnabled(true);
+    const auto restore = qScopeGuard([] { QStandardPaths::setTestModeEnabled(false); });
+
+    AssetLibrary library;
+    AppController state(&library);
+    appendTwoVideoClips(*state.project());
+    state.selectClip(0, 0);
+    state.setClipMask(0, 0, QVariantMap{{QStringLiteral("shape"), QStringLiteral("rectangle")},
+                                        {QStringLiteral("invert"), true}});
+    QCOMPARE(drift::linkedMaskAdjustments(*state.project(), 0, 0).size(), 1);
+    QCOMPARE(state.selectedClipData().value(QStringLiteral("mask")).toMap()
+                 .value(QStringLiteral("brush")).toBool(),
+             false);
+
+    state.masking()->setBrushOnHost(true);
+    const auto off = qScopeGuard([&state] { state.masking()->setBrushOnHost(false); });
+    state.masking()->brushStroke(0, 0, QVariantList{maskVertex(0.2, 0.5), maskVertex(0.8, 0.5)}, false);
+    QVERIFY(state.masking()->waitForBrushSaves());
+
+    const QList<drift::ClipRef> pinned = drift::linkedMaskAdjustments(*state.project(), 0, 0);
+    QCOMPARE(pinned.size(), 1);
+    const drift::Mask first = state.project()->tracks().at(pinned.constFirst().trackIndex)
+                                  .clips.at(pinned.constFirst().clipIndex).mask;
+    QVERIFY(first.isMedia());
+    QVERIFY(first.invert);
+    QCOMPARE(state.selectedClipData().value(QStringLiteral("kind")).toString(), QStringLiteral("video"));
+    QCOMPARE(state.selectedClipData().value(QStringLiteral("mask")).toMap()
+                 .value(QStringLiteral("brush")).toBool(),
+             true);
+    QVERIFY(state.masking()->hasSelectedBrushMask(0, 0));
+
+    state.masking()->brushStroke(0, 0, QVariantList{maskVertex(0.5, 0.2), maskVertex(0.5, 0.8)}, false);
+    QVERIFY(state.masking()->waitForBrushSaves());
+    const QList<drift::ClipRef> afterSecond = drift::linkedMaskAdjustments(*state.project(), 0, 0);
+    QCOMPARE(afterSecond.size(), 1);
+    QVERIFY(state.project()->tracks().at(afterSecond.constFirst().trackIndex)
+                .clips.at(afterSecond.constFirst().clipIndex).mask.mediaPath
+            != first.mediaPath);
+    QCOMPARE(state.selectedClipData().value(QStringLiteral("kind")).toString(), QStringLiteral("video"));
+
+    // Undoing both strokes brings back the rectangle the clip had.
+    state.undo();
+    state.undo();
+    const QList<drift::ClipRef> afterUndo = drift::linkedMaskAdjustments(*state.project(), 0, 0);
+    QCOMPARE(afterUndo.size(), 1);
+    QCOMPARE(state.project()->tracks().at(afterUndo.constFirst().trackIndex)
+                 .clips.at(afterUndo.constFirst().clipIndex).mask.shape,
+             drift::MaskShape::Rectangle);
 }
 
 void EditorStateTest::maskingBrushStrokesChainBeforeSaving()

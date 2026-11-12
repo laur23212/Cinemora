@@ -536,6 +536,25 @@ Item {
                                                                 rampGraph.smoothed(list))
                         }
                     }
+                    // Filmora's ❄ beside the +: holds the frame at the playhead inside the clip. The
+                    // ramp stays on both halves around the hold.
+                    IconButton {
+                        anchors.verticalCenter: parent.verticalCenter
+                        glyph: Theme.icons.snowflake
+                        buttonSize: 24
+                        iconSize: 14
+                        enabled: {
+                            void root.clipDataRevision
+                            const start = root.clipData.start || 0
+                            return root.clipData.kind === "video"
+                                   && EditorState.playheadSeconds >= start
+                                   && EditorState.playheadSeconds < start + (root.clipData.duration || 0)
+                        }
+                        tooltip: qsTr("Freeze frame — holds the frame at the playhead for %1 s; the rest of the clip moves later")
+                                     .arg(root.freezeSeconds)
+                        onClicked: EditorState.insertFreezeFrame(EditorState.selectedTrack, EditorState.selectedClip,
+                                                                 root.freezeSeconds)
+                    }
                     IconButton {
                         anchors.verticalCenter: parent.verticalCenter
                         glyph: Theme.icons.trash

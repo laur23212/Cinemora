@@ -14,6 +14,10 @@
 #include "engine/color/CubeLut.h"
 #include "engine/face/tracking/FaceTrack.h"
 #include "playback/stats/PerfLog.h"
+#include "engine/encode/writers/MatteWriter.h"
+
+#include <QDir>
+#include <QFileInfo>
 
 #include <QGuiApplication>
 #include <QOpenGLContext>
@@ -244,6 +248,19 @@ QVariantMap vectorSourceToMap(const drift::VectorSource &v, drift::TimeUs timeli
 namespace drift::appdetail {
 
 
+namespace {
+
+bool isBrushMatteMask(const drift::Mask &m)
+{
+    if (!m.isMedia() || !m.mediaPath.endsWith(QStringLiteral(".png")))
+        return false;
+    // Built once: matteCacheDir() creates the folder, and this runs for every mask on each refresh.
+    static const QString mattes = QDir(drift::matteCacheDir()).absolutePath() + QLatin1Char('/');
+    return QFileInfo(m.mediaPath).absoluteFilePath().startsWith(mattes);
+}
+
+} // namespace
+
 QVariantMap maskToMap(const drift::Mask &m, drift::TimeUs timelineStart)
 {
     // {x, y} objects rather than [x, y] pairs: a Repeater delegate's `modelData` does not index
@@ -288,6 +305,9 @@ QVariantMap maskToMap(const drift::Mask &m, drift::TimeUs timelineStart)
         // generic keyframe invokables under "mask.<key>", never through setClipMask, so these are
         // deliberately not parsed back in maskFromMap.
         {QStringLiteral("animated"), m.isAnimated()},
+        // Dafin: a matte painted with the brush (a PNG in the matte cache), which the Video tab's
+        // Draw Mask edits, as opposed to an image or video the user imported as the mask.
+        {QStringLiteral("brush"), isBrushMatteMask(m)},
         {QStringLiteral("pathKeyCount"), int(m.pathKeys.size())},
         {QStringLiteral("keyframes"), maskKeyframes},
     };

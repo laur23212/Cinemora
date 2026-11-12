@@ -286,6 +286,14 @@ void MaskingController::setBrushPressureSize(bool on)
     emit brushSettingsChanged();
 }
 
+void MaskingController::setBrushOnHost(bool on)
+{
+    if (on == m_brushOnHost)
+        return;
+    m_brushOnHost = on;
+    emit brushSettingsChanged();
+}
+
 void MaskingController::setBrushErase(bool erase)
 {
     if (erase == m_brushErase)
@@ -1031,9 +1039,42 @@ QSize MaskingController::brushMatteSize(int trackIndex, int clipIndex) const
     return QSize(width, height);
 }
 
+namespace {
+
+// A matte the brush wrote: a PNG media mask inside the matte cache. An imported image is not one,
+// so painting never overwrites a file the user picked.
+bool isBrushMatte(const drift::Mask &mask)
+{
+    if (!mask.isMedia() || !mask.mediaPath.endsWith(QStringLiteral(".png")))
+        return false;
+    const QString mattes = QDir(drift::matteCacheDir()).absolutePath() + QLatin1Char('/');
+    return QFileInfo(mask.mediaPath).absoluteFilePath().startsWith(mattes);
+}
+
+} // namespace
+
+QPair<int, int> MaskingController::hostBrushMask(int trackIndex, int clipIndex) const
+{
+    const QPair<int, int> none(-1, -1);
+    if (!m_app->isValidClipIndex(trackIndex, clipIndex))
+        return none;
+    const drift::ClipRef ref = m_app->effectHostRef(trackIndex, clipIndex, drift::AdjustmentKind::Mask,
+                                                    /*create=*/false);
+    if (ref.trackIndex < 0 || (ref.trackIndex == trackIndex && ref.clipIndex == clipIndex))
+        return none;
+    if (!isBrushMatte(m_app->m_project.tracks().at(ref.trackIndex).clips.at(ref.clipIndex).mask))
+        return none;
+    return {ref.trackIndex, ref.clipIndex};
+}
+
 QPair<int, int> MaskingController::selectedBrushMask(int trackIndex, int clipIndex) const
 {
     const QPair<int, int> none(-1, -1);
+    if (m_brushOnHost) {
+        const QPair<int, int> host = hostBrushMask(trackIndex, clipIndex);
+        if (host.first >= 0)
+            return host;
+    }
     const int selTrack = m_app->m_selectedTrack;
     const int selClip = m_app->m_selectedClip;
     if (!m_app->isValidClipIndex(selTrack, selClip))
@@ -1093,10 +1134,11 @@ void MaskingController::commitBrushMatte(int trackIndex, int clipIndex, const QI
     m_brushClipId = clipId;
     m_sessionBrushMattes.insert(QFileInfo(path).absoluteFilePath());
     setBrushSavesInFlight(m_brushSavesInFlight + 1);
-    (void)QtConcurrent::run(&m_brushPool, [this, image, path, clipId, undoText, strokeSeq] {
+    const bool onHost = m_brushOnHost;
+    (void)QtConcurrent::run(&m_brushPool, [this, image, path, clipId, undoText, strokeSeq, onHost] {
         const bool ok = image.convertToFormat(QImage::Format_Grayscale8).save(path, "PNG");
-        QMetaObject::invokeMethod(this, [this, ok, path, clipId, undoText, strokeSeq] {
-            finishBrushSave(ok, path, clipId, undoText, strokeSeq);
+        QMetaObject::invokeMethod(this, [this, ok, path, clipId, undoText, strokeSeq, onHost] {
+            finishBrushSave(ok, path, clipId, undoText, strokeSeq, onHost);
         }, Qt::QueuedConnection);
     });
 }
@@ -1120,7 +1162,7 @@ bool MaskingController::waitForBrushSaves(int timeoutMs)
 }
 
 void MaskingController::finishBrushSave(bool ok, const QString &path, const QString &clipId, const QString &undoText,
-                                        quint64 strokeSeq)
+                                        quint64 strokeSeq, bool onHost)
 {
     setBrushSavesInFlight(m_brushSavesInFlight - 1);
     const auto applied = qScopeGuard([this, &clipId, strokeSeq] {
@@ -1159,7 +1201,8 @@ void MaskingController::finishBrushSave(bool ok, const QString &path, const QStr
         return;
 
     const drift::Project before = m_app->m_project;
-    const QPair<int, int> brush = selectedBrushMask(trackIndex, clipIndex);
+    const QPair<int, int> brush = onHost ? hostBrushMask(trackIndex, clipIndex)
+                                         : selectedBrushMask(trackIndex, clipIndex);
     if (brush.first >= 0) {
         drift::Mask mask = m_app->m_project.tracks().at(brush.first).clips.at(brush.second).mask;
         mask.mediaPath = path;
@@ -1171,6 +1214,24 @@ void MaskingController::finishBrushSave(bool ok, const QString &path, const QStr
 
     drift::Mask mask = drift::fullFrameMediaMask(path);
     mask.name = tr("Brush");
+
+    // Draw Mask on the Video tab: the clip's own mask becomes the painted one (Filmora swaps the
+    // mask type the same way), keeping its invert, blend and on/off, so the tab keeps showing it.
+    if (onHost) {
+        const drift::ClipRef own = m_app->effectHostRef(trackIndex, clipIndex, drift::AdjustmentKind::Mask,
+                                                        /*create=*/false);
+        if (own.trackIndex >= 0 && !(own.trackIndex == trackIndex && own.clipIndex == clipIndex)) {
+            const drift::Mask &old = m_app->m_project.tracks().at(own.trackIndex).clips.at(own.clipIndex).mask;
+            mask.invert = old.invert;
+            mask.op = old.op;
+            mask.enabled = old.enabled;
+            m_app->writeClipMask(own.trackIndex, own.clipIndex, mask);
+            m_app->pushProjectEdit(before, undoText);
+            m_app->finishEdit(tr("Mask painted"));
+            return;
+        }
+    }
+
     const drift::ClipRef added = drift::addLinkedMask(m_app->m_project, trackIndex, clipIndex, mask);
     if (added.trackIndex < 0)
         return;
@@ -1178,7 +1239,9 @@ void MaskingController::finishBrushSave(bool ok, const QString &path, const QStr
 
     m_app->pushProjectEdit(before, undoText);
     m_app->finishEdit(tr("Mask added"));
-    m_app->selectClipById(addedId);
+    // The Video tab belongs to the media clip; selecting the new mask would close it mid-painting.
+    if (!onHost)
+        m_app->selectClipById(addedId);
 }
 
 void MaskingController::setMaskProperty(int trackIndex, int clipIndex, const QString &key, const QVariant &value)
