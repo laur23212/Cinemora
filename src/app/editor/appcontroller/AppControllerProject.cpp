@@ -656,6 +656,11 @@ WorkerExport exportInWorkerProcess(const drift::Project &project, const QVariant
     WorkerExport out;
     if (qEnvironmentVariableIsSet("DAFIN_EXPORT_IN_PROCESS"))
         return out;
+    // A test binary (tst_*) cannot act as the worker: it doesn't know --export-worker and would
+    // just crash, so tests export in the process as before.
+    if (QFileInfo(QCoreApplication::applicationFilePath()).completeBaseName().startsWith(
+            QLatin1String("tst_"), Qt::CaseInsensitive))
+        return out;
 
     QString jobError;
     const QString jobPath = writeExportJob(project, settings, outputPath, &jobError);
