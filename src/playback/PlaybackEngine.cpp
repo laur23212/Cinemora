@@ -374,6 +374,14 @@ void PlaybackEngine::setPreviewEffectBypass(const QSet<QString> &clipIds, const 
     refreshFrame();
 }
 
+void PlaybackEngine::setPreviewTrialEffects(const QString &clipId, const QList<drift::Effect> &effects)
+{
+    if (m_playing && !clipId.isEmpty())
+        return;
+    m_compositor.setPreviewTrial(clipId, effects);
+    refreshFrame();
+}
+
 void PlaybackEngine::acquireScopes()
 {
     if (m_scopeConsumers++ == 0 && !m_playing)

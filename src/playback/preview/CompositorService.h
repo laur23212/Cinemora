@@ -118,6 +118,11 @@ public:
     // skipped when the snapshot is taken. Nothing in the live project changes.
     void setPreviewBypass(const QSet<QString> &clipIds, const QSet<QString> &catalogIds);
 
+    // Dafin: preview-only trial. `effects` are appended to clip `clipId`'s video effects in the
+    // snapshot, so hovering a preset in the library shows it on the clip without touching the
+    // project (no undo step, no dirty flag). An empty clipId or list clears it.
+    void setPreviewTrial(const QString &clipId, const QList<drift::Effect> &effects);
+
     // Wall-clock budget for one composite before it counts against the adaptive
     // scale. Callers derive it from the display cadence so it tracks project fps
     // and playback rate rather than assuming 30 fps at 1x.
@@ -160,6 +165,8 @@ private:
     quint64 m_snapshotSerial = 0;
     QSet<QString> m_bypassClipIds;
     QSet<QString> m_bypassCatalogIds;
+    QString m_trialClipId;
+    QList<drift::Effect> m_trialEffects;
 
     // Requests and completions are both GUI-thread only (every requestComposite caller is
     // PlaybackEngine, and onWorkerFrameReady is a queued slot), so this needs no atomic.

@@ -191,6 +191,16 @@ void CompositorService::setPreviewBypass(const QSet<QString> &clipIds, const QSe
     invalidateSnapshot();
 }
 
+void CompositorService::setPreviewTrial(const QString &clipId, const QList<drift::Effect> &effects)
+{
+    const bool clear = clipId.isEmpty() || effects.isEmpty();
+    if (clear && m_trialClipId.isEmpty())
+        return;
+    m_trialClipId = clear ? QString() : clipId;
+    m_trialEffects = clear ? QList<drift::Effect>() : effects;
+    invalidateSnapshot();
+}
+
 std::shared_ptr<const drift::Project> CompositorService::snapshot()
 {
     if (!m_project)
@@ -210,6 +220,14 @@ std::shared_ptr<const drift::Project> CompositorService::snapshot()
                         if (m_bypassCatalogIds.contains(effect.catalogId))
                             effect.enabled = false;
                     }
+                }
+            }
+        }
+        if (!m_trialClipId.isEmpty()) {
+            for (drift::Track &track : snapshot->tracks()) {
+                for (drift::Clip &clip : track.clips) {
+                    if (clip.id == m_trialClipId)
+                        clip.effects.append(m_trialEffects);
                 }
             }
         }

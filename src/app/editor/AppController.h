@@ -1554,6 +1554,11 @@ public:
     Q_INVOKABLE QVariantMap clipboardAttributes() const;
     Q_INVOKABLE void requestPasteAttributes();
     Q_INVOKABLE void pasteAttributes(const QVariantMap &options);
+    // Dafin: library hover preview. Shows an effect ("effect") or saved effect stack
+    // ("effectStack") on the clip under the playhead without applying it; not an edit, not
+    // undoable. Returns whether a trial is showing. clearPresetPreview() puts the clip back.
+    Q_INVOKABLE bool previewPresetOnPlayhead(const QString &kind, const QString &payload);
+    Q_INVOKABLE void clearPresetPreview();
 
     Q_INVOKABLE QVariantList userEffectPresets() const;
     Q_INVOKABLE QString saveEffectAsPreset(int trackIndex, int clipIndex, int effectIndex,
@@ -2342,6 +2347,8 @@ protected:
     int m_trimGestureLastOutcome = 0;
     drift::TimeUs m_playheadUs = 0;
     bool m_playing = false;
+    bool m_presetPreviewActive = false;
+    QString presetPreviewTargetClipId() const;
     bool m_scrubbing = false;
     bool m_snapEnabled = true;
     bool m_rippleEnabled = false;

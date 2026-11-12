@@ -25,6 +25,14 @@ Column {
 
     readonly property string thumb: root.modelData.thumbnailPath || ""
 
+    // Dafin: resting on the card previews the effect on the clip under the playhead.
+    PresetHoverPreview {
+        kind: "effect"
+        payload: root.modelData.id
+        hovered: cardHover.hovered
+        suspended: presetDrag.active
+    }
+
     Drag.active: presetDrag.active
     Drag.dragType: Drag.Automatic
     Drag.supportedActions: Qt.CopyAction

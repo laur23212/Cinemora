@@ -32,6 +32,14 @@ Column {
             ColorAnimation { duration: Theme.durationFast; easing.type: Theme.easing }
         }
 
+        // Dafin: resting on the card previews the stack on the clip under the playhead.
+        PresetHoverPreview {
+            kind: "effectStack"
+            payload: root.modelData.id
+            hovered: cardDrag.hovered
+            suspended: cardDrag.active
+        }
+
         AssetDragSource {
             id: cardDrag
             anchors.fill: parent

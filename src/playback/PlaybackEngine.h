@@ -71,6 +71,9 @@ public:
     void notifyProjectEdited();
     // Preview-only bypass of catalog effects on the given clips. See CompositorService.
     void setPreviewEffectBypass(const QSet<QString> &clipIds, const QSet<QString> &catalogIds);
+    // Dafin: preview-only trial of effects on one clip (library hover). Empty clears. Ignored
+    // while playing, so a hover never costs playback a snapshot copy.
+    void setPreviewTrialEffects(const QString &clipId, const QList<drift::Effect> &effects);
     // Reference-counted: the preview reads a small copy of each frame back while any scope is open.
     void acquireScopes();
     void releaseScopes();
