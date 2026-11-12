@@ -232,14 +232,14 @@ void UpdateAssetTest::installScriptsKeepThePreviousVersion()
 
     // Restart and install: the new copy is watched and the old one restored if it dies.
     args.relaunch = true;
-    const QString linux = drift::linuxInstallScript(args);
-    QVERIFY(linux.contains(QStringLiteral("while [ \"$waited\" -lt 60 ]")));
-    QVERIFY(linux.contains(QStringLiteral("cp -f '/a/Dafin.AppImage.previous' '/a/Dafin.AppImage.drift-update'")));
-    const QString windows = drift::windowsInstallScript(args);
-    QVERIFY(windows.contains(QStringLiteral("/DRIFTUPDATE=1")));
-    QVERIFY(windows.contains(QStringLiteral("$i -lt 60")));
-    QVERIFY(windows.contains(QStringLiteral("Start-Process -FilePath $exe")));
-    for (const QString &text : {linux, windows})
+    const QString linuxScript = drift::linuxInstallScript(args);
+    QVERIFY(linuxScript.contains(QStringLiteral("while [ \"$waited\" -lt 60 ]")));
+    QVERIFY(linuxScript.contains(QStringLiteral("cp -f '/a/Dafin.AppImage.previous' '/a/Dafin.AppImage.drift-update'")));
+    const QString windowsScript = drift::windowsInstallScript(args);
+    QVERIFY(windowsScript.contains(QStringLiteral("/DRIFTUPDATE=1")));
+    QVERIFY(windowsScript.contains(QStringLiteral("$i -lt 60")));
+    QVERIFY(windowsScript.contains(QStringLiteral("Start-Process -FilePath $exe")));
+    for (const QString &text : {linuxScript, windowsScript})
         for (const char *placeholder : {"{PID}", "{STAGED}", "{TARGET}", "{TEMP}", "{PREVIOUS}",
                                         "{INSTALLDIR}", "{EXE}", "{MARKER}", "{TIMEOUT}"})
             QVERIFY(!text.contains(QLatin1String(placeholder)));
