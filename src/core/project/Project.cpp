@@ -701,6 +701,9 @@ void Project::resetToDefaultTimeline()
         {.type = TrackType::Video},
     };
     ensureTrackIds();
+    m_workspaces.clear();
+    m_activeWorkspaceId.clear();
+    m_renderTimelineCount = 0;
     m_id = QUuid::createUuid().toString(QUuid::WithoutBraces);
     m_createdAt = QDateTime::currentDateTimeUtc();
     m_modifiedAt = m_createdAt;
@@ -913,6 +916,14 @@ Project Project::detachedCopy() const
     out.m_binFolderOrder.detach();
     out.m_binFoldersById.detach();
     out.m_transcripts.detach();
+    out.m_workspaces.detach();
+    for (TimelineWorkspace &workspace : out.m_workspaces) {
+        workspace.tracks.detach();
+        for (Track &track : workspace.tracks)
+            detachTrack(track);
+        workspace.bookmarks.detach();
+        workspace.selectedClipIds.detach();
+    }
     return out;
 }
 
@@ -1373,6 +1384,8 @@ Project Project::fromJson(const QJsonObject &object, QString *errorOut)
         if (project.m_sequences.contains(id) && !project.m_openSequenceTabs.contains(id))
             project.m_openSequenceTabs.append(id);
     }
+    // Dafin: the other workspaces' timelines, before the migrations below so they get them too.
+    workspacesFromJson(project, object, tracksFromJson);
 
     // Lanes address their parent by id, so ids must exist before the migration runs; the second
     // pass covers the tracks the migration itself mints.
@@ -1601,6 +1614,9 @@ QJsonObject Project::toJson(bool includeTranscripts) const
         root.insert(QStringLiteral("workAreaInUs"), static_cast<double>(m_workAreaInUs));
         root.insert(QStringLiteral("workAreaOutUs"), static_cast<double>(m_workAreaOutUs));
     }
+    // Dafin: workspaces travel with the file, not with each undo state (see workspaces()).
+    if (includeTranscripts)
+        workspacesToJson(*this, root, tracksToJson);
     return root;
 }
 

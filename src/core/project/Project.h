@@ -9,11 +9,13 @@
 #include <QColor>
 #include <QDateTime>
 #include <QHash>
+#include <QJsonArray>
 #include <QJsonObject>
 #include <QList>
 #include <QString>
 #include <QStringList>
 
+#include <functional>
 #include <initializer_list>
 
 namespace drift {
@@ -122,6 +124,27 @@ struct Sequence
     TrackList tracks;
 };
 
+// Dafin: a workspace, one of the project's separate main timelines (WorkspaceController). Media,
+// composites and project settings are shared; each workspace has its own tracks, bookmarks, work
+// area and view. The active workspace's values live in the Project's own fields, so its entry
+// holds only its id and name (the rest is stale), as with an active Sequence.
+struct TimelineWorkspace
+{
+    QString id;
+    QString name;
+    // > 0 for a "Render timeline N" made when an export was queued.
+    int renderNumber = 0;
+    TrackList tracks;
+    QList<Bookmark> bookmarks;
+    TimeUs workAreaInUs = -1;
+    TimeUs workAreaOutUs = -1;
+    TimeUs playheadUs = 0;
+    // Timeline zoom and scroll as the timeline panel last showed them; zoom 0 = not known.
+    double zoom = 0.0;
+    double scrollX = 0.0;
+    QStringList selectedClipIds;
+};
+
 // Root project document: tracks, assets, output settings.
 class Project
 {
@@ -193,6 +216,11 @@ public:
             if (it.key() != m_activeSequenceId)
                 fn(static_cast<QList<Track> &>(it->tracks));
         }
+        // Dafin: the other workspaces' timelines.
+        for (TimelineWorkspace &workspace : m_workspaces) {
+            if (workspace.id != m_activeWorkspaceId)
+                fn(static_cast<QList<Track> &>(workspace.tracks));
+        }
     }
     template <typename Fn>
     void forEachTrackList(Fn &&fn) const
@@ -204,7 +232,36 @@ public:
             if (id != m_activeSequenceId)
                 fn(sequenceTracks(id));
         }
+        for (const TimelineWorkspace &workspace : m_workspaces) {
+            if (workspace.id != m_activeWorkspaceId)
+                fn(static_cast<const QList<Track> &>(workspace.tracks));
+        }
     }
+
+    // Dafin workspaces (ProjectWorkspaces.cpp). Empty list = the one implicit workspace of a
+    // project that never had a second one. Not undoable: ProjectSnapshotCommand keeps the live
+    // set across undo/redo (keepWorkspacesFrom), and the undo history's states leave it out.
+    const QList<TimelineWorkspace> &workspaces() const { return m_workspaces; }
+    QString activeWorkspaceId() const { return m_activeWorkspaceId; }
+    int workspaceIndex(const QString &id) const;
+    // Gives the open timeline an entry, named `name`, when there is none yet.
+    void ensureWorkspaces(const QString &name);
+    // Mints an id when it is empty; returns it. Needs ensureWorkspaces first.
+    QString addWorkspace(TimelineWorkspace workspace);
+    // Not the active one. False when refused.
+    bool removeWorkspace(const QString &id);
+    bool renameWorkspace(const QString &id, const QString &name);
+    // Stores the open main timeline into the active entry and loads `id`'s. Refused (false) while
+    // a composite is open or for an unknown id. View fields (playhead…) are the caller's to fill.
+    bool activateWorkspace(const QString &id);
+    // The active entry, to record its view before switching away; null when there is none.
+    TimelineWorkspace *activeWorkspace();
+    // How many render timelines have been made, for the next one's number.
+    int renderTimelineCount() const { return m_renderTimelineCount; }
+    void setRenderTimelineCount(int count) { m_renderTimelineCount = qMax(0, count); }
+    // After an undo/redo put an older state in: the live workspaces come back, and so does any
+    // media or composite another workspace still uses that the older state had not got yet.
+    void keepWorkspacesFrom(const Project &live);
 
     // Composite tabs the user has open, in tab order. Saved with the project.
     const QStringList &openSequenceTabs() const { return m_openSequenceTabs; }
@@ -311,6 +368,21 @@ private:
     QList<QString> m_binFolderOrder;
     QHash<QString, BinFolder> m_binFoldersById;
     QHash<QString, TranscriptPtr> m_transcripts;
+    // Dafin workspaces.
+    QList<TimelineWorkspace> m_workspaces;
+    QString m_activeWorkspaceId;
+    int m_renderTimelineCount = 0;
+
+    // ProjectWorkspaces.cpp: reads/writes the "workspaces" block with Project.cpp's track codec.
+    friend void workspacesFromJson(Project &project, const QJsonObject &object,
+                                   const std::function<TrackList(const QJsonArray &)> &tracksFromJson);
+    friend void workspacesToJson(const Project &project, QJsonObject &root,
+                                 const std::function<QJsonArray(const QList<Track> &)> &tracksToJson);
 };
+
+void workspacesFromJson(Project &project, const QJsonObject &object,
+                        const std::function<TrackList(const QJsonArray &)> &tracksFromJson);
+void workspacesToJson(const Project &project, QJsonObject &root,
+                      const std::function<QJsonArray(const QList<Track> &)> &tracksToJson);
 
 } // namespace drift

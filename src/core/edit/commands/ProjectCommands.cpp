@@ -56,8 +56,11 @@ void ProjectSnapshotCommand::restore(const Project &snapshot)
         return;
     // Transcripts are not part of the undoable state (see Project::transcript).
     const QHash<QString, TranscriptPtr> transcripts = m_project->transcripts();
+    // Dafin: nor are the other workspaces (Project::keepWorkspacesFrom).
+    const Project live = *m_project;
     *m_project = snapshot;
     m_project->setTranscripts(transcripts);
+    m_project->keepWorkspacesFrom(live);
 }
 
 namespace {
