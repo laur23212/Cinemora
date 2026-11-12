@@ -3,7 +3,8 @@
 //
 // Keyframes, the Filmora way:
 //   - The timeline toolbar's keyframe button (Alt+K, as in Filmora) keys position, scale, rotation and opacity of the
-//     clip at the playhead in one go, or removes the keyframe the playhead sits on.
+//     clip at the playhead in one go, or removes the keyframe the playhead sits on. On a selected adjustment layer
+//     it keys the layer's opacity, which is how strongly its effects apply.
 //   - Every clip shows its keyframes as diamonds on the timeline (TimelineKeyframeMarkers.qml);
 //     drag one to retime it, right-click it to delete it or clear them all.
 //   - Once a property has keyframes, changing it at another time adds a keyframe there
@@ -43,6 +44,21 @@ const QStringList &keyframeButtonProps()
                                    QStringLiteral("width"),  QStringLiteral("height"),
                                    QStringLiteral("rotation"), QStringLiteral("opacity")};
     return props;
+}
+
+// An adjustment layer on its own track has no picture of its own to move: what the button keys on
+// it is its opacity, how strongly its effects apply, so the effect can fade in and out.
+bool isStandaloneEffectsLayer(const drift::Track &track, const drift::Clip &clip)
+{
+    return clip.type == drift::ClipType::Adjustment
+           && clip.adjustmentKind == drift::AdjustmentKind::VideoEffects && track.isAdjustment()
+           && !track.isAdjustmentLane() && !track.isTransformLayer() && !track.isCameraLayer();
+}
+
+const QStringList &keyframeButtonPropsFor(const drift::Track &track, const drift::Clip &clip)
+{
+    static const QStringList strengthOnly{QStringLiteral("opacity")};
+    return isStandaloneEffectsLayer(track, clip) ? strengthOnly : keyframeButtonProps();
 }
 
 // Keys of different properties closer than this are one diamond on the timeline.
@@ -207,14 +223,15 @@ bool AppController::addTransformKeyframes(int trackIndex, int clipIndex, double 
     if (!isValidClipIndex(trackIndex, clipIndex))
         return false;
     drift::Clip &clip = m_project.tracks()[trackIndex].clips[clipIndex];
-    if (!clipAcceptsPreviewTransform(clip))
+    const drift::Track &owner = m_project.tracks().at(trackIndex);
+    if (!clipAcceptsPreviewTransform(clip) && !isStandaloneEffectsLayer(owner, clip))
         return false;
     const drift::Project before = m_project;
     const drift::TimeUs rel =
         qBound<drift::TimeUs>(0, drift::secondsToUs(atSeconds) - clip.timelineStart, clip.timelineDuration);
 
     bool changed = false;
-    for (const QString &prop : keyframeButtonProps()) {
+    for (const QString &prop : keyframeButtonPropsFor(owner, clip)) {
         // Read before the track is created, so an unkeyed property starts from what it shows now.
         const double base = propertyBaseValue(trackIndex, clipIndex, prop, 0.0);
         drift::KeyframeTrack<double> *kt = propKeyframeTrack(clip, prop, /*create=*/true);
@@ -335,7 +352,9 @@ void AppController::toggleKeyframeAtPlayhead()
         if (!isValidClipIndex(t, c))
             return false;
         const drift::Clip &clip = m_project.tracks().at(t).clips.at(c);
-        return clipAcceptsPreviewTransform(clip) && coversTime(clip, now);
+        // A selected adjustment layer keys its own strength rather than the clip under it.
+        return (clipAcceptsPreviewTransform(clip) || isStandaloneEffectsLayer(m_project.tracks().at(t), clip))
+               && coversTime(clip, now);
     };
     if (!usable(trackIndex, clipIndex)) {
         // Nothing usable selected: the topmost visible clip under the playhead, as Filmora keys
@@ -846,8 +865,61 @@ void AppController::moveClipToNewTrack(int trackIndex, int clipIndex, int insert
     if (!isValidClipIndex(trackIndex, clipIndex) || m_moveBaseline)
         return;
     const drift::Clip clip = m_project.tracks().at(trackIndex).clips.at(clipIndex);
-    if (clip.type == drift::ClipType::Adjustment)
+    if (clip.type == drift::ClipType::Adjustment) {
+        // An adjustment layer on its own track applies to everything below it, so dragging it onto
+        // a track edge moves it onto a new adjustment track there: that is how you choose what it
+        // changes, as in Filmora. Lanes (scoped to one track) and the transform, camera and audio
+        // kinds keep Drift's own moves.
+        const drift::Track &from = m_project.tracks().at(trackIndex);
+        if (!from.isAdjustment() || from.isAdjustmentLane() || from.isTransformLayer()
+            || from.isCameraLayer()
+            || (clip.adjustmentKind != drift::AdjustmentKind::VideoEffects
+                && clip.adjustmentKind != drift::AdjustmentKind::Mask)) {
+            return;
+        }
+        const int trackCount = int(m_project.tracks().size());
+        int at = qBound(0, insertIndex, trackCount);
+        // Below a track means below its nested lanes too, which are stored under it.
+        while (at < trackCount && m_project.tracks().at(at).isAdjustmentLane())
+            ++at;
+        // Alone on its track and dropped on that track's own edge: the stack is unchanged.
+        if (from.clips.size() == 1 && (at == trackIndex || at == trackIndex + 1)) {
+            moveClip(trackIndex, clipIndex, newStart);
+            return;
+        }
+
+        const drift::Project before = m_project;
+        m_project.ensureTrackIds();
+        const QString sourceTrackId = m_project.tracks().at(trackIndex).id;
+        drift::Clip moved = clip;
+        // Standalone means "everything below", which is not something a clip can be pinned to.
+        moved.linkedClipId.clear();
+        moved.timelineStart = drift::secondsToUs(qMax(0.0, newStart));
+
+        drift::Track track;
+        track.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
+        track.type = drift::TrackType::Adjustment;
+        track.adjustmentScope = drift::AdjustmentScope::AllBelow;
+        track.clips.append(moved);
+        m_project.tracks().insert(at, track);
+
+        const int sourceIndex = m_project.trackIndexById(sourceTrackId);
+        if (sourceIndex >= 0) {
+            m_project.tracks()[sourceIndex].clips.removeAt(clipIndex);
+            // A track that only held this layer would be left as an empty row.
+            if (m_project.tracks().at(sourceIndex).clips.isEmpty())
+                m_project.tracks().removeAt(sourceIndex);
+        }
+        normalizeAdjustmentLanes(m_project);
+        clearSelection();
+        pushProjectEdit(before, tr("Move adjustment layer to a new track"));
+        finishEdit(tr("Adjustment layer moved"));
+        int t = -1;
+        int c = -1;
+        if (findClipById(m_project, moved.id, &t, &c))
+            selectClip(t, c);
         return;
+    }
     const drift::Project before = m_project;
     const int at = qBound(0, insertIndex, int(m_project.tracks().size()));
     const int newTrack = drift::insertTrackAboveForClipType(m_project, at, clip.type);

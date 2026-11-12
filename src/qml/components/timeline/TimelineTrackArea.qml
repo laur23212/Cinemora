@@ -99,7 +99,9 @@ Item {
     // false, track} for another track, after stacking (a busy stretch hands it on to the track it
     // stacks on); null for the usual rules (adjustments, transforms, the clip's own row).
     function stackedMoveTarget(originClip, info, columnY, startSeconds) {
-        if (!info || info.kind === "adjustment" || info.adjustmentKind === "transform")
+        if (info && info.kind === "adjustment")
+            return adjustmentEdgeTarget(info, columnY)
+        if (!info || info.adjustmentKind === "transform")
             return null
         if (typeof panel.dropTargetAtYForKind !== "function" || panel.tracks[area.trackIndex].isAdjustmentLane === true)
             return null
@@ -109,6 +111,42 @@ Item {
         if (target.track === area.trackIndex || panel.tracks[target.track].isTransformLayer === true)
             return null
         return EditorState.stackTargetForClip(area.trackIndex, originClip, target.track, startSeconds)
+    }
+
+    // Dafin: an adjustment layer on its own track applies to everything below it, so where its
+    // track sits is what it changes. Dragged onto a track edge (or past the last track) it moves
+    // onto a new adjustment track there, as a media clip does; the middle of a row keeps Drift's
+    // rules (another adjustment track, or nesting into a picture track). Lanes, transform, camera
+    // and audio adjustments are left to those rules too.
+    function adjustmentEdgeTarget(info, columnY) {
+        const origin = panel.tracks[area.trackIndex]
+        if (!origin || origin.type !== "adjustment" || origin.isAdjustmentLane === true
+                || origin.isTransformLayer === true)
+            return null
+        if (info.adjustmentKind !== "videoEffects" && info.adjustmentKind !== "mask")
+            return null
+        if (typeof panel.trackOccupiesARow !== "function" || typeof panel.newTrackEdge !== "function")
+            return null
+        const tracks = panel.tracks
+        var cursor = 0
+        var firstRow = true
+        for (var i = 0; i < tracks.length; i++) {
+            if (!panel.trackOccupiesARow(i))
+                continue
+            const h = panel.trackHeight(i)
+            const rowEnd = cursor + h
+            if (columnY < rowEnd + Theme.trackGap / 2) {
+                const edge = panel.newTrackEdge(i)
+                if (firstRow && columnY < cursor + edge)
+                    return { "newTrack": true, "insertIndex": i }
+                if (columnY >= rowEnd - edge)
+                    return { "newTrack": true, "insertIndex": i + 1 }
+                return null
+            }
+            cursor = rowEnd + Theme.trackGap
+            firstRow = false
+        }
+        return { "newTrack": true, "insertIndex": tracks.length }
     }
 
     // Same decision tree the per-clip delegate ran on release, with the indices captured at press.

@@ -57,6 +57,15 @@ Column {
         })
     }
 
+    // Dafin: the Adjustment layer card leads every ordinary category and any search it matches.
+    readonly property string adjustmentCardLabel: qsTr("Adjustment layer")
+    readonly property bool showAdjustmentCard: {
+        if (root.query.length > 0)
+            return root.adjustmentCardLabel.toLowerCase().indexOf(root.query) >= 0
+                   || "adjustment layer".indexOf(root.query) >= 0
+        return root.activeCategory !== root.mineId && root.activeCategory !== root.favoritesId
+    }
+
     function applyPreset(effectId) {
         if (EditorState.selectedClip < 0) {
             EditorState.addAdjustmentClipWithEffect(effectId, -1, -1)
@@ -145,7 +154,7 @@ Column {
                 x: 12
                 y: 12
                 width: parent.width - 24
-                visible: root.visiblePresets.length === 0
+                visible: root.visiblePresets.length === 0 && !root.showAdjustmentCard
                          && !(root.activeCategory === root.mineId && root.query.length === 0)
                 text: root.query.length > 0
                       ? qsTr("No effects match “%1”.").arg(search.text.trim())
@@ -201,7 +210,7 @@ Column {
                 height: parent.height
                 topMargin: 12
                 bottomMargin: 12
-                visible: root.visiblePresets.length > 0
+                visible: root.visiblePresets.length > 0 || root.showAdjustmentCard
                 clip: true
                 reuseItems: true
                 boundsBehavior: Flickable.StopAtBounds
@@ -211,6 +220,84 @@ Column {
                 cellHeight: presetGrid.cardSize + 4 + Math.ceil(labelMetrics.height) * 2
                             + 4 + Math.ceil(badgeMetrics.height) + Theme.assetCardGap
                 model: root.visiblePresets
+
+                // Dafin: the adjustment layer as a card of its own at the top of the grid, as in
+                // Filmora, rather than only the small wand beside the search field.
+                header: Item {
+                    width: presetGrid.width
+                    height: root.showAdjustmentCard ? presetGrid.cellHeight : 0
+                    visible: root.showAdjustmentCard
+
+                    Column {
+                        width: presetGrid.cardSize
+                        spacing: 4
+                        opacity: cardDrag.active ? Theme.c.effectPresetCard.dragOpacity : 1
+
+                        Rectangle {
+                            width: presetGrid.cardSize
+                            height: presetGrid.cardSize
+                            radius: Theme.c.effectPresetCard.radius
+                            // The colour adjustment layers have on the timeline, so the card
+                            // and the clip it makes read as the same thing.
+                            color: Theme.c.timelineClipItem.adjustmentVideoBackground
+                            border.width: cardDrag.hovered || cardDrag.active
+                                          ? Theme.c.effectPresetCard.borderWidth : 0
+                            border.color: Theme.c.effectPresetCard.border
+                            scale: cardDrag.hovered ? 1.03 : 1.0
+
+                            Behavior on scale {
+                                NumberAnimation { duration: Theme.durationFast; easing.type: Theme.easing }
+                            }
+
+                            IconGlyph {
+                                anchors.centerIn: parent
+                                glyph: Theme.icons.wand
+                                iconSize: Theme.iconSizeXl
+                                iconColor: Theme.c.timelineClipItem.foreground
+                            }
+
+                            ThemedToolTip {
+                                text: qsTr("Adjustment layer — drag it onto the timeline above your clips, or click to add it at the playhead. Effects and colour put on it change everything below it.")
+                                visible: cardDrag.hovered && !cardDrag.active
+                            }
+
+                            // Click adds at the playhead; a drag places it on a track (between
+                            // two tracks to make a new one there), like the wand by the search.
+                            AssetDragSource {
+                                id: cardDrag
+                                anchors.fill: parent
+                                kind: "adjustment"
+                                payload: "videoEffects"
+                                label: root.adjustmentCardLabel
+                                glyph: Theme.icons.wand
+                                onTapped: EditorState.addAdjustmentClip(-1, -1)
+                            }
+                        }
+
+                        Text {
+                            width: parent.width
+                            text: root.adjustmentCardLabel
+                            color: Theme.c.effectPresetCard.foreground
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontSizeCard
+                            font.weight: Font.Medium
+                            horizontalAlignment: Text.AlignHCenter
+                            elide: Text.ElideRight
+                            maximumLineCount: 2
+                            wrapMode: Text.WordWrap
+                        }
+
+                        Text {
+                            width: parent.width
+                            text: qsTr("Affects all below")
+                            color: Theme.c.effectPresetCard.foregroundMuted
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontSizeXs - 1
+                            horizontalAlignment: Text.AlignHCenter
+                            elide: Text.ElideRight
+                        }
+                    }
+                }
 
                 delegate: EffectPresetCard {
                     cardSize: presetGrid.cardSize

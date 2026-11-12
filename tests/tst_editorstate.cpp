@@ -394,6 +394,8 @@ private slots:
     void multicamProviderServesTilesByAngleIdWithRevisionQuery();
     void multicamSetUpBuildsAWorkingRigFromTheBin();
     void adjustmentLayerCreationAndCompositing();
+    void adjustmentLayerDraggedToATrackEdgeGetsANewTrackThere();
+    void keyframeButtonKeysAnAdjustmentLayersStrength();
     void clipEffectsLiveOnALinkedAdjustmentLane();
     void splittingAGradedClipKeepsEffectsOnBothHalves();
     void transitionPartnerIsTheNearestClipNotTheEarliest();
@@ -11641,6 +11643,84 @@ void EditorStateTest::splittingAGradedClipKeepsEffectsOnBothHalves()
     // And the clips themselves still report the stack, which is what the inspector and MCP read.
     QCOMPARE(state.clipAt(0, 1).value(QStringLiteral("effects")).toList().size(), 1);
     QCOMPARE(state.clipAt(0, 2).value(QStringLiteral("effects")).toList().size(), 1);
+}
+
+// Dafin: an adjustment layer applies to everything below its track, so dragging it onto a track
+// edge (TimelineTrackArea.adjustmentEdgeTarget) moves it onto a new adjustment track there.
+void EditorStateTest::adjustmentLayerDraggedToATrackEdgeGetsANewTrackThere()
+{
+    AssetLibrary library;
+    AppController state(&library);
+    state.addTrack(QStringLiteral("video"));
+    state.addAdjustmentClip(0.0, 5.0);
+    // Read afresh each time: undo and redo replace the project.
+    const auto tracks = [&state]() -> const QList<drift::Track> & { return state.project()->tracks(); };
+    QCOMPARE(tracks().size(), 3);
+    QCOMPARE(tracks().at(0).type, drift::TrackType::Adjustment);
+    const QString layerId = tracks().at(0).clips.at(0).id;
+
+    // Between the two video tracks: it now changes only the lower one.
+    state.moveClipToNewTrack(0, 0, 2, 1.0);
+    QCOMPARE(tracks().size(), 3);
+    QCOMPARE(tracks().at(0).type, drift::TrackType::Video);
+    QCOMPARE(tracks().at(1).type, drift::TrackType::Adjustment);
+    QCOMPARE(tracks().at(1).adjustmentScope, drift::AdjustmentScope::AllBelow);
+    QVERIFY(!tracks().at(1).isAdjustmentLane());
+    QCOMPARE(tracks().at(1).clips.size(), 1);
+    QCOMPARE(tracks().at(1).clips.at(0).id, layerId);
+    QCOMPARE(tracks().at(1).clips.at(0).timelineStart, drift::secondsToUs(1.0));
+    QCOMPARE(tracks().at(2).type, drift::TrackType::Video);
+    QCOMPARE(state.selectedTrack(), 1);
+    QCOMPARE(state.selectedClip(), 0);
+
+    // One undo step puts it back on top.
+    state.undo();
+    QCOMPARE(tracks().size(), 3);
+    QCOMPARE(tracks().at(0).type, drift::TrackType::Adjustment);
+    QCOMPARE(tracks().at(0).clips.at(0).id, layerId);
+    QCOMPARE(tracks().at(0).clips.at(0).timelineStart, 0);
+    state.redo();
+    QCOMPARE(tracks().at(1).clips.at(0).id, layerId);
+
+    // Its own track's edge leaves the stack as it is and only moves it in time.
+    state.moveClipToNewTrack(1, 0, 1, 2.0);
+    QCOMPARE(tracks().size(), 3);
+    QCOMPARE(tracks().at(1).type, drift::TrackType::Adjustment);
+    QCOMPARE(tracks().at(1).clips.at(0).id, layerId);
+    QCOMPARE(tracks().at(1).clips.at(0).timelineStart, drift::secondsToUs(2.0));
+
+    // Past the last track: under everything, where there is nothing left for it to change.
+    state.moveClipToNewTrack(1, 0, 3, 2.0);
+    QCOMPARE(tracks().size(), 3);
+    QCOMPARE(tracks().at(2).type, drift::TrackType::Adjustment);
+    QCOMPARE(tracks().at(2).clips.at(0).id, layerId);
+}
+
+// Dafin: the keyframe button (Alt+K) on a selected adjustment layer keys its opacity, how strongly
+// it applies, instead of skipping it for the clip underneath.
+void EditorStateTest::keyframeButtonKeysAnAdjustmentLayersStrength()
+{
+    AssetLibrary library;
+    AppController state(&library);
+    state.addAdjustmentClip(0.0, 5.0);
+    QCOMPARE(state.selectedTrack(), 0);
+    QCOMPARE(state.selectedClip(), 0);
+
+    state.setPlayheadSeconds(1.0);
+    state.toggleKeyframeAtPlayhead();
+    const drift::Clip &layer = state.project()->tracks().at(0).clips.at(0);
+    QCOMPARE(layer.opacity.keyframes().size(), 1);
+    QVERIFY(layer.opacity.keyframes().contains(drift::secondsToUs(1.0)));
+    QCOMPARE(layer.opacity.keyframes().first().value, 1.0);
+    QCOMPARE(state.selectedTrack(), 0);
+    QCOMPARE(state.selectedClip(), 0);
+    const QVariantList times = state.clipKeyframeTimes(0, 0);
+    QCOMPARE(times.size(), 1);
+    QCOMPARE(times.at(0).toDouble(), 1.0);
+
+    // Pressed again on the same frame it takes the keyframe away.
+    state.toggleKeyframeAtPlayhead();
+    QVERIFY(!state.project()->tracks().at(0).clips.at(0).opacity.keyframes().contains(drift::secondsToUs(1.0)));
 }
 
 void EditorStateTest::clipEffectsLiveOnALinkedAdjustmentLane()
