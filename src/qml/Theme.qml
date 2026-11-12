@@ -242,6 +242,10 @@ QtObject {
 
     // --- Colors: panel surfaces ------------------------------------------------
     readonly property color panelBackground: ThemeManager.semantic.surface.panel
+    // Dafin: third surface level for elements that sit on a panel (cards, menus, fields).
+    // Levels: appBackground < panelBackground < raisedBackground; themes without a raised
+    // surface fall back to the panel colour.
+    readonly property color raisedBackground: ThemeManager.semantic.surface.raised ?? panelBackground
     readonly property color panelForeground: ThemeManager.semantic.panel.foreground
     readonly property color panelBorder: ThemeManager.semantic.panel.border
     readonly property color panelAccent: ThemeManager.semantic.panel.accent
