@@ -1026,6 +1026,20 @@ QVariantMap AppController::planAssetDrop(const QString &kind, const QString &pay
     const int trackCount = int(m_project.tracks().size());
     const bool onTrack = trackIndex >= 0 && trackIndex < trackCount;
 
+    // Dafin: a title style dropped on a title that is already there restyles it, rather than
+    // adding a second title on top.
+    if (kind == QLatin1String("textStyle") && onTrack && newTrackIndex < 0) {
+        const drift::Track &textTrack = m_project.tracks().at(trackIndex);
+        const int textClip = clipIndexAtTime(textTrack, drift::secondsToUs(at));
+        if (textClip >= 0) {
+            const drift::ClipType textType = textTrack.clips.at(textClip).type;
+            if (textType == drift::ClipType::Text || textType == drift::ClipType::Subtitle) {
+                return {{QStringLiteral("accepted"), true}, {QStringLiteral("mode"), QStringLiteral("clip")},
+                        {QStringLiteral("track"), trackIndex}, {QStringLiteral("clip"), textClip}};
+            }
+        }
+    }
+
     if (const std::optional<drift::ClipType> type = placeableClipType(kind)) {
         const double duration = kind == QLatin1String("mogrt")
                                     ? m_mogrt->templateDurationSeconds(payload)
@@ -1113,6 +1127,13 @@ QVariantMap AppController::dropAsset(const QString &kind, const QString &payload
     const int track = plan.value(QStringLiteral("track")).toInt();
     const int clip = plan.value(QStringLiteral("clip"), -1).toInt();
     const double at = plan.value(QStringLiteral("landingStart"), qMax(0.0, seconds)).toDouble();
+
+    if (kind == QLatin1String("textStyle") && mode == QLatin1String("clip")) {
+        // Dafin: restyle the title under the drop (one undo step, inside applyTextPreset).
+        applyTextPreset(track, clip, payload);
+        selectClip(track, clip);
+        return plan;
+    }
 
     if (const std::optional<drift::ClipType> type = placeableClipType(kind)) {
         // A new track and the clip on it are one edit, so one undo takes both away.
