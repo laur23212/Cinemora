@@ -1411,9 +1411,11 @@ public:
     Q_INVOKABLE QVariantMap beatMarkersInfo(int trackIndex, int clipIndex) const;
     Q_INVOKABLE void toggleBeatMarkers(int trackIndex = -1, int clipIndex = -1);
     // ...and its Auto ducking button: lowers the selected music where something on another track
-    // speaks over it, as dots on the music's volume line. Info: {eligible, busy}.
+    // speaks over it, as dots on the music's volume line. Info: {eligible, on, busy}.
     Q_INVOKABLE QVariantMap autoDuckInfo(int trackIndex, int clipIndex) const;
     Q_INVOKABLE void autoDuckMusic(int trackIndex = -1, int clipIndex = -1);
+    // The button itself: switches ducking on (autoDuckMusic) or off (removes the dots it wrote).
+    Q_INVOKABLE void toggleAutoDuck(int trackIndex = -1, int clipIndex = -1);
     // Adds an imported Motion Graphics Template (Titles panel) as an editable title at the
     // playhead: its text, a matching built-in style and its length.
     Q_INVOKABLE void addTemplateTitle(const QString &text, const QString &presetId, double durationSeconds,
@@ -2504,6 +2506,7 @@ protected:
                        drift::TimeUs analysedStartUs);
     bool m_beatMarkersBusy = false;
     bool m_autoDuckBusy = false;
+    void removeAutoDuck(int trackIndex, int clipIndex);
     drift::Clip *textClipAt(int trackIndex, int clipIndex);
     // A quick control's edit on the clip, without the undo bookkeeping.
     bool writeTemplateControl(int trackIndex, int clipIndex, const QString &controlId, const QVariant &value);

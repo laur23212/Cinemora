@@ -1,6 +1,8 @@
 // Dafin: the planning behind the timeline toolbar's Beat markers and Auto ducking buttons.
 
 #include "core/edit/BeatDuckPlan.h"
+#include "core/edit/TimelineOps.h"
+#include "core/project/Project.h"
 
 #include <QtTest>
 
@@ -103,6 +105,60 @@ private slots:
         QCOMPARE(k.at(1).seconds, 12.0);
         QVERIFY(k.at(0).ducked && k.at(1).ducked);
         QVERIFY(planDuckKeys({{30.0, 31.0}}, 10.0, 12.0, DuckSettings{}).isEmpty());
+    }
+
+    // Auto ducking is a switch: what it owns is saved with the clip and moves with its dots.
+    void duckStateSurvivesSaveAndLoad()
+    {
+        drift::Project project;
+        project.tracks().clear();
+        project.tracks().append(drift::Track{.type = drift::TrackType::Audio});
+        drift::Clip clip;
+        clip.id = QStringLiteral("music");
+        clip.type = drift::ClipType::Audio;
+        clip.timelineDuration = drift::secondsToUs(20.0);
+        clip.duckWindows = {{drift::secondsToUs(4.75), drift::secondsToUs(7.5)}};
+        clip.duckPins = 3;
+        project.tracks()[0].clips.append(clip);
+
+        QString error;
+        const drift::Project loaded = drift::Project::fromJson(project.toJson(), &error);
+        QVERIFY(error.isEmpty());
+        const drift::Clip &back = loaded.tracks().at(0).clips.at(0);
+        QCOMPARE(back.duckWindows, clip.duckWindows);
+        QCOMPARE(back.duckPins, 3);
+
+        // A clip that was never ducked stays off (the default) and writes nothing.
+        drift::Project plain;
+        plain.tracks().clear();
+        plain.tracks().append(drift::Track{.type = drift::TrackType::Audio});
+        drift::Clip off = clip;
+        off.duckWindows.clear();
+        off.duckPins = 0;
+        plain.tracks()[0].clips.append(off);
+        const drift::Project plainBack = drift::Project::fromJson(plain.toJson(), &error);
+        QVERIFY(plainBack.tracks().at(0).clips.at(0).duckWindows.isEmpty());
+    }
+
+    void duckWindowsFollowShiftsAndSplits()
+    {
+        drift::Clip clip;
+        clip.type = drift::ClipType::Audio;
+        clip.timelineDuration = drift::secondsToUs(20.0);
+        clip.duckWindows = {{drift::secondsToUs(2.0), drift::secondsToUs(3.0)},
+                            {drift::secondsToUs(8.0), drift::secondsToUs(10.0)}};
+        clip.duckPins = 3;
+
+        drift::Clip shifted = clip;
+        drift::shiftClipKeyframes(shifted, drift::secondsToUs(1.0));
+        QCOMPARE(shifted.duckWindows.first().first, drift::secondsToUs(3.0));
+
+        drift::Clip tail = clip;
+        drift::rebaseKeyframesForSplitTail(tail, drift::secondsToUs(9.0));
+        QCOMPARE(tail.duckWindows.size(), 1); // the stretch before the cut stays with the head
+        QCOMPARE(tail.duckWindows.first().first, drift::TimeUs(0));
+        QCOMPARE(tail.duckWindows.first().second, drift::secondsToUs(1.0));
+        QCOMPARE(tail.duckPins, 2); // the tail's start is the cut, not ducking's pin
     }
 };
 

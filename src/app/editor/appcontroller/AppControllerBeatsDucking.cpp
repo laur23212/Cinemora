@@ -11,8 +11,11 @@
 // over it (voice-over, the camera's sound) is listened to, and where someone speaks the music
 // goes down to a quarter of its level (about -12 dB), with a short ramp before and after. The
 // dip is written as dots on the music's volume line (its "volume" keyframes), so each one can be
-// dragged afterwards like any other dot. Pressing it again replaces the dots it wrote before
-// rather than adding a second set. One undo step.
+// dragged afterwards like any other dot. The button is a switch, off on every clip to begin
+// with: it lights up while the selected music is ducked, and pressing it then takes the dips
+// out again (every dot inside the stretches ducking wrote, also one dragged within them, and the
+// line's end pins it added), leaving the rest of the volume line as it was. The stretches are
+// saved with the clip (Clip::duckWindows) and move with it on trims and splits. One undo step.
 //
 // The planning (which beats, which spans count as speech, where the dots go) is in
 // core/edit/BeatDuckPlan, tested by tst_beatduck.
@@ -213,12 +216,57 @@ void AppController::applyBeatMarkers(const QString &clipId, const AudioBeatAnaly
 
 QVariantMap AppController::autoDuckInfo(int trackIndex, int clipIndex) const
 {
-    QVariantMap info{{QStringLiteral("eligible"), false}, {QStringLiteral("busy"), m_autoDuckBusy}};
+    QVariantMap info{{QStringLiteral("eligible"), false},
+                     {QStringLiteral("on"), false},
+                     {QStringLiteral("busy"), m_autoDuckBusy}};
     if (!isValidClipIndex(trackIndex, clipIndex))
         return info;
-    info.insert(QStringLiteral("eligible"),
-                carriesSound(m_project.tracks().at(trackIndex).clips.at(clipIndex)));
+    const drift::Clip &clip = m_project.tracks().at(trackIndex).clips.at(clipIndex);
+    info.insert(QStringLiteral("eligible"), carriesSound(clip));
+    info.insert(QStringLiteral("on"), !clip.duckWindows.isEmpty());
     return info;
+}
+
+void AppController::toggleAutoDuck(int trackIndex, int clipIndex)
+{
+    if (trackIndex < 0 && clipIndex < 0) {
+        trackIndex = m_selectedTrack;
+        clipIndex = m_selectedClip;
+    }
+    if (autoDuckInfo(trackIndex, clipIndex).value(QStringLiteral("on")).toBool())
+        removeAutoDuck(trackIndex, clipIndex);
+    else
+        autoDuckMusic(trackIndex, clipIndex);
+}
+
+void AppController::removeAutoDuck(int trackIndex, int clipIndex)
+{
+    if (!isValidClipIndex(trackIndex, clipIndex))
+        return;
+    const drift::Project before = m_project;
+    drift::Clip &music = m_project.tracks()[trackIndex].clips[clipIndex];
+    // Every dot inside a stretch ducking wrote goes, also one that was dragged within it; the line
+    // outside those stretches is left exactly as it is.
+    constexpr drift::TimeUs kSlackUs = 1000;
+    QList<drift::TimeUs> doomed;
+    for (auto it = music.volume.keyframes().constBegin(); it != music.volume.keyframes().constEnd(); ++it) {
+        for (const auto &w : std::as_const(music.duckWindows)) {
+            if (it.key() >= w.first - kSlackUs && it.key() <= w.second + kSlackUs) {
+                doomed.append(it.key());
+                break;
+            }
+        }
+    }
+    if (music.duckPins & 1)
+        doomed.append(0);
+    if (music.duckPins & 2)
+        doomed.append(music.timelineDuration);
+    for (const drift::TimeUs rel : std::as_const(doomed))
+        music.volume.removeKeyframe(rel);
+    music.duckWindows.clear();
+    music.duckPins = 0;
+    pushProjectEdit(before, tr("Auto ducking off"));
+    finishEdit(tr("Auto ducking off — the music plays at its own level again"));
 }
 
 void AppController::autoDuckMusic(int trackIndex, int clipIndex)
@@ -358,16 +406,26 @@ void AppController::applyAutoDuck(const QString &musicId, const QList<drift::bea
 
     // A flat line gets its two ends pinned first, as the volume line's first click does, so the
     // dips are bumps in the line rather than a new level for the whole clip.
+    int pins = music.duckPins;
     if (wasFlat) {
-        if (!music.volume.keyframes().contains(0))
+        if (!music.volume.keyframes().contains(0)) {
             writeClipPropValue(music, QStringLiteral("volume"), 0, flatGain, true, true);
-        writeClipPropValue(music, QStringLiteral("volume"), durUs, flatGain, true, true);
+            pins |= 1;
+        }
+        if (!music.volume.keyframes().contains(durUs)) {
+            writeClipPropValue(music, QStringLiteral("volume"), durUs, flatGain, true, true);
+            pins |= 2;
+        }
     }
     for (int i = 0; i < keys.size(); ++i) {
         writeClipPropValue(music, QStringLiteral("volume"), relOf(keys.at(i).seconds), levels.at(i),
                            true, true);
     }
     music.volume.setEnabled(true);
+    // Remember what ducking owns, so the button can switch it off again.
+    for (const Span &w : windows)
+        music.duckWindows.append({relOf(w.start), relOf(w.end)});
+    music.duckPins = pins;
 
     pushProjectEdit(before, tr("Auto ducking"));
     finishEdit(tr("Music lowered under %n stretch(es) of speech — drag the dots on its volume line to adjust",

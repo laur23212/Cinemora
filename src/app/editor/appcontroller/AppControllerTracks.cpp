@@ -1767,7 +1767,7 @@ void AppController::triggerAction(const QString &actionId)
     else if (actionId == QStringLiteral("beatMarkers"))
         toggleBeatMarkers();
     else if (actionId == QStringLiteral("autoDuck"))
-        autoDuckMusic();
+        toggleAutoDuck();
     // Picking the elements and the point is QML's: the shell runs the flow (MotionTrackingFlow).
     else if (actionId == QStringLiteral("motionTrack"))
         emit motionTrackingRequested();

@@ -68,6 +68,8 @@ Item {
             label = qsTr("Beat markers — the selected music has %n beat marker(s). Click to remove them", "", toolbar.beatMarkersState.count)
         else if (id === "autoDuck" && toolbar.autoDuckBusy)
             label = qsTr("Auto ducking — listening for speech…")
+        else if (id === "autoDuck" && toolbar.autoDuckState.on)
+            label = qsTr("Auto ducking is on for the selected music — click to turn it off. Drag the dots on its volume line to adjust")
         return meta.shortcut ? withShortcut(label, meta.shortcut) : label
     }
 
@@ -83,6 +85,12 @@ Item {
         EditorState.selectedTrack >= 0 && EditorState.selectedClip >= 0
         ? EditorState.beatMarkersInfo(EditorState.selectedTrack, EditorState.selectedClip)
         : ({ eligible: false, count: 0, busy: false }))
+    // ...and auto ducking ({eligible, on, busy}): lit while the selected music is ducked.
+    readonly property var autoDuckState: (EditorState.selectedClipData, EditorState.tracksRevision,
+        toolbar.autoDuckBusy,
+        EditorState.selectedTrack >= 0 && EditorState.selectedClip >= 0
+        ? EditorState.autoDuckInfo(EditorState.selectedTrack, EditorState.selectedClip)
+        : ({ eligible: false, on: false, busy: false }))
     property bool beatMarkersBusy: false
     property bool autoDuckBusy: false
     Connections {
@@ -137,7 +145,7 @@ Item {
             break
         case "chromaKey": EditorState.toggleChromaKey(-1, -1); break
         case "beatMarkers": EditorState.toggleBeatMarkers(-1, -1); break
-        case "autoDuck": EditorState.autoDuckMusic(-1, -1); break
+        case "autoDuck": EditorState.toggleAutoDuck(-1, -1); break
         case "motionTrack": ShellBridge.motionTrackingRequested(); break
         case "syncAudio":
             if (EditorState.audioAlign.running)
@@ -204,7 +212,7 @@ Item {
         case "motionTrack": return !!ShellBridge.motionPick || toolbar.selectedFollows
         case "syncAudio": return EditorState.audioAlign.running
         case "beatMarkers": return toolbar.beatMarkersBusy || toolbar.beatMarkersState.count > 0
-        case "autoDuck": return toolbar.autoDuckBusy
+        case "autoDuck": return toolbar.autoDuckBusy || toolbar.autoDuckState.on === true
         case "trimStart": return panel.timelineTool === "trimStart"
         case "trimEnd": return panel.timelineTool === "trimEnd"
         case "markIn": return EditorState.workAreaInSeconds >= 0

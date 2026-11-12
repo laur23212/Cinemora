@@ -41,7 +41,7 @@ QtObject {
                          tip: qsTr("Beat markers — select the music and click: a marker lands on every beat, so cuts and clips snap to the music. Click again to remove them"),
                          shortcut: "beatMarkers" },
         "autoDuck": { glyph: Theme.icons.autoDuck, label: qsTr("Auto ducking"),
-                      tip: qsTr("Auto ducking — select the music and click: it goes quieter wherever a voice on another track speaks. The dips are dots on its volume line, so you can drag them afterwards"),
+                      tip: qsTr("Auto ducking — select the music and click to turn it on: it goes quieter wherever a voice on another track speaks. The dips are dots on its volume line, so you can drag them afterwards. Click again to turn it off"),
                       shortcut: "autoDuck" },
         "separateAudio": { glyph: Theme.icons.audioLines, label: qsTr("Show audio on separate track"),
                            shortcut: "separateAudio" },

@@ -19,6 +19,7 @@
 #include "core/project/sources/VectorSource.h"
 
 #include <QList>
+#include <QPair>
 #include <QString>
 
 namespace drift {
@@ -96,6 +97,11 @@ struct Clip
     // Dafin: set on a video clip that plays a rendered Motion Graphics Template; the template and
     // its editable values. Empty on every other clip.
     MogrtSource mogrt;
+    // Dafin auto ducking (timeline toolbar): the stretches, in clip-relative time, whose volume dots
+    // the button wrote, and which ends of the line it pinned (1: start, 2: end). Empty when the clip
+    // is not ducked; switching ducking off removes the dots inside these and the pins.
+    QList<QPair<TimeUs, TimeUs>> duckWindows;
+    int duckPins = 0;
     // Nested timeline this clip plays: set on a Composite clip and on the Audio companion that
     // "Separate audio" splits off it.
     QString sequenceId;

@@ -1923,6 +1923,11 @@ void shiftClipKeyframes(Clip &clip, TimeUs delta)
     if (delta == 0)
         return;
     forEachKeyframeTrack(clip, [delta](KeyframeTrack<double> &track) { track.shiftBy(delta); });
+    // Dafin auto ducking: its stretches move with the volume dots they own.
+    for (auto &w : clip.duckWindows) {
+        w.first += delta;
+        w.second += delta;
+    }
 }
 
 void rebaseKeyframesForSplitTail(Clip &tail, TimeUs offset)
@@ -1936,6 +1941,17 @@ void rebaseKeyframesForSplitTail(Clip &tail, TimeUs offset)
         track.pinValueAt(offset);
         track.shiftBy(-offset);
     });
+    // Dafin auto ducking: the tail keeps the stretches past the cut. The key pinned at the cut is
+    // the curve's own value, not one of ducking's pins.
+    QList<QPair<TimeUs, TimeUs>> windows;
+    for (const auto &w : std::as_const(tail.duckWindows)) {
+        if (w.second - offset >= 0)
+            windows.append({qMax<TimeUs>(0, w.first - offset), w.second - offset});
+    }
+    tail.duckWindows = windows;
+    tail.duckPins &= ~1;
+    if (windows.isEmpty())
+        tail.duckPins = 0;
 }
 
 bool sliceClipToTimelineRange(const Clip &src, TimeUs start, TimeUs end, Clip &out, double fps)

@@ -332,6 +332,14 @@ QJsonObject clipToJson(const Clip &clip)
         json.insert(QStringLiteral("pdf"), clip.pdf.toJson());
     if (!clip.mogrt.isEmpty())
         json.insert(QStringLiteral("mogrt"), clip.mogrt.toJson());
+    if (!clip.duckWindows.isEmpty()) {
+        QJsonArray windows;
+        for (const auto &w : clip.duckWindows)
+            windows.append(QJsonArray{double(w.first), double(w.second)});
+        json.insert(QStringLiteral("dafinDuck"),
+                    QJsonObject{{QStringLiteral("windows"), windows},
+                                {QStringLiteral("pins"), clip.duckPins}});
+    }
     if (!clip.sequenceId.isEmpty())
         json.insert(QStringLiteral("sequenceId"), clip.sequenceId);
     if (clip.sourceFrame != QRectF(0, 0, 1, 1))
@@ -424,6 +432,15 @@ Clip clipFromJsonV2(const QJsonObject &object, int canvasW = 1920, int canvasH =
     clip.model3d = Model3dSource::fromJson(object.value(QStringLiteral("model3d")).toObject());
     clip.pdf = PdfSource::fromJson(object.value(QStringLiteral("pdf")).toObject());
     clip.mogrt = MogrtSource::fromJson(object.value(QStringLiteral("mogrt")).toObject());
+    {
+        const QJsonObject duck = object.value(QStringLiteral("dafinDuck")).toObject();
+        for (const QJsonValue &v : duck.value(QStringLiteral("windows")).toArray()) {
+            const QJsonArray w = v.toArray();
+            if (w.size() == 2)
+                clip.duckWindows.append({TimeUs(w.at(0).toDouble()), TimeUs(w.at(1).toDouble())});
+        }
+        clip.duckPins = duck.value(QStringLiteral("pins")).toInt();
+    }
     clip.sequenceId = object.value(QStringLiteral("sequenceId")).toString();
     clip.path = object.value(QStringLiteral("path")).toString();
     clip.sourceFrame = drift::sourceFrameFromJson(object.value(QStringLiteral("sourceFrame")).toArray());
