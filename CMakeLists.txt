@@ -1461,6 +1461,8 @@ if(NOT ANDROID AND NOT EMSCRIPTEN)
         src/app/HeadlessApp.h
         src/app/HeadlessApp.cpp
         src/app/TemplateTool.cpp
+        src/app/workers/ExportWorker.h
+        src/app/workers/ExportWorker.cpp
     )
     target_sources(driftapp PRIVATE
         src/app/mcp/transport/McpStdio.h

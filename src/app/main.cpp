@@ -17,6 +17,7 @@
 #if !defined(Q_OS_ANDROID) && !defined(Q_OS_WASM)
 #include "app/HeadlessApp.h"
 #include "app/TemplateTool.h"
+#include "app/workers/ExportWorker.h"
 #include "app/mcp/transport/McpStdio.h"
 #endif
 #include "app/online/addons/AddonManager.h"
@@ -537,6 +538,15 @@ private:
 
 int main(int argc, char *argv[])
 {
+#if !defined(Q_OS_ANDROID) && !defined(Q_OS_WASM)
+    // Dafin: an export running in its own process for the editor (ExportWorker.h). Before the
+    // crash report: a crash there is reported by the editor, and the report's message box would
+    // only keep the dead worker open and overwrite the editor's dafin-log.txt.
+    for (int i = 1; i < argc; ++i) {
+        if (qstrcmp(argv[i], "--export-worker") == 0)
+            return drift::worker::runExportWorker(argc, argv);
+    }
+#endif
     // Dafin: before anything can go wrong, so a crash leaves a report (Windows).
     dafin::installCrashReport();
     forceStderrLogging();
