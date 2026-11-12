@@ -1,3 +1,4 @@
+#include "app/platform/DiagnosticsLog.h"
 #include "app/platform/FileDialogs.h"
 #include "engine/platform/AndroidUri.h"
 #include "app/editor/appcontroller/AppControllerInternal.h"
@@ -1124,6 +1125,19 @@ void AppController::copyDiagnosticsReport(const QVariantMap &benchmarkInfo)
 QString AppController::debugInfoText() const
 {
     return DebugReport::formatPlainText(debugInfo());
+}
+
+void AppController::exportDiagnostics()
+{
+    const dafin::log::ExportResult result = dafin::log::exportDiagnostics(debugInfoText());
+    if (result.path.isEmpty()) {
+        dafin::log::write(QStringLiteral("E"), QStringLiteral("export diagnostics failed: %1").arg(result.error));
+        setLastMessage(tr("Couldn’t export diagnostics: %1").arg(result.error), QStringLiteral("error"));
+        return;
+    }
+    dafin::log::openContainingFolder(result.path);
+    setLastMessage(tr("Diagnostics saved to %1").arg(QDir::toNativeSeparators(result.path)),
+                   QStringLiteral("success"));
 }
 
 void AppController::copyDebugInfo()

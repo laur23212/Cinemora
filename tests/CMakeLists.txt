@@ -113,6 +113,11 @@ add_test(NAME LayoutStore COMMAND tst_layoutstore)
 # test means the same thing on a dev machine as it does headless in CI.
 set_tests_properties(LayoutStore PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
+qt_add_executable(tst_diagnosticslog tst_diagnosticslog.cpp ../src/app/platform/DiagnosticsLog.cpp)
+target_include_directories(tst_diagnosticslog PRIVATE ../src)
+target_link_libraries(tst_diagnosticslog PRIVATE Qt6::Test Qt6::Core Qt6::Gui driftcore)
+add_test(NAME DiagnosticsLog COMMAND tst_diagnosticslog)
+
 qt_add_executable(tst_updateasset tst_updateasset.cpp ../src/app/online/updates/UpdateAsset.cpp)
 target_include_directories(tst_updateasset PRIVATE ../src)
 target_link_libraries(tst_updateasset PRIVATE Qt6::Test)
@@ -283,6 +288,7 @@ qt_add_executable(tst_mcp
     ../src/app/editor/PreferencesController.cpp
     ../src/app/GraphicsApiChoice.cpp
     ../src/app/editor/ProjectFileController.cpp
+    ../src/app/platform/DiagnosticsLog.cpp
     ../src/app/bin/AssetPreviewController.cpp
     ../src/app/editor/sessions/SpeedCurveController.cpp
     ../src/app/editor/sessions/CurveEditorController.cpp

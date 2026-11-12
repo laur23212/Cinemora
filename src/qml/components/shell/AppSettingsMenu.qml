@@ -33,6 +33,13 @@ ThemedContextMenu {
         onTriggered: root.helpRequested()
     }
 
+    // Dafin: logs + GPU info + version in one zip, and its folder opened, to attach to a bug report.
+    ThemedMenuItem {
+        text: qsTr("Export diagnostics")
+        icon.name: Theme.icons.package
+        onTriggered: EditorState.exportDiagnostics()
+    }
+
     ThemedMenuItem {
         visible: Updates.canCheck
         height: visible ? implicitHeight : 0

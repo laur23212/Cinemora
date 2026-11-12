@@ -592,6 +592,8 @@ public:
     // and never refreshed, so a report could say NVDEC in one section and Direct3D 11 in the
     // other, for the same machine, in the same paste.
     Q_INVOKABLE void copyDiagnosticsReport(const QVariantMap &benchmarkInfo);
+    // Dafin: zips the session logs, the system report and the version into one file and opens its folder.
+    Q_INVOKABLE void exportDiagnostics();
 
 
     JobRegistry *jobRegistry() const { return m_jobs; }

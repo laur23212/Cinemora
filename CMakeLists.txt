@@ -1305,6 +1305,8 @@ target_sources(driftapp PRIVATE
     src/app/GraphicsApiChoice.cpp
     src/app/editor/ProjectFileController.h
     src/app/editor/ProjectFileController.cpp
+    src/app/platform/DiagnosticsLog.h
+    src/app/platform/DiagnosticsLog.cpp
     src/app/bin/AssetPreviewController.h
     src/app/bin/AssetPreviewController.cpp
     src/app/editor/sessions/SpeedCurveController.h

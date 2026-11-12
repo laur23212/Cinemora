@@ -54,6 +54,7 @@
 #include "app/online/library/AssetSearchService.h"
 #include "app/online/library/MogrtRenderer.h"
 #include "app/platform/CrashReport.h"
+#include "app/platform/DiagnosticsLog.h"
 #include "app/online/library/ThumbnailCache.h"
 #include "ui/imageproviders/TextStylePreviewImageProvider.h"
 #include "playback/stats/PerfLog.h"
@@ -635,6 +636,8 @@ int main(int argc, char *argv[])
     QCoreApplication::setOrganizationName("Dafin");
     // Settings and data saved when the app was called Cadra move over before anything reads them.
     dafin::migrateFromCadra();
+    // Dafin: this session's log file (the newest five are kept); needs the names set above.
+    dafin::log::start();
     // Reads QSettings, so after the names. Qt Quick stays on OpenGL with a global share context
     // unless the user picked another API in Settings; see GraphicsApiChoice.h.
     [[maybe_unused]] const bool graphicsApiGuarded = drift::graphics::applyAtStartup(argc, argv);

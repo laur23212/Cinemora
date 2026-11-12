@@ -1,3 +1,4 @@
+#include "app/platform/DiagnosticsLog.h"
 #include "engine/platform/AndroidUri.h"
 #include "core/base/CacheRoot.h"
 #include "app/editor/appcontroller/AppControllerInternal.h"
@@ -967,6 +968,13 @@ AppController::AppController(AssetLibrary *assetLibrary, QObject *parent)
 
     m_projectFile->detectRecoveryFile();
     m_projectFile->sweepExtractionDirs();
+
+    // Dafin: the session log gets the GPU, driver and codec report once start-up has settled (the
+    // same text the Debug info dialog shows). Nothing happens when no log is open, as in tests.
+    QTimer::singleShot(5000, this, [this] {
+        if (dafin::log::isActive())
+            dafin::log::writeBlock(QStringLiteral("System report"), debugInfoText());
+    });
 }
 
 int AppController::clipCount() const
