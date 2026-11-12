@@ -584,3 +584,13 @@ target_include_directories(tst_proxypolicy PRIVATE ../src)
 target_link_libraries(tst_proxypolicy PRIVATE Qt6::Test Qt6::Gui driftengine driftcore)
 add_test(NAME ProxyPolicy COMMAND tst_proxypolicy)
 set_tests_properties(ProxyPolicy PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# Dafin: background export queue — the frozen render snapshot (independent of later edits, JSON
+# round trip) and the queue (order, reorder, cancel, hardware → CPU fallback) with a stand-in runner.
+qt_add_executable(tst_exportqueue
+    tst_exportqueue.cpp
+    ../src/app/editor/export/ExportQueue.cpp)
+target_include_directories(tst_exportqueue PRIVATE ../src)
+target_link_libraries(tst_exportqueue PRIVATE Qt6::Test Qt6::Core Qt6::Gui driftcore)
+add_test(NAME ExportQueue COMMAND tst_exportqueue)
+set_tests_properties(ExportQueue PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")

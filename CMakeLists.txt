@@ -660,6 +660,8 @@ add_library(driftcore STATIC
     src/core/project/Track.cpp
     src/core/project/Project.h
     src/core/project/Project.cpp
+    src/core/project/RenderSnapshot.h
+    src/core/project/RenderSnapshot.cpp
     src/core/interchange/ImportedTimeline.h
     src/core/interchange/ImportedTimelineProject.h
     src/core/interchange/ImportedTimelineProject.cpp
