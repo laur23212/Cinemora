@@ -366,6 +366,7 @@ ApplicationWindow {
                         missingAddonsDialogLoader.item,
                         projectSetupDialogLoader.item, layoutChooserDialogLoader.item,
                         languageChooserDialogLoader.item, recoveryDialogLoader.item,
+                        resumeExportDialogLoader.item,
                         reverseProgressDialogLoader.item, subtitleProgressDialogLoader.item]
         for (var i = 0; i < modals.length; ++i) {
             const m = modals[i]
@@ -525,6 +526,47 @@ ApplicationWindow {
                     window.openPendingLaunch()
                 }
             }
+        }
+    }
+
+    // Dafin: a long export the last session did not finish (SegmentedExport).
+    LazyLoader {
+        id: resumeExportDialogLoader
+        sourceComponent: Component {
+            ResumeExportDialog { }
+        }
+    }
+
+    // Waits for the start-up dialogs (language, recovery, layout) to be answered first, then
+    // offers the unfinished export. Gives up after about a minute so it never pops up mid-edit.
+    Timer {
+        id: resumeExportTimer
+        interval: 1000
+        repeat: true
+        property int attempts: 0
+        onTriggered: {
+            const info = EditorState.unfinishedExport
+            if (!info || !info.dir || EditorState.exportInProgress || resumeExportDialogLoader.shown
+                    || ++attempts > 60) {
+                stop()
+                attempts = 0
+                return
+            }
+            if (EditorState.preferences.needsUiLanguagePrompt || languageChooserDialogLoader.shown
+                    || recoveryDialogLoader.shown || layoutChooserDialogLoader.shown
+                    || EditorState.projectFile.recoveryAvailable)
+                return
+            stop()
+            attempts = 0
+            resumeExportDialogLoader.ensure().open()
+        }
+    }
+
+    Connections {
+        target: EditorState
+        function onUnfinishedExportChanged() {
+            if (EditorState.unfinishedExport && EditorState.unfinishedExport.dir)
+                resumeExportTimer.start()
         }
     }
 
@@ -1220,6 +1262,8 @@ ApplicationWindow {
     Component.onCompleted: {
         WindowBackdrop.attach(window)
         ShellBridge.main = window
+        if (EditorState.unfinishedExport && EditorState.unfinishedExport.dir)
+            resumeExportTimer.start()
         Theme.windowWidth = window.width
         MediaImport.sequencePrompt = function (found, done) {
             imageSequenceDialogLoader.ensure().ask(found, done)
