@@ -62,6 +62,8 @@
 #include "app/platform/CrashReport.h"
 #include "app/platform/DiagnosticsLog.h"
 #include "app/StartupGuard.h"
+#include "app/diagnostics/AppLog.h"
+#include "app/diagnostics/DiagnosticsController.h"
 #include "app/online/library/ThumbnailCache.h"
 #include "ui/imageproviders/TextStylePreviewImageProvider.h"
 #include "playback/stats/PerfLog.h"
@@ -660,6 +662,8 @@ int main(int argc, char *argv[])
     dafin::migrateFromCadra();
     // Dafin: this session's log file (the newest five are kept); needs the names set above.
     dafin::log::start();
+    // Dafin: our own rotating log file (Settings > About > Log viewer). Chains to the old handler.
+    dafin::applog::install();
     // Counts this launch and decides on safe mode (two failed starts in a row, or --safe-mode)
     // before anything below can crash.
     drift::startup::begin(argc, argv);
@@ -846,6 +850,7 @@ int main(int argc, char *argv[])
     static EditorState editorState(&assetLibrary);
     step(StartupSplash::tr("Loading add-ons and themes…"), 0.36);
     static FileDialogs fileDialogs;
+    static DiagnosticsController diagnostics;
     static AddonManager addonManager;
     static UpdateChecker updateChecker;
     static LayoutStore layoutStore;
@@ -867,6 +872,7 @@ int main(int argc, char *argv[])
     qmlRegisterSingletonInstance("Drift", 1, 0, "EditorState", &editorState);
     qmlRegisterSingletonInstance("Drift", 1, 0, "AppController", &editorState);
     qmlRegisterSingletonInstance("Drift", 1, 0, "FileDialogs", &fileDialogs);
+    qmlRegisterSingletonInstance("Drift", 1, 0, "Diagnostics", &diagnostics);
     qmlRegisterSingletonInstance("Drift", 1, 0, "Addons", &addonManager);
     qmlRegisterSingletonInstance("Drift", 1, 0, "StockInstaller", &market.stock);
     qmlRegisterSingletonInstance("Drift", 1, 0, "CommunityInstaller", &market.community);

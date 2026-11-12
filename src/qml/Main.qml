@@ -735,6 +735,15 @@ ApplicationWindow {
         }
     }
 
+    // Dafin: log viewer, "Send diagnostics" and the no-browser fallback window.
+    LazyLoader {
+        id: logViewerDialogLoader
+        keepLoaded: true
+        sourceComponent: Component {
+            LogViewerDialog { }
+        }
+    }
+
     LazyLoader {
         id: imageViewerDialogLoader
         sourceComponent: Component {
@@ -1200,6 +1209,14 @@ ApplicationWindow {
 
     function openDebugInfo() {
         debugInfoDialogLoader.ensure().open()
+    }
+
+    function openLogViewer() {
+        logViewerDialogLoader.ensure().showLog()
+    }
+
+    function sendDiagnostics() {
+        logViewerDialogLoader.ensure().send()
     }
 
     function openImageViewer(entryId) {

@@ -594,3 +594,12 @@ target_include_directories(tst_exportqueue PRIVATE ../src)
 target_link_libraries(tst_exportqueue PRIVATE Qt6::Test Qt6::Core Qt6::Gui driftcore)
 add_test(NAME ExportQueue COMMAND tst_exportqueue)
 set_tests_properties(ExportQueue PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# Dafin: log file rotation, report scrubbing and the GitHub issue link (no GUI, no network).
+qt_add_executable(tst_diagnostics
+    tst_diagnostics.cpp
+    ../src/app/diagnostics/AppLog.cpp
+    ../src/app/diagnostics/DiagnosticsReport.cpp)
+target_include_directories(tst_diagnostics PRIVATE ../src)
+target_link_libraries(tst_diagnostics PRIVATE Qt6::Test Qt6::Core)
+add_test(NAME Diagnostics COMMAND tst_diagnostics)

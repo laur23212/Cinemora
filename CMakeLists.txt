@@ -1117,6 +1117,12 @@ if(ANDROID)
     find_package(Qt6 REQUIRED COMPONENTS CorePrivate)
     target_link_libraries(driftapp PUBLIC Qt6::CorePrivate)
 endif()
+# Dafin: live interface size uses Qt's private high-DPI scaler (PreferencesController.cpp).
+# Optional: without GuiPrivate the size change waits for a restart, as before.
+find_package(Qt6 QUIET OPTIONAL_COMPONENTS GuiPrivate)
+if(TARGET Qt6::GuiPrivate)
+    target_link_libraries(driftapp PRIVATE Qt6::GuiPrivate)
+endif()
 # Asset provider sign-ins are encrypted with DPAPI on Windows (SecretStore.cpp).
 if(WIN32)
     target_link_libraries(driftapp PUBLIC crypt32)
@@ -1126,6 +1132,12 @@ qt_add_executable(drift
     src/app/main.cpp
     src/app/brand/RenameMigration.h
     src/app/brand/RenameMigration.cpp
+    src/app/diagnostics/AppLog.h
+    src/app/diagnostics/AppLog.cpp
+    src/app/diagnostics/DiagnosticsReport.h
+    src/app/diagnostics/DiagnosticsReport.cpp
+    src/app/diagnostics/DiagnosticsController.h
+    src/app/diagnostics/DiagnosticsController.cpp
     src/ui/imageproviders/DriftImageProvider.h
     src/ui/imageproviders/DriftImageProvider.cpp
     src/ui/imageproviders/segment/SegmentImageProvider.h
@@ -2370,6 +2382,7 @@ qt_add_qml_module(drift
         src/qml/components/dialogs/MogrtTitleDialog.qml
         src/qml/components/dialogs/WhatsNewDialog.qml
         src/qml/components/dialogs/DebugInfoDialog.qml
+        src/qml/components/dialogs/LogViewerDialog.qml
         src/qml/components/dialogs/ThemeTrustDialog.qml
         src/qml/components/preview/PlaybackStatsOverlay.qml
         src/qml/components/preview/transport/PreviewTransportTimecode.qml

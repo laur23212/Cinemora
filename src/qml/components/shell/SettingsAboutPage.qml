@@ -64,4 +64,32 @@ SettingsPage {
             onClicked: ShellBridge.main.openDebugInfo()
         }
     }
+
+    SettingsRow {
+        title: qsTr("Log viewer")
+        searchId: "about-log-viewer"
+        description: qsTr("Dafin's log file, with a copy button. The file rotates, so it never grows forever.")
+        keywords: "log viewer logs file errors"
+        query: page.query
+
+        ThemedButton {
+            variant: "secondary"
+            text: qsTr("Open log viewer…")
+            onClicked: ShellBridge.main.openLogViewer()
+        }
+    }
+
+    SettingsRow {
+        title: qsTr("Send diagnostics")
+        searchId: "about-send-diagnostics"
+        description: qsTr("Opens a prefilled GitHub issue with your version, system, graphics driver and recent log lines. Your user name and personal folders are removed. You read it and press Submit yourself.")
+        keywords: "diagnostics report bug send github issue"
+        query: page.query
+
+        ThemedButton {
+            variant: "secondary"
+            text: qsTr("Send diagnostics…")
+            onClicked: ShellBridge.main.sendDiagnostics()
+        }
+    }
 }
