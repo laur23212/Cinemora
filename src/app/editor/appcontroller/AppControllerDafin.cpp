@@ -1141,3 +1141,12 @@ int AppController::applySplitScreen(const QString &layoutId)
                    : tr("Split screen applied"));
     return placed;
 }
+
+// Dafin: "Clip deleted. Undo" toast. A click after another edit must not undo that edit instead.
+bool AppController::undoIfAtIndex(int undoIndex)
+{
+    if (undoIndex <= 0 || m_undoStack.index() != undoIndex)
+        return false;
+    undo();
+    return true;
+}

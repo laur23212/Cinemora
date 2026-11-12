@@ -1451,6 +1451,7 @@ void AppController::deleteSelectedClip()
     pushProjectEdit(before, tr("Clip deleted"));
     clearSelection();
     finishEdit(tr("Clip deleted"));
+    emit clipsDeleted(int(pairs.size()), m_undoStack.index());
 }
 
 // Overlaps the edit just applied created: physically overlapping pairs with no transition yet,

@@ -1502,6 +1502,13 @@ ApplicationWindow {
         function onTransformBlocked(reason) {
             Toasts.warning(reason)
         }
+
+        // Dafin: deleting clips offers Undo on the toast instead of a dialog.
+        function onClipsDeleted(count, undoIndex) {
+            Toasts.post("info",
+                        count > 1 ? qsTr("%n clips deleted", "", count) : qsTr("Clip deleted"),
+                        6000, qsTr("Undo"), function() { EditorState.undoIfAtIndex(undoIndex) })
+        }
     }
 
     Connections {

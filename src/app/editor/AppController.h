@@ -891,6 +891,8 @@ public:
     // playhead is outside it. Honours trim, speed, reverse and speed curves.
     Q_INVOKABLE double sourceTimeAtPlayheadForClip(int trackIndex, int clipIndex) const;
     Q_INVOKABLE void deleteSelectedClip();
+    // Dafin: the "Clip deleted. Undo" toast. Undoes only while that delete is still the latest edit.
+    Q_INVOKABLE bool undoIfAtIndex(int undoIndex);
     Q_INVOKABLE void duplicateSelectedClip();
     Q_INVOKABLE void moveClip(int trackIndex, int clipIndex, double newStart);
     Q_INVOKABLE void moveClipToTrack(int trackIndex, int clipIndex, int newTrackIndex, double newStart);
@@ -1955,6 +1957,8 @@ signals:
     // auxiliary windows edit one clip each, so they have nothing left to act on and close.
     void projectReset();
     void transformBlocked(const QString &reason);
+    // Dafin: clips were deleted; undoIndex is the undo stack position right after (see undoIfAtIndex).
+    void clipsDeleted(int count, int undoIndex);
     void openPasteAttributesRequested();
 
 protected:
