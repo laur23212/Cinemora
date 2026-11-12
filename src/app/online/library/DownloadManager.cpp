@@ -25,6 +25,8 @@ namespace dafin::assets {
 namespace {
 constexpr int kMaxParallel = 3;
 constexpr int kStallMs = 30000;
+constexpr int kMaxAttempts = 4;      // the first try plus 3 retries
+constexpr int kRetryBaseMs = 2000;    // 2 s, 4 s, 8 s between tries
 constexpr qint64 kMaxBytes = 4LL * 1024 * 1024 * 1024; // 4 GiB: refuse anything larger
 } // namespace
 
@@ -203,8 +205,11 @@ void DownloadManager::transfer(const QString &key, const DownloadSpec &spec)
         return;
     }
     const QString path = targetPath(job.item, spec.suggestedFileName);
-    job.file = new QSaveFile(path);
-    if (!job.file->open(QIODevice::WriteOnly)) {
+    job.partPath = path + QStringLiteral(".part");
+    job.resumeFrom = QFileInfo(job.partPath).size();
+    job.gotHeaders = false;
+    job.file = new QFile(job.partPath);
+    if (!job.file->open(job.resumeFrom > 0 ? QIODevice::WriteOnly | QIODevice::Append : QIODevice::WriteOnly)) {
         fail(key, ProviderError::make(ProviderError::Code::Storage, tr("Can't write to the download folder: %1").arg(job.file->errorString())));
         return;
     }
@@ -212,7 +217,10 @@ void DownloadManager::transfer(const QString &key, const DownloadSpec &spec)
     job.progress = 0;
     bump();
 
-    QNetworkReply *reply = m_network->get(spec.request);
+    QNetworkRequest request = spec.request;
+    if (job.resumeFrom > 0)
+        request.setRawHeader("Range", "bytes=" + QByteArray::number(job.resumeFrom) + "-");
+    QNetworkReply *reply = m_network->get(request);
     job.reply = reply;
     job.stall = new QTimer(this);
     job.stall->setSingleShot(true);
@@ -224,6 +232,14 @@ void DownloadManager::transfer(const QString &key, const DownloadSpec &spec)
         auto it = m_jobs.find(key);
         if (it == m_jobs.end() || !it->file)
             return;
+        if (!it->gotHeaders) {
+            it->gotHeaders = true;
+            // A server that ignores Range answers 200 with the whole file: start over.
+            if (it->resumeFrom > 0 && reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() != 206) {
+                it->file->resize(0);
+                it->resumeFrom = 0;
+            }
+        }
         it->file->write(reply->readAll());
         if (it->file->size() > kMaxBytes)
             reply->abort();
@@ -234,7 +250,7 @@ void DownloadManager::transfer(const QString &key, const DownloadSpec &spec)
         auto it = m_jobs.find(key);
         if (it == m_jobs.end() || total <= 0)
             return;
-        const double p = double(got) / double(total);
+        const double p = double(got + it->resumeFrom) / double(total + it->resumeFrom);
         if (p - it->progress >= 0.01 || p >= 1.0) {
             it->progress = p;
             bump();
@@ -251,7 +267,8 @@ void DownloadManager::transfer(const QString &key, const DownloadSpec &spec)
             it->stall = nullptr;
         }
         if (reply->error() != QNetworkReply::NoError) {
-            it->file->cancelWriting();
+            // The .part stays on disk: fail() resumes it on a retry and removes it otherwise.
+            it->file->close();
             delete it->file;
             it->file = nullptr;
             ProviderError error;
@@ -276,14 +293,18 @@ void DownloadManager::transfer(const QString &key, const DownloadSpec &spec)
         }
         it->file->write(reply->readAll());
         const qint64 bytes = it->file->size();
-        if (!it->file->commit()) {
-            delete it->file;
-            it->file = nullptr;
+        const bool flushed = it->file->flush();
+        it->file->close();
+        delete it->file;
+        it->file = nullptr;
+        // Only a complete file ever gets the real name.
+        QFile::remove(path);
+        if (!flushed || !QFile::rename(it->partPath, path)) {
+            QFile::remove(it->partPath);
             fail(key, ProviderError::make(ProviderError::Code::Storage, tr("Could not save the file. Is the disk full?")));
             return;
         }
-        delete it->file;
-        it->file = nullptr;
+        it->partPath.clear();
         complete(key, path, bytes);
     });
 }
@@ -356,12 +377,14 @@ void DownloadManager::fail(const QString &key, const ProviderError &error)
     const bool transient = error.code == ProviderError::Code::Offline || error.code == ProviderError::Code::Timeout
                         || error.code == ProviderError::Code::ServiceUnavailable;
     --m_running;
-    if (transient && it->attempts < 2) {
-        // One automatic retry after a short pause.
+    if (transient && it->attempts < kMaxAttempts) {
+        // Up to 3 automatic retries with a growing pause (2 s, 4 s, 8 s). The partial file is
+        // kept, so the retry continues where this try stopped.
+        const int delayMs = kRetryBaseMs << (it->attempts - 1);
         it->state = State::Queued;
-        it->message = tr("Retrying…");
+        it->message = tr("Retrying (%1 of %2)…").arg(it->attempts).arg(kMaxAttempts - 1);
         bump();
-        QTimer::singleShot(2000, this, [this, key]() {
+        QTimer::singleShot(delayMs, this, [this, key]() {
             if (m_jobs.contains(key) && m_jobs.value(key).state == State::Queued) {
                 m_queue.enqueue(key);
                 pump();
@@ -389,10 +412,14 @@ void DownloadManager::cleanupJob(Job &job)
         job.stall = nullptr;
     }
     if (job.file) {
-        job.file->cancelWriting();
+        job.file->close();
         delete job.file;
         job.file = nullptr;
     }
+    // Cancelled, failed for good or destroyed: never leave half a download behind.
+    if (!job.partPath.isEmpty())
+        QFile::remove(job.partPath);
+    job.partPath.clear();
 }
 
 void DownloadManager::cancel(const QString &key)

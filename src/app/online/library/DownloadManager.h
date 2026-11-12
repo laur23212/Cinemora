@@ -3,6 +3,7 @@
 #include "app/online/library/AssetProvider.h"
 
 #include <QHash>
+#include <QFile>
 #include <QObject>
 #include <QPointer>
 #include <QQueue>
@@ -83,7 +84,13 @@ private:
         int attempts = 0;
         RequestHandle resolve;
         QPointer<QNetworkReply> reply;
-        QSaveFile *file = nullptr;
+        // Bytes go to "<target>.part"; it is renamed over the target only when complete, so a
+        // half-downloaded file is never left under the real name. A transient failure keeps it
+        // so the next attempt resumes with a Range request.
+        QFile *file = nullptr;
+        QString partPath;
+        qint64 resumeFrom = 0;
+        bool gotHeaders = false;
         QTimer *stall = nullptr;
     };
 
