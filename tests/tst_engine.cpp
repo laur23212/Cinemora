@@ -58,6 +58,7 @@
 #include "engine/ml/vision/depth/DepthSidecar.h"
 #include "engine/ml/vision/depth/VdaDepth.h"
 #include "engine/encode/export/Exporter.h"
+#include "engine/encode/export/SegmentedExport.h"
 #include "engine/encode/proxies/PreviewProxyRenderer.h"
 #include "engine/render3d/editor/ClipGizmo.h"
 #include "core/base/CameraEuler.h"
@@ -467,6 +468,8 @@ private slots:
     void exporterProducesAnimatedGif();
     void exporterSupportsNtscFrameRates();
     void exporterFrameRateAddsRealDetailToSlowedClips();
+    void segmentedExportPlansWholeFrames();
+    void segmentedExportMatchesSinglePassAcrossTransition();
     void mixerHasNoBlockBoundaryDropout();
     void mixerDoesNotLeakPastClipEnd();
     void declickRemovesStepAtCut();
@@ -18929,6 +18932,231 @@ void EngineTest::rotatedKeepingEyeTurnsInPlace()
     // +rotationX looks up, so the scene slides down.
     const drift::SceneCamera3d tilted = drift::rotatedKeepingEye(camera, 10.0, 0.0);
     QVERIFY(projectedPoint(tilted, canvas, QVector3D(500, 500, 0)).y() > 500.0);
+}
+
+// Dafin: resumable exports. Segments are whole frames, contiguous, and a sliver of a last segment
+// is folded into the one before it.
+void EngineTest::segmentedExportPlansWholeFrames()
+{
+    QList<SegmentedExport::Segment> plan = SegmentedExport::planSegments(175, 25, 1, 2.0);
+    QCOMPARE(plan.size(), 4);
+    QCOMPARE(plan[3].firstFrame, int64_t(150));
+    QCOMPARE(plan[3].frameCount, int64_t(25));
+
+    plan = SegmentedExport::planSegments(162, 25, 1, 2.0); // 12 frames left over: folded
+    QCOMPARE(plan.size(), 3);
+    QCOMPARE(plan[2].frameCount, int64_t(62));
+
+    plan = SegmentedExport::planSegments(100'000, 30000, 1001, 45.0); // NTSC
+    int64_t next = 0;
+    for (const SegmentedExport::Segment &segment : plan) {
+        QCOMPARE(segment.firstFrame, next);
+        next += segment.frameCount;
+    }
+    QCOMPARE(next, int64_t(100'000));
+    QCOMPARE(plan.first().frameCount, int64_t(1349)); // 45 s at 29.97 fps
+
+    QVERIFY(SegmentedExport::planSegments(0, 25, 1, 45.0).isEmpty());
+    ExportSettings gif = Exporter::defaultSettings();
+    gif.gifExport = true;
+    QVERIFY(!SegmentedExport::supports(gif, QStringLiteral("/tmp/a.gif")));
+    QVERIFY(SegmentedExport::supports(Exporter::defaultSettings(), QStringLiteral("/tmp/a.mp4")));
+}
+
+namespace {
+
+QByteArray ffmpegOutput(const QStringList &args)
+{
+    QProcess p;
+    p.start(QStringLiteral("ffmpeg"), QStringList{QStringLiteral("-v"), QStringLiteral("error")} + args);
+    if (!p.waitForFinished(120'000) || p.exitCode() != 0)
+        return {};
+    return p.readAllStandardOutput();
+}
+
+// Seconds from the start of the file to the first sample louder than about -30 dBFS.
+double firstSoundSeconds(const QString &path)
+{
+    const QByteArray pcm = ffmpegOutput({QStringLiteral("-i"), path, QStringLiteral("-map"),
+                                         QStringLiteral("0:a"), QStringLiteral("-ac"), QStringLiteral("1"),
+                                         QStringLiteral("-ar"), QStringLiteral("48000"), QStringLiteral("-f"),
+                                         QStringLiteral("s16le"), QStringLiteral("-")});
+    const auto *samples = reinterpret_cast<const int16_t *>(pcm.constData());
+    const qsizetype count = pcm.size() / 2;
+    for (qsizetype i = 0; i < count; ++i) {
+        if (std::abs(int(samples[i])) > 1000)
+            return double(i) / 48000.0;
+    }
+    return -1.0;
+}
+
+QString framePtsList(const QString &path)
+{
+    QProcess p;
+    p.start(QStringLiteral("ffprobe"),
+            {QStringLiteral("-v"), QStringLiteral("error"), QStringLiteral("-select_streams"),
+             QStringLiteral("v:0"), QStringLiteral("-show_entries"), QStringLiteral("frame=pts_time"),
+             QStringLiteral("-of"), QStringLiteral("csv=p=0"), path});
+    if (!p.waitForFinished(120'000))
+        return {};
+    QStringList lines = QString::fromUtf8(p.readAllStandardOutput()).split(QLatin1Char('\n'));
+    for (QString &line : lines)
+        line = line.section(QLatin1Char(','), 0, 0).trimmed();
+    return lines.join(QLatin1Char('\n'));
+}
+
+} // namespace
+
+// The task's acceptance test: a cross-fade sitting exactly on a segment boundary, an export that
+// dies after its second segment, and a resume. The joined file must match a single-pass export
+// frame for frame (FFV1 is lossless, so decoded frames compare exactly), with the same timestamps,
+// and the sound must start at the same instant.
+void EngineTest::segmentedExportMatchesSinglePassAcrossTransition()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    if (!Exporter::videoCodecById(QStringLiteral("ffv1")).value(QStringLiteral("available")).toBool()
+        || !Exporter::audioCodecById(QStringLiteral("flac")).value(QStringLiteral("available")).toBool())
+        QSKIP("FFV1/FLAC encoders not available in this FFmpeg build");
+    const QString tone = dir.filePath(QStringLiteral("tone.wav"));
+    if (!makeToneWav(tone, 3.0, 0.2))
+        QSKIP("ffmpeg not available to generate a test clip");
+
+    drift::Project project;
+    project.setResolution(160, 90);
+    project.setFps(25);
+    project.tracks().clear();
+    project.tracks().append(drift::Track{.type = drift::TrackType::Video});
+
+    drift::Clip red;
+    red.id = QStringLiteral("red");
+    red.type = drift::ClipType::Shape;
+    red.timelineStart = 0;
+    red.timelineDuration = drift::secondsToUs(2.0);
+    red.shapeStyle.kind = drift::ShapeKind::Rectangle;
+    red.shapeStyle.setSolidFill(Qt::red);
+    drift::Clip blue = red;
+    blue.id = QStringLiteral("blue");
+    blue.timelineStart = drift::secondsToUs(2.0);
+    blue.shapeStyle.setSolidFill(Qt::blue);
+    project.tracks()[0].clips.append(red);
+    project.tracks()[0].clips.append(blue);
+    // 1.5 s .. 2.5 s: the 1 s segments cut it at 2.0 s, in the middle of the fade.
+    drift::Transition fade;
+    fade.id = QStringLiteral("fade");
+    fade.fromClipId = red.id;
+    fade.toClipId = blue.id;
+    fade.kindId = QStringLiteral("crossfade");
+    fade.durationUs = drift::secondsToUs(1.0);
+    project.tracks()[0].transitions.append(fade);
+
+    // Sound from 1.0 s, so a shift at any boundary would show as a late or early start.
+    drift::Track audioTrack{.type = drift::TrackType::Audio};
+    drift::Clip sound;
+    sound.id = QStringLiteral("tone");
+    sound.type = drift::ClipType::Audio;
+    sound.path = tone;
+    sound.timelineStart = drift::secondsToUs(1.0);
+    sound.timelineDuration = drift::secondsToUs(3.0);
+    sound.srcIn = 0;
+    sound.srcOut = drift::secondsToUs(3.0);
+    audioTrack.clips.append(sound);
+    project.tracks().append(audioTrack);
+
+    ExportSettings settings = Exporter::defaultSettings();
+    settings.videoCodecId = QStringLiteral("ffv1");
+    settings.audioCodecId = QStringLiteral("flac");
+
+    QString error;
+    const QString single = dir.filePath(QStringLiteral("single.mkv"));
+    QVERIFY2(Exporter::run(project, settings, single, &error), qPrintable(error));
+
+    SegmentedExport::Options options;
+    options.segmentSeconds = 1.0;
+    options.minDurationSeconds = 0.0;
+    options.jobsRoot = dir.filePath(QStringLiteral("jobs"));
+
+    // First attempt: the destination folder does not exist, so every segment renders and only the
+    // final write fails. The job stays behind with all four segments.
+    const QString joined = dir.filePath(QStringLiteral("later/joined.mkv"));
+    QVERIFY(!SegmentedExport::run(project, settings, joined, options, &error));
+    QList<SegmentedExport::PendingJob> pending = SegmentedExport::pendingJobs(options.jobsRoot);
+    QCOMPARE(pending.size(), 1);
+    QCOMPARE(pending[0].segmentsTotal, 4);
+    QCOMPARE(pending[0].segmentsDone, 4);
+
+    // Make it look like the crash came after segment 2: segments 3 and 4 are gone.
+    const QDir jobDir(pending[0].dir);
+    QFile jobFile(jobDir.filePath(QStringLiteral("job.json")));
+    QVERIFY(jobFile.open(QIODevice::ReadOnly));
+    QJsonObject job = QJsonDocument::fromJson(jobFile.readAll()).object();
+    jobFile.close();
+    job.insert(QStringLiteral("done"), QJsonArray{0, 1});
+    QVERIFY(jobFile.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    jobFile.write(QJsonDocument(job).toJson());
+    jobFile.close();
+    QVERIFY(QFile::remove(jobDir.filePath(QStringLiteral("seg-00002.mkv"))));
+    QVERIFY(QFile::remove(jobDir.filePath(QStringLiteral("seg-00003.mkv"))));
+    pending = SegmentedExport::pendingJobs(options.jobsRoot);
+    QCOMPARE(pending[0].segmentsDone, 2);
+
+    // What the start-up dialog's Resume does: read the job back and continue it.
+    drift::Project restored;
+    QVariantMap restoredSettings;
+    QString restoredPath;
+    QString restoredUrl;
+    QVERIFY2(SegmentedExport::loadJob(pending[0].dir, &restored, &restoredSettings, &restoredPath,
+                                      &restoredUrl, &error),
+             qPrintable(error));
+    QCOMPARE(restoredPath, joined);
+    QVERIFY(QDir().mkpath(QFileInfo(joined).absolutePath()));
+    options.resume = true;
+    int progressCalls = 0;
+    QVERIFY2(SegmentedExport::run(restored, settings, joined, options, &error,
+                                  [&](double) { ++progressCalls; return true; }),
+             qPrintable(error));
+    QVERIFY(progressCalls > 0);
+    QVERIFY(SegmentedExport::pendingJobs(options.jobsRoot).isEmpty());
+    QVERIFY(!QFileInfo::exists(pending[0].dir));
+
+    // Picture: frame for frame the same as the single pass, the fade across the cut included.
+    const QStringList md5Video{QStringLiteral("-map"), QStringLiteral("0:v"), QStringLiteral("-f"),
+                               QStringLiteral("md5"), QStringLiteral("-")};
+    const QByteArray singleFrames = ffmpegOutput(QStringList{QStringLiteral("-i"), single} + md5Video);
+    const QByteArray joinedFrames = ffmpegOutput(QStringList{QStringLiteral("-i"), joined} + md5Video);
+    QVERIFY(!singleFrames.isEmpty());
+    QCOMPARE(joinedFrames, singleFrames);
+    // And every frame at the same time: 4 s at 25 fps.
+    const QString singlePts = framePtsList(single);
+    QCOMPARE(framePtsList(joined), singlePts);
+    QCOMPARE(singlePts.split(QLatin1Char('\n'), Qt::SkipEmptyParts).size(), 100);
+
+    // Mid-fade frames really are a mix, so the boundary did not drop the transition.
+    if (GpuCompositor::isAvailable()) {
+        ClipReader reader;
+        QVERIFY(reader.open(joined));
+        QImage mid;
+        QVERIFY(reader.readVideoFrameAt(drift::secondsToUs(2.0), mid, 160, 90));
+        const QRgb c = mid.pixel(80, 45);
+        QVERIFY2(qRed(c) > 40 && qBlue(c) > 40, "frame at the segment boundary is not mid-fade");
+    }
+
+    // Sound: starts on the same sample as the single pass, 1 s in.
+    const double singleStart = firstSoundSeconds(single);
+    const double joinedStart = firstSoundSeconds(joined);
+    QVERIFY(singleStart > 0.9 && singleStart < 1.1);
+    QVERIFY2(qAbs(joinedStart - singleStart) < 0.001,
+             qPrintable(QStringLiteral("sound starts at %1 s, single pass at %2 s")
+                            .arg(joinedStart)
+                            .arg(singleStart)));
+    QVERIFY(qAbs(MediaProbe::probe(joined).durationUs - MediaProbe::probe(single).durationUs) <= 40'000);
+
+    // Cancelling throws the job away instead of leaving it for a resume.
+    options.resume = false;
+    QVERIFY(!SegmentedExport::run(project, settings, dir.filePath(QStringLiteral("cancel.mkv")), options,
+                                  &error, [](double f) { return f < 0.3; }));
+    QCOMPARE(error, QStringLiteral("Export cancelled"));
+    QVERIFY(SegmentedExport::pendingJobs(options.jobsRoot).isEmpty());
 }
 
 #include "tst_engine.moc"
