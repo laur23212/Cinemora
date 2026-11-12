@@ -25,6 +25,7 @@ private slots:
     void installerFileName();
     void fileChecksumIsChecked();
     void installScriptsKeepThePreviousVersion();
+    void noInstallDuringExport();
 };
 
 void UpdateAssetTest::versionText()
@@ -242,6 +243,12 @@ void UpdateAssetTest::installScriptsKeepThePreviousVersion()
         for (const char *placeholder : {"{PID}", "{STAGED}", "{TARGET}", "{TEMP}", "{PREVIOUS}",
                                         "{INSTALLDIR}", "{EXE}", "{MARKER}", "{TIMEOUT}"})
             QVERIFY(!text.contains(QLatin1String(placeholder)));
+}
+
+void UpdateAssetTest::noInstallDuringExport()
+{
+    QVERIFY(drift::installAllowed(false));
+    QVERIFY(!drift::installAllowed(true));
 }
 
 QTEST_GUILESS_MAIN(UpdateAssetTest)

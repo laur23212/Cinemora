@@ -545,6 +545,7 @@ void UpdateChecker::skipVersion()
 {
     cancelDownload();
     m_installOnQuit = false;
+    m_restartWhenIdle = false;
     m_downloadOutcome.clear();
     setReadyToInstall(false);
     if (m_latestVersion.isEmpty())
@@ -593,8 +594,25 @@ void UpdateChecker::requestQuit()
         return;
     m_installOnQuit = true;
     m_relaunch = true;
+    if (!drift::installAllowed(m_exportRunning)) {
+        m_restartWhenIdle = true;
+        setStatus(tr("Drift %1 will install as soon as the export finishes.").arg(m_latestVersion));
+        emit activityChanged();
+        return;
+    }
     emit activityChanged();
     emit quitRequested();
+}
+
+void UpdateChecker::setExportRunning(bool running)
+{
+    if (m_exportRunning == running)
+        return;
+    m_exportRunning = running;
+    if (!running && m_restartWhenIdle) {
+        m_restartWhenIdle = false;
+        emit quitRequested();
+    }
 }
 
 void UpdateChecker::scheduleInstallOnQuit()
@@ -1165,6 +1183,10 @@ void UpdateChecker::finishStage()
 void UpdateChecker::launchStagedInstall()
 {
     if (!m_installOnQuit || m_stagedPath.isEmpty() || !QFileInfo::exists(m_stagedPath))
+        return;
+    // Closing in the middle of an export: leave the verified installer in the cache for a later
+    // start instead of running it.
+    if (!drift::installAllowed(m_exportRunning))
         return;
     m_installOnQuit = false;
 

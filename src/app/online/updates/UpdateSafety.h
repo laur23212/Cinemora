@@ -9,6 +9,10 @@ namespace drift {
 // package changed in the cache after its download was checked is never installed.
 bool fileMatchesSha256(const QString &path, const QString &expectedHex);
 
+// An update is never installed (or the app restarted into it) while an export or render is
+// running: the install would end the process and lose the output. The caller waits instead.
+bool installAllowed(bool exportRunning);
+
 // How long the install helper waits for the new copy to say it started (the marker file the
 // running app writes a few seconds after launch) before it decides the start failed.
 constexpr int kStartedOkTimeoutSeconds = 60;

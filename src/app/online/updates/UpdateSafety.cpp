@@ -19,6 +19,11 @@ bool fileMatchesSha256(const QString &path, const QString &expectedHex)
     return QString::fromLatin1(hash.result().toHex()) == expected;
 }
 
+bool installAllowed(bool exportRunning)
+{
+    return !exportRunning;
+}
+
 namespace {
 
 QString fill(QString text, const InstallScriptArgs &args)

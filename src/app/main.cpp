@@ -836,6 +836,8 @@ int main(int argc, char *argv[])
     editorState.setMarketplace(market.context());
     DownloadCenter *downloads = DownloadCenter::instance();
     bridgeUpdates(downloads, &updateChecker);
+    QObject::connect(&editorState, &AppController::exportInProgressChanged, &updateChecker,
+                     [] { updateChecker.setExportRunning(editorState.exportInProgress()); });
     qmlRegisterSingletonInstance("Drift", 1, 0, "AssetLibrary", &assetLibrary);
     qmlRegisterSingletonInstance("Drift", 1, 0, "BinFolderModel", editorState.bin()->folderModel());
     qmlRegisterSingletonInstance("Drift", 1, 0, "EditorState", &editorState);

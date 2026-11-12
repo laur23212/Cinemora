@@ -147,6 +147,10 @@ public:
     // Installs the staged update when Drift is next closed, without starting it again.
     Q_INVOKABLE void scheduleInstallOnQuit();
 
+    // Told by the editor whenever an export or render starts or ends. While one runs, "Restart
+    // and install" waits (and restarts the moment it ends) and an install on close is skipped.
+    void setExportRunning(bool running);
+
     // Remember that this version's dialog has been shown, so the next launch does not open it again.
     Q_INVOKABLE void markAnnounced();
 
@@ -223,6 +227,9 @@ private:
     bool m_readyToInstall = false;
     bool m_installOnQuit = false;
     bool m_relaunch = false;
+    bool m_exportRunning = false;
+    // Restart and install was pressed during an export; the restart happens when it ends.
+    bool m_restartWhenIdle = false;
     bool m_downloadCancelled = false;
     // "failed" or "cancelled" after a download that did not finish; empty otherwise.
     QString m_downloadOutcome;
