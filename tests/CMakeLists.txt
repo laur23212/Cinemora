@@ -321,6 +321,7 @@ qt_add_executable(tst_mcp
     ../src/app/jobs/audio/DenoiseController.cpp
     ../src/app/jobs/audio/AudioAlignController.cpp
     ../src/app/jobs/ai/AiToolsController.cpp
+    ../src/app/jobs/audio/AudioToolsController.cpp
     ../src/app/color/ColorController.cpp
     ../src/app/color/ScopesController.cpp
     ../src/app/color/LookThumbnailService.cpp
@@ -374,6 +375,8 @@ qt_add_executable(tst_mcp
     ../src/app/mcp/transport/McpStdio.cpp
     ../src/app/mcp/transport/McpBridge.cpp
     ../src/app/mcp/transport/McpStdioServer.cpp
+    ../src/app/workers/WorkerSupervisor.cpp
+    ../src/app/workers/WorkerChannel.cpp
 )
 target_include_directories(tst_mcp PRIVATE ../src)
 target_link_libraries(tst_mcp PRIVATE Qt6::Test Qt6::Gui Qt6::Quick Qt6::Network Qt6::Multimedia Qt6::Concurrent driftcore driftengine)
