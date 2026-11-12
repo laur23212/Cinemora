@@ -1418,6 +1418,12 @@ ApplicationWindow {
                 Toasts.success(qsTr("Export finished."))
         }
 
+        // Dafin: the export's worker process crashed or hung (twice: the watchdog restarted it
+        // once). The editor kept running; the toast says so and offers to try again.
+        function onExportWorkerFailed(message) {
+            Toasts.post("error", message, 0, qsTr("Retry"), function () { EditorState.retryExport() })
+        }
+
         function onSubtitleGenerationFinished(ok, message) {
             if (ok)
                 Toasts.success(message.length > 0 ? message : qsTr("Captions created."))

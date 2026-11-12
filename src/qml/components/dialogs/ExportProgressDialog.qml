@@ -10,11 +10,14 @@ ThemedDialog {
 
     title: EditorState.exportInProgress ? qsTr("Exporting video") : qsTr("Export")
     preferredWidth: Theme.dialogWidthSm
+    // Dafin: set when the export's worker process crashed or hung (exportWorkerFailed); the
+    // dialog then says so and its main button retries.
+    property string workerProblem: ""
     // Cancel export is the primary destructive action while busy; Close dismisses
     // the dialog without stopping the job (badge in the header reopens it).
-    showAccept: EditorState.exportInProgress
-    acceptText: qsTr("Cancel export")
-    acceptVariant: "destructive"
+    showAccept: EditorState.exportInProgress || workerProblem.length > 0
+    acceptText: EditorState.exportInProgress ? qsTr("Cancel export") : qsTr("Retry export")
+    acceptVariant: EditorState.exportInProgress ? "destructive" : "primary"
     acceptOnReturn: false
     rejectText: qsTr("Close")
     rejectVariant: "secondary"
@@ -26,6 +29,17 @@ ThemedDialog {
     onAccepted: {
         if (EditorState.exportInProgress)
             EditorState.cancelExport()
+        else if (workerProblem.length > 0)
+            EditorState.retryExport()
+    }
+
+    Connections {
+        target: EditorState
+        function onExportWorkerFailed(message) { root.workerProblem = message }
+        function onExportInProgressChanged() {
+            if (EditorState.exportInProgress)
+                root.workerProblem = ""
+        }
     }
 
     contentItem: Column {
@@ -45,6 +59,7 @@ ThemedDialog {
             wrapMode: Text.WordWrap
             text: EditorState.exportInProgress
                   ? qsTr("Rendering your video. Close to keep editing, or cancel to stop.")
+                  : root.workerProblem.length > 0 ? root.workerProblem
                   : qsTr("Export finished.")
         }
 

@@ -1794,6 +1794,9 @@ public:
     Q_INVOKABLE void exportWithSettings(const QUrl &outputUrl, const QVariantMap &settings,
                                         bool rememberChoice = true);
     Q_INVOKABLE void cancelExport();
+    // Dafin: runs the last export again with the same file and settings, after its worker
+    // process crashed or stopped responding (exportWorkerFailed).
+    Q_INVOKABLE void retryExport();
     // Copies the finished export into the shared media collection and hands it to the system share
     // sheet. Deferred to this point rather than done as part of the export because it is a second
     // full copy of the video, and most exports are never shared. Android only; false/no-op elsewhere.
@@ -1918,6 +1921,9 @@ signals:
     void lastMessageChanged();
     void draggingAssetIndexChanged();
     void exportFinished(bool success);
+    // Dafin: the export's worker process crashed or hung twice (the watchdog already restarted it
+    // once). The editor is unaffected; `message` says so, and retryExport() tries again.
+    void exportWorkerFailed(const QString &message);
     void projectMutated();
     void waveformReady(const QString &path);
     // A block of the timeline waveform landed. Separate from waveformReady so the dialogs,
@@ -2354,6 +2360,9 @@ protected:
     double m_exportProgress = 0.0;
     QAtomicInt m_exportCancel = 0;
     QFuture<void> m_exportFuture;
+    // Dafin: what retryExport() runs again.
+    QUrl m_retryExportUrl;
+    QVariantMap m_retryExportSettings;
     QUrl m_lastExportUrl;
     QString m_lastExportName;
     void recordExport(const QUrl &url, double durationSeconds, qint64 sizeBytes, const QString &thumbnail);

@@ -49,6 +49,15 @@
 #include <QDir>
 #include <QDateTime>
 #include <QRegularExpression>
+
+#if !defined(Q_OS_ANDROID) && !defined(Q_OS_WASM)
+#include "app/workers/WorkerSupervisor.h"
+
+#include <QCoreApplication>
+#include <QFile>
+#include <QSaveFile>
+#include <QUuid>
+#endif
 using namespace drift::appdetail;
 using drift::mcpdetail::findClipById;
 using drift::mcpdetail::runBeatAnalysis;
@@ -594,6 +603,121 @@ void AppController::savePreviewScreenshot()
                     self->setLastMessage(message, severity);
             }, Qt::QueuedConnection);
     });
+#if !defined(Q_OS_ANDROID) && !defined(Q_OS_WASM)
+namespace {
+
+// Dafin: the job `dafin --export-worker` reads (ExportWorker.h).
+QString writeExportJob(const drift::Project &project, const QVariantMap &settings,
+                       const QString &outputPath, QString *errorOut)
+{
+    const QJsonObject job{
+        {QStringLiteral("project"), project.toJson(/*includeTranscripts=*/false)},
+        {QStringLiteral("settings"), QJsonObject::fromVariantMap(settings)},
+        {QStringLiteral("output"), outputPath},
+    };
+    const QString path = QDir(QDir::tempPath())
+                             .filePath(QStringLiteral("dafin-export-%1.json")
+                                           .arg(QUuid::createUuid().toString(QUuid::WithoutBraces)));
+    QSaveFile file(path);
+    if (!file.open(QIODevice::WriteOnly)
+        || file.write(QJsonDocument(job).toJson(QJsonDocument::Compact)) < 0 || !file.commit()) {
+        if (errorOut)
+            *errorOut = file.errorString();
+        return {};
+    }
+    return path;
+}
+
+struct WorkerExport
+{
+    bool used = false;  // false: run the export in this process instead
+    bool ok = false;
+    bool broke = false; // the worker crashed or hung, also after the watchdog's restart
+    QString error;
+};
+
+// Dafin: renders the export in a separate process (WorkerSupervisor.h), so a crash or a hang in
+// a decoder, the GPU driver or an encoder ends that process and not the editor. A worker that
+// crashes or sends no heartbeat for 15 s is killed and started once more; if that fails too the
+// caller reports it with a Retry. When no worker can be started at all (or
+// DAFIN_EXPORT_IN_PROCESS is set) the export runs here as before.
+WorkerExport exportInWorkerProcess(const drift::Project &project, const QVariantMap &settings,
+                                   const QString &outputPath, const std::function<void(double)> &progress,
+                                   const std::function<bool()> &cancelled,
+                                   const std::function<void()> &restarting)
+{
+    using namespace drift::worker;
+    WorkerExport out;
+    if (qEnvironmentVariableIsSet("DAFIN_EXPORT_IN_PROCESS"))
+        return out;
+
+    QString jobError;
+    const QString jobPath = writeExportJob(project, settings, outputPath, &jobError);
+    if (jobPath.isEmpty()) {
+        qWarning("Export worker: could not write the job (%s); exporting in the editor",
+                 qPrintable(jobError));
+        return out;
+    }
+
+    WorkerSpec spec;
+    spec.program = QCoreApplication::applicationFilePath();
+    spec.arguments = {QStringLiteral("--export-worker"), jobPath};
+    WorkerCallbacks callbacks;
+    callbacks.progress = progress;
+    callbacks.cancelled = cancelled;
+    callbacks.restarting = [&](Outcome why, int attempt) {
+        qWarning("Export worker %s; restarting it (attempt %d)",
+                 why == Outcome::Hung ? "stopped responding" : "crashed", attempt);
+        restarting();
+    };
+    const WorkerResult result = runWithWatchdog(spec, /*maxRestarts=*/1, callbacks);
+    QFile::remove(jobPath);
+
+    switch (result.outcome) {
+    case Outcome::FailedToStart:
+        qWarning("Export worker could not start (%s); exporting in the editor",
+                 qPrintable(result.message));
+        return out;
+    case Outcome::Finished:
+        out.used = true;
+        out.ok = true;
+        return out;
+    case Outcome::Cancelled:
+        out.used = true;
+        out.error = QStringLiteral("Export cancelled");
+        return out;
+    case Outcome::Failed:
+        out.used = true;
+        out.error = result.message;
+        return out;
+    case Outcome::Crashed:
+    case Outcome::Hung:
+        qWarning("Export worker gave up: %s", qPrintable(result.message));
+        out.used = true;
+        out.broke = true;
+        out.error = result.outcome == Outcome::Hung
+                        ? QCoreApplication::translate(
+                              "AppController",
+                              "The export stopped responding, also after Dafin started it again. "
+                              "The editor and your project are fine. Press Retry to try once more.")
+                        : QCoreApplication::translate(
+                              "AppController",
+                              "The export crashed, also after Dafin started it again. The editor "
+                              "and your project are fine. Press Retry to try once more.");
+        return out;
+    }
+    return out;
+}
+
+} // namespace
+#endif
+
+void AppController::retryExport()
+{
+    if (m_exportInProgress || !m_retryExportUrl.isValid())
+        return;
+    // The dialog's choice was remembered the first time.
+    exportWithSettings(m_retryExportUrl, m_retryExportSettings, /*rememberChoice=*/false);
 }
 
 void AppController::exportProject(const QUrl &outputUrl)
@@ -675,6 +799,9 @@ void AppController::exportWithSettings(const QUrl &outputUrl, const QVariantMap 
 #endif
     }
 
+    m_retryExportUrl = outputUrl;
+    m_retryExportSettings = settings;
+
     // Stop playback so the decode pool isn't driven from two threads at once.
     setPlaying(false);
 
@@ -692,7 +819,7 @@ void AppController::exportWithSettings(const QUrl &outputUrl, const QVariantMap 
 
     const bool disposable = writeTargetIsDisposable(outputUrl);
 
-    m_exportFuture = QtConcurrent::run([this, snapshot, exportSettings, outputPath, outputUrl, disposable]() {
+    m_exportFuture = QtConcurrent::run([this, snapshot, settings, exportSettings, outputPath, outputUrl, disposable]() {
         // Spans the encode *and* the copy into the user's document. Exporter::run takes its own
         // hold, but that one ends when run() returns — and the commit below is the phase that
         // would otherwise lose a multi-minute render to a screen that idled out mid-copy. The
@@ -750,6 +877,7 @@ void AppController::exportWithSettings(const QUrl &outputUrl, const QVariantMap 
                                                                        drift::encoderprobe::knownBroken())
                                       : QStringList{exportSettings.videoCodecId};
         bool ok = false;
+        bool workerBroke = false; // the worker process crashed or hung, also after its restart
         bool finishedOnCpu = false;
         QStringList fallbacks; // "NVENC → AMF" steps, for the notice
         QString usedCodecId;
@@ -784,7 +912,42 @@ void AppController::exportWithSettings(const QUrl &outputUrl, const QVariantMap 
                     Qt::QueuedConnection);
                 error.clear();
             }
-            ok = Exporter::run(snapshot, attempt, outputPath, &error, report, &warnings);
+            // Dafin: each attempt renders in a separate process where one can be started (a crash or
+            // a hang in a decoder, the GPU driver or an encoder then ends that process, not the
+            // editor); otherwise, and on Android, it runs here as before. Frames patched over
+            // during the export (warnings) are only collected for an in-editor run.
+            bool handled = false;
+#if !defined(Q_OS_ANDROID) && !defined(Q_OS_WASM)
+            QVariantMap attemptSettings = settings;
+            attemptSettings.insert(QStringLiteral("videoCodecId"), attempt.videoCodecId);
+            attemptSettings.insert(QStringLiteral("videoPreset"), attempt.videoPreset);
+            const WorkerExport worker = exportInWorkerProcess(
+                snapshot, attemptSettings, outputPath, [&report](double fraction) { report(fraction); },
+                [this] {
+                    return m_exportCancel.loadRelaxed() != 0 || Exporter::BackgroundHold::cancelRequested();
+                },
+                [this] {
+                    QMetaObject::invokeMethod(
+                        this,
+                        [this] {
+                            m_exportProgress = 0.0;
+                            emit exportProgressChanged();
+                            setLastMessage(tr("The export stopped unexpectedly. Starting it again…"),
+                                           QStringLiteral("warning"));
+                        },
+                        Qt::QueuedConnection);
+                });
+            if (worker.used) {
+                handled = true;
+                ok = worker.ok;
+                workerBroke = worker.broke;
+                error = worker.error;
+            }
+#endif
+            if (!handled)
+                ok = Exporter::run(snapshot, attempt, outputPath, &error, report, &warnings);
+            if (workerBroke)
+                break; // reported with Retry; another encoder would not fix a crashing worker
             if (ok) {
                 usedCodecId = codecId;
                 finishedOnCpu = !fallbacks.isEmpty() && !drift::hwencode::isGpuEncoderId(codecId);
@@ -847,7 +1010,7 @@ void AppController::exportWithSettings(const QUrl &outputUrl, const QVariantMap 
 
         QMetaObject::invokeMethod(
             this,
-            [this, ok, finishedOnCpu, usedFallback = !fallbacks.isEmpty(), warningCount = int(warnings.size()), error, outputUrl, sizeBytes, thumbnail, durationSeconds]() {
+            [this, ok, workerBroke, finishedOnCpu, usedFallback = !fallbacks.isEmpty(), warningCount = int(warnings.size()), error, outputUrl, sizeBytes, thumbnail, durationSeconds]() {
                 m_exportInProgress = false;
                 m_exportProgress = ok ? 1.0 : 0.0;
                 if (ok)
@@ -873,12 +1036,18 @@ void AppController::exportWithSettings(const QUrl &outputUrl, const QVariantMap 
                     emit exportFinished(ok);
                     return;
                 }
-                setLastMessage(ok ? (finishedOnCpu
-                                         ? tr("Export complete. The GPU encoder failed, so it finished on the CPU.")
-                                         : usedFallback ? tr("Export complete. The first GPU encoder failed, so another one finished it.")
-                                                        : tr("Export complete"))
-                                  : error.isEmpty() ? tr("Export failed") : error,
-                               severity);
+                // Dafin: a broken worker gets its own message with a Retry button (Main.qml),
+                // not a second plain error toast. An agent's export reports as before.
+                if (workerBroke && !m_exportByAgent) {
+                    emit exportWorkerFailed(error);
+                } else {
+                    setLastMessage(ok ? (finishedOnCpu
+                                             ? tr("Export complete. The GPU encoder failed, so it finished on the CPU.")
+                                             : usedFallback ? tr("Export complete. The first GPU encoder failed, so another one finished it.")
+                                                            : tr("Export complete"))
+                                      : error.isEmpty() ? tr("Export failed") : error,
+                                   severity);
+                }
                 emit exportFinished(ok);
             },
             Qt::QueuedConnection);
