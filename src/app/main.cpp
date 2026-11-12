@@ -1,3 +1,4 @@
+#include "engine/encode/export/EncoderProbe.h"
 #include "engine/encode/writers/AudioFileWriter.h"
 #include "core/base/CacheRoot.h"
 #include "app/bin/MediaBinController.h"
@@ -1096,6 +1097,9 @@ int main(int argc, char *argv[])
         loadShell(true);
         step(StartupSplash::tr("Opening the editor…"), 1.0);
     }
+    // Dafin: test the GPU encoders once per GPU/driver (EncoderProbe.h), a few seconds after the
+    // editor is up so the test encodes don't compete with opening the first project.
+    QTimer::singleShot(5000, &app, [] { drift::encoderprobe::startBackgroundProbe(); });
     drift::perf::install();
     if (drift::perf::enabled()) {
         // Frame pacing: the interval between swaps is the frame time the user sees. Windows are

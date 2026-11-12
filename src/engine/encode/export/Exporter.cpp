@@ -1,6 +1,8 @@
 #include "engine/encode/export/Exporter.h"
 #include "core/base/CacheRoot.h"
 #include "engine/EngineTuning.h"
+#include "engine/encode/export/EncoderProbe.h"
+#include "engine/encode/export/HwEncodeFallback.h"
 
 #include "engine/audio/AudioMixer.h"
 #include "engine/decode/readers/ClipReaderPool.h"
@@ -1917,16 +1919,169 @@ bool Exporter::gifAvailable()
     return avcodec_find_encoder(AV_CODEC_ID_GIF) != nullptr;
 }
 
+bool Exporter::testEncode(const QString &videoCodecId, QString *reasonOut)
+{
+    QString reason;
+    const auto fail = [&](const QString &why) {
+        if (reasonOut)
+            *reasonOut = why;
+        return false;
+    };
+
+    const VideoCodecDef *def = findVideoDef(videoCodecId);
+    if (!def)
+        return fail(QStringLiteral("unknown codec id"));
+    if (def->hw != HwBackend::None && !hwBackendOnThisOs(def->hw))
+        return fail(QStringLiteral("not on this platform"));
+    const AVCodec *codec = findEncoder(def->encoderNames);
+    if (!codec)
+        return fail(QStringLiteral("not in this FFmpeg build"));
+
+    // Small but above every vendor's minimum (AMF and QSV refuse very small surfaces).
+    constexpr int kW = 320;
+    constexpr int kH = 240;
+    constexpr int kFrames = 5;
+
+    AVBufferRef *device = nullptr;
+    AVCodecContext *ctx = avcodec_alloc_context3(codec);
+    AVFrame *sw = av_frame_alloc();
+    AVFrame *hw = av_frame_alloc();
+    AVPacket *pkt = av_packet_alloc();
+    bool ok = false;
+    int packets = 0;
+
+    const auto cleanup = [&] {
+        av_packet_free(&pkt);
+        av_frame_free(&hw);
+        av_frame_free(&sw);
+        avcodec_free_context(&ctx);
+        av_buffer_unref(&device);
+    };
+
+    if (!ctx || !sw || !hw || !pkt) {
+        cleanup();
+        return fail(QStringLiteral("out of memory"));
+    }
+
+    ctx->width = kW;
+    ctx->height = kH;
+    ctx->time_base = AVRational{1, 30};
+    ctx->framerate = AVRational{30, 1};
+    ctx->gop_size = 30;
+    ctx->max_b_frames = 0;
+    ctx->bit_rate = 1'000'000;
+    ctx->pix_fmt = pickEncodePixFmt(codec, def->hw, def->pixFmt);
+    const AVPixelFormat swFmt = isHardwarePixelFormat(ctx->pix_fmt) ? AV_PIX_FMT_NV12 : ctx->pix_fmt;
+
+    const AVHWDeviceType type = hwDeviceType(def->hw);
+    if (def->hw != HwBackend::None && type != AV_HWDEVICE_TYPE_NONE) {
+        const QByteArray dev = encoderDeviceString(def->hw);
+        if (!drift::hwaccel::deviceAvailable(type, dev)
+            || av_hwdevice_ctx_create(&device, type, dev.isEmpty() ? nullptr : dev.constData(), nullptr, 0)
+                   < 0) {
+            cleanup();
+            return fail(QStringLiteral("could not create the %1 device").arg(QLatin1String(hwVendorName(def->hw))));
+        }
+        ctx->hw_device_ctx = av_buffer_ref(device);
+        if (isHardwarePixelFormat(ctx->pix_fmt) && !setupHwFrames(ctx, device, ctx->pix_fmt, kW, kH, &reason)) {
+            cleanup();
+            return fail(reason);
+        }
+    }
+
+    if (const int rc = avcodec_open2(ctx, codec, nullptr); rc < 0) {
+        cleanup();
+        return fail(QStringLiteral("could not open %1: %2").arg(QString::fromUtf8(codec->name), avErrorText(rc)));
+    }
+
+    sw->format = swFmt;
+    sw->width = kW;
+    sw->height = kH;
+    if (av_frame_get_buffer(sw, 0) < 0) {
+        cleanup();
+        return fail(QStringLiteral("could not allocate a frame"));
+    }
+
+    const auto drain = [&]() -> bool {
+        for (;;) {
+            const int rc = avcodec_receive_packet(ctx, pkt);
+            if (rc == AVERROR(EAGAIN) || rc == AVERROR_EOF)
+                return true;
+            if (rc < 0) {
+                reason = QStringLiteral("encode failed: %1").arg(avErrorText(rc));
+                return false;
+            }
+            if (pkt->size > 0)
+                ++packets;
+            av_packet_unref(pkt);
+        }
+    };
+
+    ok = true;
+    for (int i = 0; ok && i < kFrames; ++i) {
+        // Mid grey in whatever planar/semi-planar layout the encoder takes; the content is
+        // irrelevant, only that the hardware accepts and returns it.
+        if (av_frame_make_writable(sw) < 0) {
+            reason = QStringLiteral("frame not writable");
+            ok = false;
+            break;
+        }
+        for (int p = 0; p < AV_NUM_DATA_POINTERS && sw->data[p]; ++p) {
+            const int rows = p == 0 ? kH : (kH + 1) / 2;
+            std::memset(sw->data[p], 128, size_t(sw->linesize[p]) * size_t(rows));
+        }
+        sw->pts = i;
+        AVFrame *send = sw;
+        if (ctx->hw_frames_ctx) {
+            av_frame_unref(hw);
+            if (av_hwframe_get_buffer(ctx->hw_frames_ctx, hw, 0) < 0
+                || av_hwframe_transfer_data(hw, sw, 0) < 0) {
+                reason = QStringLiteral("could not upload a frame to the GPU");
+                ok = false;
+                break;
+            }
+            hw->pts = i;
+            send = hw;
+        }
+        if (const int rc = avcodec_send_frame(ctx, send); rc < 0) {
+            reason = QStringLiteral("encode failed: %1").arg(avErrorText(rc));
+            ok = false;
+            break;
+        }
+        ok = drain();
+    }
+    if (ok) {
+        avcodec_send_frame(ctx, nullptr);
+        ok = drain();
+    }
+    if (ok && packets == 0) {
+        reason = QStringLiteral("the encoder returned no data");
+        ok = false;
+    }
+    cleanup();
+    if (!ok)
+        return fail(reason);
+    if (reasonOut)
+        reasonOut->clear();
+    return true;
+}
+
 ExportSettings Exporter::defaultSettings()
 {
     ExportSettings s;
     // Software H.264 first by default. "Prefer hardware encoder" puts a supported GPU H.264
     // encoder ahead of it, falling back to the software list on machines without one.
+    // Dafin: the GPU order is the fallback chain's (NVENC, AMF, QuickSync, VAAPI…), minus any
+    // encoder the start-up test encode or an earlier export found broken on this GPU/driver.
     QStringList prefer;
-    if (drift::tuning::preferHardwareExport.load(std::memory_order_relaxed))
-        prefer = {QStringLiteral("h264_nvenc"), QStringLiteral("h264_qsv"), QStringLiteral("h264_amf"),
-                  QStringLiteral("h264_videotoolbox"), QStringLiteral("h264_vaapi"),
-                  QStringLiteral("h264_mediacodec")};
+    if (drift::tuning::preferHardwareExport.load(std::memory_order_relaxed)) {
+        const QString best = drift::hwencode::bestGpuEncoder(
+            QStringLiteral("h264"), drift::encoderprobe::knownBroken(), [](const QString &id) {
+                return videoCodecById(id).value(QStringLiteral("available")).toBool();
+            });
+        if (!best.isEmpty())
+            prefer.append(best);
+    }
     prefer += {QStringLiteral("h264"), QStringLiteral("h265"), QStringLiteral("vp9"),
                QStringLiteral("av1_svt")};
     for (const QString &id : prefer) {

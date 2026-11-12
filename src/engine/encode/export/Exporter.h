@@ -88,6 +88,12 @@ public:
 
     static bool gifAvailable();
 
+    // Dafin: opens `videoCodecId` the way an export would (same device, pixel format and frames
+    // context) at a tiny size, encodes a few grey frames and checks a packet comes out. A device
+    // that opens is not an encoder that works — old drivers, a laptop on its integrated GPU, all
+    // NVENC sessions in use — so EncoderProbe runs this once per GPU/driver and caches it.
+    static bool testEncode(const QString &videoCodecId, QString *reasonOut = nullptr);
+
     static ExportSettings defaultSettings();
     static ExportSettings settingsFromMap(const QVariantMap &map);
 
