@@ -170,6 +170,12 @@ public:
 
 private slots:
     void initTestCase();
+    // Dafin day 6: safer export.
+    void exportStagingPathKeepsTheExtension();
+    void exportCommitReplacesTheFinalFile();
+    void exportEstimateFollowsBitrateAndDuration();
+    void exportCancelLeavesTheOldFileAndNoTempFile();
+    void exportFinishesThroughTheTempFile();
     void splatPlyLoads();
     void splatPlyRejectsBadFiles();
     void splatSogRoundTrip();
@@ -18731,6 +18737,145 @@ void EngineTest::lookCatalogFindsPacksAndUserLooks()
     QCOMPARE(drift::importCubeFiles({incoming + "/My Look.cube"}, userRoot).importedIds, (QStringList{myLookId}));
 
     drift::reloadLookCatalog();
+}
+
+// --- Dafin day 6: safer export ---------------------------------------------------------------
+
+namespace {
+drift::Project smallTextProject(double seconds)
+{
+    drift::Project project;
+    project.setResolution(320, 180);
+    project.setFps(30);
+    project.tracks().clear();
+    project.tracks().append(drift::Track{.type = drift::TrackType::Video});
+    project.tracks()[0].clips.append(makeTextClip(QStringLiteral("SAFE"), QRectF(20, 40, 280, 100)));
+    drift::Clip &clip = project.tracks()[0].clips[0];
+    clip.timelineDuration = drift::secondsToUs(seconds);
+    clip.srcOut = clip.timelineDuration;
+    return project;
+}
+
+bool writeText(const QString &path, const QByteArray &bytes)
+{
+    QFile f(path);
+    return f.open(QIODevice::WriteOnly | QIODevice::Truncate) && f.write(bytes) == bytes.size();
+}
+
+QByteArray readAll(const QString &path)
+{
+    QFile f(path);
+    return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray();
+}
+} // namespace
+
+void EngineTest::exportStagingPathKeepsTheExtension()
+{
+    const QString dir = QDir::tempPath();
+    QCOMPARE(Exporter::stagingPathFor(QDir(dir).filePath(QStringLiteral("My clip.final.mp4"))),
+             QDir(dir).filePath(QStringLiteral(".My clip.final.dafin-part.mp4")));
+    QCOMPARE(Exporter::stagingPathFor(QDir(dir).filePath(QStringLiteral("noext"))),
+             QDir(dir).filePath(QStringLiteral(".noext.dafin-part")));
+    QVERIFY(Exporter::stagingPathFor(QString()).isEmpty());
+}
+
+void EngineTest::exportCommitReplacesTheFinalFile()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString finalPath = dir.filePath(QStringLiteral("out.mp4"));
+    const QString staging = Exporter::stagingPathFor(finalPath);
+
+    // Onto a new name.
+    QVERIFY(writeText(staging, "first"));
+    QString error;
+    QVERIFY2(Exporter::commitStaged(staging, finalPath, &error), qPrintable(error));
+    QCOMPARE(readAll(finalPath), QByteArray("first"));
+    QVERIFY(!QFileInfo::exists(staging));
+
+    // Over an existing file.
+    QVERIFY(writeText(staging, "second, longer"));
+    QVERIFY2(Exporter::commitStaged(staging, finalPath, &error), qPrintable(error));
+    QCOMPARE(readAll(finalPath), QByteArray("second, longer"));
+    QVERIFY(!QFileInfo::exists(staging));
+}
+
+void EngineTest::exportEstimateFollowsBitrateAndDuration()
+{
+    const drift::Project project = smallTextProject(10.0);
+    ExportSettings settings;
+    settings.videoCodecId = QStringLiteral("h264");
+    settings.rateControl = QStringLiteral("bitrate");
+    settings.videoBitrateKbps = 8000;
+    settings.audioCodecId = QStringLiteral("aac");
+    settings.audioBitrateKbps = 192;
+    const double expected = (8000.0 + 192.0) * 1000.0 / 8.0 * 10.0 * 1.1;
+    const qint64 estimate = Exporter::estimateOutputBytes(project, settings);
+    QVERIFY2(std::abs(double(estimate) - expected) < expected * 0.02,
+             qPrintable(QStringLiteral("%1 vs %2").arg(estimate).arg(expected)));
+
+    settings.rateControl = QStringLiteral("crf");
+    QVERIFY(Exporter::estimateOutputBytes(project, settings) > 0);
+    // Twice as long, about twice as big.
+    const drift::Project longer = smallTextProject(20.0);
+    const double ratio = double(Exporter::estimateOutputBytes(longer, settings))
+                         / double(Exporter::estimateOutputBytes(project, settings));
+    QVERIFY(ratio > 1.9 && ratio < 2.1);
+
+    settings.gifExport = true;
+    QCOMPARE(Exporter::estimateOutputBytes(project, settings), qint64(-1));
+}
+
+void EngineTest::exportCancelLeavesTheOldFileAndNoTempFile()
+{
+    if (!Exporter::videoCodecById(QStringLiteral("h264")).value(QStringLiteral("available")).toBool())
+        QSKIP("No H.264 encoder available in this FFmpeg build");
+    if (!Exporter::audioCodecById(QStringLiteral("aac")).value(QStringLiteral("available")).toBool())
+        QSKIP("No AAC encoder available in this FFmpeg build");
+
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString finalPath = dir.filePath(QStringLiteral("keep.mp4"));
+    QVERIFY(writeText(finalPath, "the earlier export"));
+
+    ExportSettings settings = Exporter::defaultSettings();
+    settings.videoCodecId = QStringLiteral("h264");
+    settings.audioCodecId = QStringLiteral("aac");
+    QString error;
+    const bool ok = Exporter::run(smallTextProject(2.0), settings, finalPath, &error,
+                                  [](double fraction) { return fraction < 0.5; });
+    QVERIFY(!ok);
+    QCOMPARE(error, QStringLiteral("Export cancelled"));
+    QCOMPARE(readAll(finalPath), QByteArray("the earlier export"));
+    QVERIFY(!QFileInfo::exists(Exporter::stagingPathFor(finalPath)));
+    QCOMPARE(QDir(dir.path()).entryList(QDir::Files | QDir::Hidden), QStringList{QStringLiteral("keep.mp4")});
+}
+
+void EngineTest::exportFinishesThroughTheTempFile()
+{
+    if (!Exporter::videoCodecById(QStringLiteral("h264")).value(QStringLiteral("available")).toBool())
+        QSKIP("No H.264 encoder available in this FFmpeg build");
+    if (!Exporter::audioCodecById(QStringLiteral("aac")).value(QStringLiteral("available")).toBool())
+        QSKIP("No AAC encoder available in this FFmpeg build");
+
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString finalPath = dir.filePath(QStringLiteral("done.mp4"));
+    QVERIFY(writeText(finalPath, "replaced"));
+
+    ExportSettings settings = Exporter::defaultSettings();
+    settings.videoCodecId = QStringLiteral("h264");
+    settings.audioCodecId = QStringLiteral("aac");
+    QString error;
+    QStringList warnings{QStringLiteral("stale")};
+    QVERIFY2(Exporter::run(smallTextProject(0.5), settings, finalPath, &error, {}, &warnings), qPrintable(error));
+    QVERIFY(warnings.isEmpty());
+    QVERIFY(QFileInfo(finalPath).size() > 1000);
+    QVERIFY(!QFileInfo::exists(Exporter::stagingPathFor(finalPath)));
+
+    ClipReader reader;
+    QVERIFY(reader.open(finalPath));
+    QVERIFY(reader.hasVideo());
 }
 
 QTEST_MAIN(EngineTest)
