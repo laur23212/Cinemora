@@ -1,4 +1,5 @@
 #include "core/text/TextPresetStore.h"
+#include "core/base/SafeMode.h"
 
 #include "core/text/TextTemplate.h"
 
@@ -72,6 +73,10 @@ void TextPresetStore::ensureLoaded() const
     m_loaded = true;
     m_presets.clear();
 
+    // Safe mode: the user's own templates stay on disk, unread (save() refuses below).
+    if (drift::safemode::active())
+        return;
+
     const QString path = storePath();
     if (path.isEmpty())
         return;
@@ -92,6 +97,8 @@ void TextPresetStore::ensureLoaded() const
 
 bool TextPresetStore::save() const
 {
+    if (drift::safemode::active())
+        return false; // would overwrite the real library with the empty one this run sees
     const QString path = storePath();
     if (path.isEmpty())
         return false;

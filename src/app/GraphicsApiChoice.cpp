@@ -1,5 +1,7 @@
 #include "app/GraphicsApiChoice.h"
 
+#include "core/base/SafeMode.h"
+
 #include <QCoreApplication>
 #include <QQuickWindow>
 #include <QSGRendererInterface>
@@ -94,6 +96,10 @@ bool applyAtStartup(int argc, char *argv[])
                  qPrintable(availableApis().join(QStringLiteral(", "))));
         id = kOpenGl;
     }
+
+    // Safe mode: the default API, whatever is stored (the stored choice itself is left alone).
+    if (drift::safemode::active())
+        id = kOpenGl;
 
     QQuickWindow::setGraphicsApi(toQt(id));
     // The global share context is what lets the preview wrap the compositor's texture. Without

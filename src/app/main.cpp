@@ -55,6 +55,7 @@
 #include "app/online/library/MogrtRenderer.h"
 #include "app/platform/CrashReport.h"
 #include "app/platform/DiagnosticsLog.h"
+#include "app/StartupGuard.h"
 #include "app/online/library/ThumbnailCache.h"
 #include "ui/imageproviders/TextStylePreviewImageProvider.h"
 #include "playback/stats/PerfLog.h"
@@ -638,6 +639,9 @@ int main(int argc, char *argv[])
     dafin::migrateFromCadra();
     // Dafin: this session's log file (the newest five are kept); needs the names set above.
     dafin::log::start();
+    // Counts this launch and decides on safe mode (two failed starts in a row, or --safe-mode)
+    // before anything below can crash.
+    drift::startup::begin(argc, argv);
     // Reads QSettings, so after the names. Qt Quick stays on OpenGL with a global share context
     // unless the user picked another API in Settings; see GraphicsApiChoice.h.
     [[maybe_unused]] const bool graphicsApiGuarded = drift::graphics::applyAtStartup(argc, argv);
@@ -994,6 +998,11 @@ int main(int argc, char *argv[])
             new FirstFrameWatchdog(window);
         if (first)
             splash->finishOn(window);
+        if (window && first) {
+            QObject::connect(window, &QQuickWindow::frameSwapped, &app, [] {
+                drift::startup::markStarted();
+            }, static_cast<Qt::ConnectionType>(Qt::QueuedConnection | Qt::SingleShotConnection));
+        }
         if (window && graphicsApiGuarded) {
             if (first) {
                 QObject::connect(window, &QQuickWindow::frameSwapped, &app, [] {

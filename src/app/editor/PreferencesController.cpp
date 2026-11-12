@@ -1,4 +1,6 @@
 #include "app/editor/PreferencesController.h"
+
+#include "core/base/SafeMode.h"
 #include "app/GraphicsApiChoice.h"
 #include "core/base/CacheRoot.h"
 #include "engine/encode/proxies/ProxyNaming.h"
@@ -1295,6 +1297,25 @@ QString PreferencesController::importSettings(const QUrl &url)
     return {};
 }
 
+namespace {
+bool g_dropSafeModeFlag = false;
+}
+
+bool PreferencesController::safeMode() const
+{
+    return drift::safemode::active();
+}
+
+void PreferencesController::restartNormally()
+{
+    QSettings settings;
+    settings.setValue(QLatin1String(drift::safemode::kAttemptsKey), 0);
+    settings.sync();
+    g_dropSafeModeFlag = true;
+    restartApp();
+    QCoreApplication::quit();
+}
+
 void PreferencesController::restartApp()
 {
     if (!canRestart())
@@ -1312,6 +1333,9 @@ void PreferencesController::restartApp()
         // --shell= would override the preference that prompted the restart.
         QStringList args = QCoreApplication::arguments().mid(1);
         args.removeIf([](const QString &arg) { return arg.startsWith(QLatin1String("--shell=")); });
+        // "Restart normally" must not come back in safe mode.
+        if (g_dropSafeModeFlag)
+            args.removeAll(QStringLiteral("--safe-mode"));
         // Inside an AppImage the binary lives in a mount that goes away with this process, and
         // the runtime's variables point at it; relaunch the image itself with them cleared.
         const QString appImage = qEnvironmentVariable("APPIMAGE");

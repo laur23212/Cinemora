@@ -974,6 +974,19 @@ ApplicationWindow {
     // Shell.qml only builds a shell at startup, so applying a layout change is a relaunch.
     // Android has no quit to hang it on (aboutToQuit never runs), so the recovery snapshot
     // carries unsaved work across instead of the prompt.
+    function restartNormally() {
+        if (Qt.platform.os === "android") {
+            EditorState.projectFile.flushRecoverySnapshot()
+            EditorState.preferences.restartNormally()
+            return
+        }
+        editorHeader.confirmIfDirty(function () {
+            EditorState.projectFile.discardUnsavedChanges()
+            window.forceClose = true
+            EditorState.preferences.restartNormally()
+        })
+    }
+
     function restartToApplyShell() {
         if (Qt.platform.os === "android") {
             EditorState.projectFile.flushRecoverySnapshot()
@@ -1743,6 +1756,16 @@ ApplicationWindow {
     TouchDragGhost {
         visible: TouchDrag.active
         z: 10000
+    }
+
+    // Safe mode: says so for the whole run, with the way out.
+    SafeModeBanner {
+        visible: EditorState.preferences.safeMode
+        width: parent.width
+        anchors.top: parent.top
+        anchors.topMargin: editorHeader.visible ? editorHeader.height : 0
+        z: 9000
+        onRestartRequested: window.restartNormally()
     }
 
     // Notification host — above all panels, so any message lands in one place.

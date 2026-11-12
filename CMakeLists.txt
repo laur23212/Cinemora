@@ -1301,6 +1301,8 @@ target_sources(driftapp PRIVATE
     src/app/mcp/McpController.cpp
     src/app/editor/PreferencesController.h
     src/app/editor/PreferencesController.cpp
+    src/app/StartupGuard.h
+    src/app/StartupGuard.cpp
     src/app/GraphicsApiChoice.h
     src/app/GraphicsApiChoice.cpp
     src/app/editor/ProjectFileController.h
@@ -2629,6 +2631,7 @@ qt_add_qml_module(drift
         src/qml/components/shell/SettingsPage.qml
         src/qml/components/shell/SettingsPerformancePage.qml
         src/qml/components/shell/SettingsPreviewPage.qml
+        src/qml/components/shell/SafeModeBanner.qml
         src/qml/components/shell/SettingsRow.qml
         src/qml/components/shell/SearchAnchor.qml
         src/qml/components/quicksetup/QuickSetupStepIndicator.qml

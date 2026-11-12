@@ -1,4 +1,5 @@
 #include "playback/PlaybackEngine.h"
+#include "core/base/SafeMode.h"
 #include "playback/AudioOutputChannel.h"
 
 #include "playback/stats/PerfLog.h"
@@ -201,6 +202,12 @@ PlaybackEngine::PlaybackEngine(QObject *parent)
         m_previewQuality = saved;
 
     m_decodeMode = loadSavedDecodeMode();
+    // Safe mode: software decoding and the lowest preview quality, for this run only (nothing is
+    // saved, so the next normal start has the user's own choices).
+    if (drift::safemode::active()) {
+        m_decodeMode = QStringLiteral("software");
+        m_previewQuality = QStringLiteral("eighth");
+    }
     ClipReaderPool::instance().setHardwareDecodeMode(decodeModeFromString(m_decodeMode),
                                                      decodeBackendFromString(m_decodeMode));
     m_hwFallbackCount = ClipReader::hardwareFallbackCount();
@@ -213,7 +220,8 @@ PlaybackEngine::PlaybackEngine(QObject *parent)
         isKnownProxySize(size))
         drift::ReverseProxyCache::previewProxyShortSide = size;
 
-    m_adaptivePreview = settings.value(QStringLiteral("preview/adaptive"), true).toBool();
+    m_adaptivePreview = settings.value(QStringLiteral("preview/adaptive"), true).toBool()
+        && !drift::safemode::active();
     connect(&m_compositor, &CompositorService::adaptiveScaleChanged, this, [this](double scale) {
         const int level = scale < 0.3 ? 2 : (scale < 0.7 ? 1 : 0);
         if (level == m_adaptiveLevel)

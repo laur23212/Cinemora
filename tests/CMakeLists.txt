@@ -554,3 +554,8 @@ add_test(NAME Mogrt COMMAND tst_mogrt)
 add_executable(tst_adaptivepolicy tst_adaptivepolicy.cpp)
 target_include_directories(tst_adaptivepolicy PRIVATE ../src)
 add_test(NAME AdaptivePolicy COMMAND tst_adaptivepolicy)
+
+# Pure C++ (no Qt): when a start-up goes to safe mode.
+add_executable(tst_safemode tst_safemode.cpp)
+target_include_directories(tst_safemode PRIVATE ../src)
+add_test(NAME SafeMode COMMAND tst_safemode)

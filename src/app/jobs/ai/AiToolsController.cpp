@@ -1,5 +1,7 @@
 #include "app/jobs/ai/AiToolsController.h"
 
+#include "core/base/SafeMode.h"
+
 #include "app/editor/AppController.h"
 #include "app/editor/ProjectFileController.h"
 #include "app/jobs/JobRegistry.h"
@@ -229,6 +231,11 @@ void AiToolsController::setCaptionStatus(const QString &status)
 
 bool AiToolsController::createCaptions(const QString &language, int maxWordsPerCue)
 {
+    if (drift::safemode::active()) {
+        m_app->setLastMessage(tr("AI tools are off in safe mode. Restart normally to use them."),
+                              QStringLiteral("warning"));
+        return false;
+    }
     if (m_captioning) {
         m_app->setLastMessage(tr("Captions are already being made"), QStringLiteral("warning"));
         return false;

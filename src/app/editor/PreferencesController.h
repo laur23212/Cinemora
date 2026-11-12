@@ -147,6 +147,8 @@ class PreferencesController : public QObject
     // False inside Flatpak: the sandbox dies with its first process, taking a relaunched child
     // with it, so the UI asks for a manual restart instead.
     Q_PROPERTY(bool canRestart READ canRestart CONSTANT)
+    // This run started in safe mode (GPU, local AI, add-ons and custom templates off).
+    Q_PROPERTY(bool safeMode READ safeMode CONSTANT)
 
 public:
     explicit PreferencesController(QObject *parent = nullptr);
@@ -298,6 +300,9 @@ public:
     // arms a relaunch for aboutToQuit, so the caller still closes the window and the
     // unsaved-changes prompt gets its say.
     Q_INVOKABLE void restartApp();
+    bool safeMode() const;
+    // Leaves safe mode: clears the failed-start count and starts again without --safe-mode.
+    Q_INVOKABLE void restartNormally();
     // Writes every preference except machine-specific and secret ones as JSON. Import applies the
     // same filter, then asks for a restart. Both return "" on success, else the message to show.
     Q_INVOKABLE QString exportSettings(const QUrl &url);

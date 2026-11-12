@@ -1,5 +1,7 @@
 #include "engine/addons/AddonRegistry.h"
 
+#include "core/base/SafeMode.h"
+
 #include <QDebug>
 #include <QDir>
 #include <QFileInfo>
@@ -139,6 +141,10 @@ void rebuildLocked()
 {
     g_addons.clear();
     g_initialized = true;
+    // Safe mode: no add-ons (they can bring their own effects and code paths). Nothing is
+    // deleted, and writeRegistryLocked refuses so the empty list is never saved over the real one.
+    if (drift::safemode::active())
+        return;
     readRegistryLocked();
     scanCustomLocked();
 }
@@ -151,6 +157,11 @@ void ensureLoadedLocked()
 
 bool writeRegistryLocked(QString *error)
 {
+    if (drift::safemode::active()) {
+        if (error)
+            *error = QStringLiteral("add-ons cannot be changed in safe mode");
+        return false;
+    }
     if (!QDir().mkpath(addonsDir())) {
         if (error)
             *error = QStringLiteral("cannot create %1").arg(addonsDir());
