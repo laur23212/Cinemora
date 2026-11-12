@@ -93,12 +93,14 @@ QtObject {
                     tip: qsTr("Add camera — one viewpoint the whole timeline is seen through. With a camera already there, adds a new camera clip (a cut to a new framing) at the playhead") }
     })
 
+    // Dafin: groups are Edit | History | Tools | Audio and links | Delete, with the destructive
+    // Delete last and apart. Only the default: a stored (customised) layout is used as saved.
     readonly property var defaultToolbarItems: [
         "select", "cut", "keyframe", "snap", "speedControl", "freezeFrame", "deleteLeft", "deleteRight",
         "separator", "undo", "redo",
-        "delete", "separator", "chromaKey", "motionTrack", "syncAudio", "beatMarkers", "autoDuck", "separator",
+        "separator", "chromaKey", "motionTrack", "syncAudio", "beatMarkers", "autoDuck", "separator",
         "separateAudio",
-        "unlink", "link"
+        "unlink", "link", "separator", "delete"
     ]
     // Dafin's tools, which join a toolbar arranged before they existed as a group after Delete
     // (or, when some are already there, right after the last of them).
