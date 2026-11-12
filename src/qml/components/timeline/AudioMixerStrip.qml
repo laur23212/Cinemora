@@ -531,11 +531,11 @@ Rectangle {
                                         }
                                     }
 
-                                    MouseArea {
+                                    ClickableArea {
                                         id: addTrackMouse
                                         anchors.fill: parent
-                                        hoverEnabled: true
-                                        cursorShape: Qt.PointingHandCursor
+                                        radius: parent.radius
+                                        showHover: false
                                         onClicked: EditorState.addTrack("audio")
                                     }
                                 }
