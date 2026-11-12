@@ -96,8 +96,6 @@ QtObject {
     readonly property var defaultToolbarItems: [
         "select", "cut", "keyframe", "snap", "speedControl", "freezeFrame", "deleteLeft", "deleteRight",
         "separator", "undo", "redo",
-        "delete", "separator", "chromaKey", "motionTrack", "syncAudio", "separator", "separateAudio",
-        "select", "cut", "keyframe", "snap", "deleteLeft", "deleteRight", "separator", "undo", "redo",
         "delete", "separator", "chromaKey", "motionTrack", "syncAudio", "beatMarkers", "autoDuck", "separator",
         "separateAudio",
         "unlink", "link"
