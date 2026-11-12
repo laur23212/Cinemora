@@ -1363,11 +1363,13 @@ ApplicationWindow {
             multicamWindowLoader.ensure().openSession()
         }
 
-        // Dafin: the timeline toolbar's chroma key was just added; its Tolerance, Edge Softness
-        // and Key Colour are in the Effects tab, which is shown once the selection has moved to
-        // the clip carrying it.
+        // Dafin: a chroma key was just added. A video or image clip shows its settings in the
+        // Video tab, under the Chroma Key switch; keyed from its effects adjustment, the Effects
+        // tab shows them.
         function onChromaKeyAdded() {
-            Qt.callLater(() => ShellBridge.navigate("panel:properties.effects"))
+            const kind = (EditorState.selectedClipData || {}).kind || ""
+            const tab = kind === "video" || kind === "image" ? "video" : "effects"
+            Qt.callLater(() => ShellBridge.navigate("panel:properties." + tab))
         }
 
         function onProjectLayoutChosenChanged() {

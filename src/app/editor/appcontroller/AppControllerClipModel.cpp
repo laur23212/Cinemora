@@ -125,8 +125,10 @@ QStringList inspectorCaps(const drift::Clip &clip, drift::TrackType trackType)
 
     switch (clip.type) {
     case ClipType::Video:
+        // Dafin: videoBasic is the Video tab (Filmora's size, position, chroma key and masks).
         caps << QStringLiteral("transformable") << QStringLiteral("blendable") << QStringLiteral("animatable")
-             << QStringLiteral("audible") << QStringLiteral("retimable") << QStringLiteral("stabilizable");
+             << QStringLiteral("audible") << QStringLiteral("retimable") << QStringLiteral("stabilizable")
+             << QStringLiteral("videoBasic");
         break;
     case ClipType::Composite:
         caps << QStringLiteral("transformable") << QStringLiteral("blendable") << QStringLiteral("animatable")
@@ -144,7 +146,8 @@ QStringList inspectorCaps(const drift::Clip &clip, drift::TrackType trackType)
              << QStringLiteral("subtitle");
         break;
     case ClipType::Image:
-        caps << QStringLiteral("transformable") << QStringLiteral("blendable") << QStringLiteral("animatable");
+        caps << QStringLiteral("transformable") << QStringLiteral("blendable") << QStringLiteral("animatable")
+             << QStringLiteral("videoBasic");
         break;
     case ClipType::Shape:
         caps << QStringLiteral("transformable") << QStringLiteral("blendable") << QStringLiteral("animatable")
@@ -1121,6 +1124,8 @@ void AppController::syncClipModels()
                                 audioHosts.value(clip.id, nullptr)));
             // Dafin: the keyframe diamonds drawn on the clip.
             rows.last().keyTimes = clipKeyframeTimes(ti, ci);
+            // Dafin: the speed strip ("Fast 3.00×"), AppControllerSpeed.cpp.
+            fillSpeedStrip(rows.last(), clip);
         }
         m_clipModels[ti]->setRows(std::move(rows));
         m_clipModels[ti]->setDecorations(trackDecorations(track, laneIndexes));

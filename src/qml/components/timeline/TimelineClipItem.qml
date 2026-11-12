@@ -75,6 +75,14 @@ Item {
     property real trimPreviewIn: 0
     property real trimPreviewOut: 0
 
+    // Dafin: with Show Speed Control on (right-click › Speed), dragging an end retimes the clip
+    // instead of trimming it; a ramp keeps ordinary trims. The drag's live speed is shown on the
+    // speed strip (TimelineSpeedStrip) through these.
+    readonly property bool speedMode: !!clipData.speedControl && (clipData.speedKind || "") !== "ramp"
+    property bool speedDragActive: false
+    property string speedDragKind: ""
+    property string speedDragLabel: ""
+
     // The A/V companion of the clip being trimmed. The commit hands it identical timing, so it
     // follows the same preview rather than sitting still until release.
     readonly property bool trimFollowFollower: panel.trimFollowActive
@@ -332,6 +340,11 @@ Item {
     // Cool Edit-style volume line with draggable dots, on clips that carry sound. Declared
     // first so the fade dots and trim handles below stay on top of it at the clip's edges.
     TimelineVolumeEnvelope {
+        owner: clipItem
+    }
+
+    // Dafin: the speed strip ("Fast 3.00×"), below the clip's name band.
+    TimelineSpeedStrip {
         owner: clipItem
     }
 

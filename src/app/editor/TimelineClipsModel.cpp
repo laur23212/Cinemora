@@ -47,6 +47,9 @@ QList<int> changedRoles(const TimelineClipsModel::Row &a, const TimelineClipsMod
     diff(a.audioEffects != b.audioEffects, TimelineClipsModel::AudioEffectsRole);
     diff(a.volumeKeys != b.volumeKeys, TimelineClipsModel::VolumeKeysRole);
     diff(a.keyTimes != b.keyTimes, TimelineClipsModel::KeyTimesRole);
+    diff(a.speedKind != b.speedKind, TimelineClipsModel::SpeedKindRole);
+    diff(a.speedLabel != b.speedLabel, TimelineClipsModel::SpeedLabelRole);
+    diff(a.speedControl != b.speedControl, TimelineClipsModel::SpeedControlRole);
     return roles;
 }
 
@@ -215,6 +218,9 @@ QVariant TimelineClipsModel::data(const QModelIndex &index, int role) const
     case AudioEffectsRole: return row.audioEffects;
     case VolumeKeysRole: return row.volumeKeys;
     case KeyTimesRole: return row.keyTimes;
+    case SpeedKindRole: return row.speedKind;
+    case SpeedLabelRole: return row.speedLabel;
+    case SpeedControlRole: return row.speedControl;
     default: return {};
     }
 }
@@ -249,6 +255,9 @@ QHash<int, QByteArray> TimelineClipsModel::roleNames() const
         {AudioEffectsRole, "audioEffects"},
         {VolumeKeysRole, "volumeKeys"},
         {KeyTimesRole, "keyTimes"},
+        {SpeedKindRole, "speedKind"},
+        {SpeedLabelRole, "speedLabel"},
+        {SpeedControlRole, "speedControl"},
     };
 }
 

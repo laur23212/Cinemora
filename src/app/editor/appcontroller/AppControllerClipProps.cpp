@@ -1,5 +1,6 @@
 #include "engine/platform/AndroidUri.h"
 #include "app/editor/appcontroller/AppControllerInternal.h"
+#include "core/animation/SpeedRamp.h"
 #include "app/jobs/vision/TrackingController.h"
 #include "engine/packages/effects/EffectCatalog.h"
 #include "app/mcp/McpController.h"
@@ -423,7 +424,8 @@ void AppController::previewSetClipSpeed(int trackIndex, int clipIndex, double sp
         beginPreviewDrag(tr("Speed changed"));
 
     const drift::Project before = m_project;
-    clip.speed = qBound(0.25, speed, 4.0);
+    // Dafin: Filmora's 0.01×–100× (drift::kMinUniformSpeed..kMaxUniformSpeed).
+    clip.speed = qBound(drift::kMinUniformSpeed, speed, drift::kMaxUniformSpeed);
     clip.syncSrcOutFromSpeed(sourceDurationForClip(clip));
     syncLinkedPartnersFrom(m_project, clip);
     drift::retimeLinkedSubtitles(before, m_project);
@@ -1606,10 +1608,15 @@ bool AppController::setClipSpeed(int trackIndex, int clipIndex, double speed)
         return false;
 
     const drift::Project before = m_project;
-    clip.speed = qBound(0.25, speed, 4.0);
+    const drift::TimeUs oldEnd = clip.timelineEnd();
+    // Dafin: Filmora's 0.01×–100× (drift::kMinUniformSpeed..kMaxUniformSpeed).
+    clip.speed = qBound(drift::kMinUniformSpeed, speed, drift::kMaxUniformSpeed);
     clip.syncSrcOutFromSpeed(sourceDurationForClip(clip));
+    const QString clipId = clip.id;
     syncLinkedPartnersFrom(m_project, clip);
     drift::retimeLinkedSubtitles(before, m_project);
+    // Dafin: a slower clip moves what it would run into along (AppControllerSpeed.cpp).
+    settleRetimedClip(clipId, oldEnd);
     pushProjectEdit(before, tr("Speed changed"));
     finishEdit(tr("Clip speed updated"));
     return true;

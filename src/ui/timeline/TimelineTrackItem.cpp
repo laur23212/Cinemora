@@ -738,8 +738,10 @@ void TimelineTrackItem::updateActiveSet()
         for (int i = 0; i < rows.size(); ++i) {
             // A clip whose volume line has been shaped keeps its overlay, so the line and its
             // dots stay visible like in an audio editor, not only while hovered or selected.
-            // Dafin: so does a clip with keyframes, whose diamonds are drawn by that overlay.
-            if (isSelected(i) || rows.at(i).volumeKeys.size() >= 2 || !rows.at(i).keyTimes.isEmpty())
+            // Dafin: so does a clip with keyframes, whose diamonds are drawn by that overlay, and one
+            // showing its speed strip ("Fast 3.00×").
+            if (isSelected(i) || rows.at(i).volumeKeys.size() >= 2 || !rows.at(i).keyTimes.isEmpty()
+                || !rows.at(i).speedKind.isEmpty())
                 ids.insert(rows.at(i).id);
         }
     }

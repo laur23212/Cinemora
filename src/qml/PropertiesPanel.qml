@@ -70,6 +70,9 @@ PanelFrame {
         property var textExpandedLayerIds: ({})
         property real contentFieldHeight: 96
         property var shapeExpandedLayerIds: ({})
+        // Dafin: the Video tab's page ("basic" or "mask") and its open sections.
+        property string videoPage: "basic"
+        property var videoSections: ({ transform: true, compositing: false, chroma: true })
     }
 
     property int activeTab: locked ? tabIndexOf(lockedTab) : 0
@@ -148,6 +151,8 @@ PanelFrame {
     // Audio is one: volume is keyframeable and edited there.
     readonly property var tabs: [
         { id: "general", label: qsTr("General"), icon: Theme.icons.info, group: 0, needs: [] },
+        // Dafin: Filmora's Video tab — size, position, chroma key and masks of a video or image.
+        { id: "video", label: qsTr("Video"), icon: Theme.icons.film, group: 0, needs: ["videoBasic"], keyframes: true },
         { id: "text", label: qsTr("Text"), icon: Theme.icons.type, group: 0, needs: ["textStyled"], keyframes: true },
         // Dafin: a .mogrt title's own controls (MogrtInspector).
         { id: "template", label: qsTr("Template"), icon: Theme.icons.type, group: 0, needs: ["mogrt"] },
@@ -234,8 +239,9 @@ PanelFrame {
     }
 
     // Dafin: selecting a different title — a text clip, a .mogrt template title or a Lottie title —
-    // opens its own controls rather than General, as Filmora opens a title's properties. Only on
-    // a new selection, so a tab picked by hand for the same clip stays.
+    // opens its own controls rather than General, as Filmora opens a title's properties; a video
+    // or image opens on its Video tab (size, position, chroma key, masks). Only on a new selection,
+    // so a tab picked by hand for the same clip stays.
     property string _lastSelectedClipId: ""
     function openTitleTab() {
         const id = root.hasSelection ? (root.clipData.id || "") : ""
@@ -244,7 +250,7 @@ PanelFrame {
         root._lastSelectedClipId = id
         if (root.locked || id.length === 0)
             return
-        for (const tabId of ["template", "text", "vector"]) {
+        for (const tabId of ["template", "text", "vector", "video"]) {
             if (root.tabVisible(tabId)) {
                 root.activeTab = root.tabIndexOf(tabId)
                 return
@@ -503,6 +509,20 @@ PanelFrame {
                     active: root.currentTabId === "general"
                     visible: active
                     sourceComponent: Component { GeneralInspector { width: tabColumn.width } }
+                }
+
+                Loader {
+                    active: root.currentTabId === "video"
+                    visible: active
+                    sourceComponent: Component {
+                        VideoInspector {
+                            width: tabColumn.width
+                            page: inspectorUi.videoPage
+                            sections: inspectorUi.videoSections
+                            onPageChanged: inspectorUi.videoPage = page
+                            onSectionsChanged: inspectorUi.videoSections = sections
+                        }
+                    }
                 }
 
                 Loader {

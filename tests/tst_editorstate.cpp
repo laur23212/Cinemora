@@ -102,6 +102,7 @@
 #include "core/interchange/OtioReader.h"
 #include "core/project/Project.h"
 #include "core/edit/TimelineOps.h"
+#include "core/animation/SpeedRamp.h"
 #include "engine/encode/export/Exporter.h"
 #include "engine/encode/writers/MatteWriter.h"
 #include "app/editor/ProjectFileController.h"
@@ -159,6 +160,13 @@ private slots:
     void effectStackCopyPasteAppendsAndRescales();
     void chromaKeyHueIsFlaggedForTheColourSwatch();
     void splitScreenFillsCellsWithCoveredMaskedClips();
+    // Dafin: Filmora-style speed and the Video tab (AppControllerSpeed.cpp, AppControllerDafin.cpp).
+    void speedRampPresetRetimesTheClipInPlace();
+    void freezeFrameHoldsThePlayheadFrameInsideTheClip();
+    void speedControlDragRetimesInsteadOfTrimming();
+    void slowerClipMovesWhatItRunsInto();
+    void speedStripShowsOnRetimedClipsAndWithSpeedControl();
+    void chromaKeyResetKeepsTheColourAndSwitchesInPlace();
     void pastedEffectsKeepTheKeyframeGraphSelection();
     void copiedSingleEffectRoutesToTheRightList();
     void pastedAudioEffectsAreDroppedOnClipsWithNoAudio();
@@ -10589,6 +10597,208 @@ void EditorStateTest::chromaKeyHueIsFlaggedForTheColourSwatch()
     for (const QVariant &value : contrast.value(QStringLiteral("params")).toList())
         QVERIFY(!value.toMap().value(QStringLiteral("hue")).toBool());
 }
+
+// Dafin: a speed ramp preset retimes the clip itself (not a copy on a new track), and what it
+// grows into moves along.
+void EditorStateTest::speedRampPresetRetimesTheClipInPlace()
+{
+    AssetLibrary library;
+    AppController state(&library);
+    appendTwoVideoClips(*state.project()); // clip-0 [0, 2) s, clip-1 [2, 6) s
+    drift::Project &project = *state.project();
+
+    // Jumper is mostly 0.5×, so the 2 s clip plays longer and would run into the next one.
+    state.applySpeedRampPreset(0, 0, QStringLiteral("jumper"));
+    const drift::Clip ramped = project.tracks().at(0).clips.at(0);
+    QCOMPARE(project.tracks().size(), 1);
+    QCOMPARE(ramped.id, QStringLiteral("clip-0"));
+    QVERIFY(ramped.hasSpeedCurve());
+    QCOMPARE(state.clipSpeedRampPreset(0, 0), QStringLiteral("jumper"));
+    QCOMPARE(ramped.timelineDuration, ramped.speedCurve.retimedDurationUs(ramped.srcOut - ramped.srcIn));
+    QVERIFY(ramped.timelineDuration > drift::secondsToUs(2.0));
+    QCOMPARE(project.tracks().at(0).clips.at(1).timelineStart, ramped.timelineEnd());
+    QCOMPARE(state.clipSpeedCurvePoints(0, 0).size(), ramped.speedCurve.points().size());
+
+    state.applySpeedRampPreset(0, 0, QStringLiteral("none"));
+    QVERIFY(!project.tracks().at(0).clips.at(0).hasSpeedCurve());
+    QCOMPARE(project.tracks().at(0).clips.at(0).timelineDuration, drift::secondsToUs(2.0));
+    QCOMPARE(state.clipSpeedRampPreset(0, 0), QStringLiteral("none"));
+
+    // One undo step each.
+    state.undo();
+    QCOMPARE(state.clipSpeedRampPreset(0, 0), QStringLiteral("jumper"));
+    state.undo();
+    QVERIFY(!project.tracks().at(0).clips.at(0).hasSpeedCurve());
+    QCOMPARE(project.tracks().at(0).clips.at(1).timelineStart, drift::secondsToUs(2.0));
+}
+
+// Dafin: Speed › Freeze frame holds the frame at the playhead inside the clip and pushes the rest
+// of it (and what follows) later, as Filmora does.
+void EditorStateTest::freezeFrameHoldsThePlayheadFrameInsideTheClip()
+{
+    AssetLibrary library;
+    AppController state(&library);
+    appendTwoVideoClips(*state.project()); // clip-0 [0, 2) s, clip-1 [2, 6) s
+    drift::Project &project = *state.project();
+
+    state.setPlayheadSeconds(3.0); // 1 s into clip-1
+    state.insertFreezeFrame(0, 1, 5.0);
+    {
+        const QList<drift::Clip> &clips = project.tracks().at(0).clips;
+        QCOMPARE(clips.size(), 4);
+        const drift::Clip &head = clips.at(1);
+        const drift::Clip &hold = clips.at(2);
+        const drift::Clip &tail = clips.at(3);
+        QCOMPARE(head.id, QStringLiteral("clip-1"));
+        QCOMPARE(head.timelineDuration, drift::secondsToUs(1.0));
+        QVERIFY(drift::isFreezeFrameClip(hold));
+        QCOMPARE(hold.timelineStart, drift::secondsToUs(3.0));
+        QCOMPARE(hold.timelineDuration, drift::secondsToUs(5.0));
+        QVERIFY(std::llabs(hold.timelineToSourceUs(hold.timelineStart + drift::secondsToUs(4.0))
+                           - drift::secondsToUs(1.0)) <= 1);
+        QCOMPARE(tail.timelineStart, drift::secondsToUs(8.0));
+        QCOMPARE(tail.timelineDuration, drift::secondsToUs(3.0));
+        QCOMPARE(tail.srcIn, drift::secondsToUs(1.0));
+        // The held frame is selected, so Speed › Duration is right there.
+        QCOMPARE(state.selectedClipData().value(QStringLiteral("id")).toString(), hold.id);
+    }
+
+    // Its length is its own to change, and it stays a freeze frame.
+    state.setClipDurationSeconds(0, 2, 2.0);
+    QVERIFY(drift::isFreezeFrameClip(project.tracks().at(0).clips.at(2)));
+    QCOMPARE(project.tracks().at(0).clips.at(2).timelineDuration, drift::secondsToUs(2.0));
+
+    state.undo();
+    state.undo();
+    QCOMPARE(project.tracks().at(0).clips.size(), 2);
+    QCOMPARE(project.tracks().at(0).clips.at(1).timelineDuration, drift::secondsToUs(4.0));
+
+    // Not on the clip: nothing happens.
+    state.setPlayheadSeconds(10.0);
+    state.insertFreezeFrame(0, 1, 5.0);
+    QCOMPARE(project.tracks().at(0).clips.size(), 2);
+}
+
+// Dafin: with Show Speed Control on, dragging a clip's end changes its speed and keeps its source.
+void EditorStateTest::speedControlDragRetimesInsteadOfTrimming()
+{
+    AssetLibrary library;
+    AppController state(&library);
+    appendTwoVideoClips(*state.project()); // clip-0 [0, 2) s, clip-1 [2, 6) s
+    drift::Project &project = *state.project();
+
+    state.setSpeedControlVisible(0, 0, true);
+    QVERIFY(state.speedControlVisible(0, 0));
+    QVERIFY(!state.speedControlVisible(0, 1));
+
+    // The end pulled in to 1 s plays the same 2 s of source twice as fast.
+    QVERIFY(state.retimeClipEdge(0, 0, 1, 1.0));
+    QCOMPARE(project.tracks().at(0).clips.at(0).speed, 2.0);
+    QCOMPARE(project.tracks().at(0).clips.at(0).timelineDuration, drift::secondsToUs(1.0));
+    QCOMPARE(project.tracks().at(0).clips.at(0).srcOut, drift::secondsToUs(2.0));
+
+    // Pulled out past its neighbour it stops there: 2 s of source over 2 s is 1×.
+    const QVariantMap plan = state.previewClipRetime(0, 0, 1, 5.0);
+    QVERIFY(plan.value(QStringLiteral("ok")).toBool());
+    QCOMPARE(plan.value(QStringLiteral("duration")).toDouble(), 2.0);
+    QCOMPARE(plan.value(QStringLiteral("kind")).toString(), QStringLiteral("normal"));
+
+    // The start edge keeps the end where it is: clip-1's 4 s of source in [4, 6) s is 2×.
+    QVERIFY(state.retimeClipEdge(0, 1, -1, 4.0));
+    QCOMPARE(project.tracks().at(0).clips.at(1).timelineStart, drift::secondsToUs(4.0));
+    QCOMPARE(project.tracks().at(0).clips.at(1).timelineEnd(), drift::secondsToUs(6.0));
+    QCOMPARE(project.tracks().at(0).clips.at(1).speed, 2.0);
+
+    state.undo();
+    state.undo();
+    QCOMPARE(project.tracks().at(0).clips.at(0).speed, 1.0);
+    QCOMPARE(project.tracks().at(0).clips.at(1).timelineStart, drift::secondsToUs(2.0));
+}
+
+// Dafin: Filmora's 0.01×–100×; a clip slowed into the next one moves it along, a faster one leaves
+// its gap.
+void EditorStateTest::slowerClipMovesWhatItRunsInto()
+{
+    AssetLibrary library;
+    AppController state(&library);
+    appendTwoVideoClips(*state.project()); // clip-0 [0, 2) s, clip-1 [2, 6) s
+    drift::Project &project = *state.project();
+
+    QVERIFY(state.setClipSpeed(0, 0, 0.5));
+    QCOMPARE(project.tracks().at(0).clips.at(0).timelineDuration, drift::secondsToUs(4.0));
+    QCOMPARE(project.tracks().at(0).clips.at(1).timelineStart, drift::secondsToUs(4.0));
+
+    QVERIFY(state.setClipSpeed(0, 0, 100.0));
+    QCOMPARE(project.tracks().at(0).clips.at(0).speed, 100.0);
+    QCOMPARE(project.tracks().at(0).clips.at(1).timelineStart, drift::secondsToUs(4.0));
+    QVERIFY(state.setClipSpeed(0, 0, 500.0));
+    QCOMPARE(project.tracks().at(0).clips.at(0).speed, 100.0);
+
+    // Duration sets the speed that makes the clip last that long.
+    state.setClipDurationSeconds(0, 0, 1.0);
+    QCOMPARE(project.tracks().at(0).clips.at(0).speed, 2.0);
+    QCOMPARE(project.tracks().at(0).clips.at(0).timelineDuration, drift::secondsToUs(1.0));
+}
+
+// Dafin: the timeline's speed strip — always on a retimed clip, on a normal one once Show Speed
+// Control is on.
+void EditorStateTest::speedStripShowsOnRetimedClipsAndWithSpeedControl()
+{
+    AssetLibrary library;
+    AppController state(&library);
+    appendTwoVideoClips(*state.project());
+    state.notifyTracksChanged();
+    auto *model = qobject_cast<TimelineClipsModel *>(state.clipsModel(0));
+    QVERIFY(model);
+    QVERIFY(model->rows().at(0).speedKind.isEmpty());
+
+    state.setSpeedControlVisible(0, 0, true);
+    QCOMPARE(model->rows().at(0).speedKind, QStringLiteral("normal"));
+    QVERIFY(model->rows().at(0).speedControl);
+
+    QVERIFY(state.setClipSpeed(0, 1, 3.0));
+    QCOMPARE(model->rows().at(1).speedKind, QStringLiteral("fast"));
+    QCOMPARE(model->rows().at(1).speedLabel, QStringLiteral("Fast 3.00") + QChar(0x00D7));
+    QVERIFY(!model->rows().at(1).speedControl);
+
+    state.setSpeedControlVisible(0, 0, false);
+    QVERIFY(model->rows().at(0).speedKind.isEmpty());
+}
+
+// Dafin: the Video tab's chroma key — its switch keeps the media clip selected, and Reset puts the
+// settings back but keeps the colour that was picked.
+void EditorStateTest::chromaKeyResetKeepsTheColourAndSwitchesInPlace()
+{
+    AssetLibrary library;
+    AppController state(&library);
+    appendTwoVideoClips(*state.project());
+
+    state.selectClip(0, 0);
+    state.addEffect(0, 0, QStringLiteral("key.chroma"));
+    const int track = mediaTrackIndex(*state.project(), 0);
+    QVariantMap info = state.chromaKeyInfo(track, 0);
+    QVERIFY(info.value(QStringLiteral("present")).toBool());
+    QVERIFY(info.value(QStringLiteral("enabled")).toBool());
+    const int index = info.value(QStringLiteral("effectIndex")).toInt();
+
+    QVERIFY(state.setEffectParam(track, 0, index, QStringLiteral("u_keyHue"), 240.0));
+    QVERIFY(state.setEffectParam(track, 0, index, QStringLiteral("u_tolerance"), 0.9));
+    QVERIFY(state.setEffectParam(track, 0, index, QStringLiteral("u_pedestal"), 0.4));
+    state.resetChromaKey(track, 0);
+    QList<drift::Effect> stack = videoEffectsOf(*state.project(), mediaClip(*state.project(), 0, 0));
+    QCOMPARE(stack.at(index).parameters.value(QStringLiteral("u_keyHue")).toDouble(), 240.0);
+    QCOMPARE(stack.at(index).parameters.value(QStringLiteral("u_tolerance")).toDouble(), 0.5);
+    QCOMPARE(stack.at(index).parameters.value(QStringLiteral("u_pedestal")).toDouble(), 0.0);
+    state.undo();
+    stack = videoEffectsOf(*state.project(), mediaClip(*state.project(), 0, 0));
+    QCOMPARE(stack.at(index).parameters.value(QStringLiteral("u_tolerance")).toDouble(), 0.9);
+
+    state.setChromaKeyOn(track, 0, false);
+    QVERIFY(!state.chromaKeyInfo(track, 0).value(QStringLiteral("enabled")).toBool());
+    state.setChromaKeyOn(track, 0, true);
+    QVERIFY(state.chromaKeyInfo(track, 0).value(QStringLiteral("enabled")).toBool());
+}
+
 
 // The executable form of "appending never shifts an existing effect index": keyframe-graph
 // properties are addressed "fx.<n>.<key>", so a paste that prepended or replaced would silently

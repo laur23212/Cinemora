@@ -4,6 +4,7 @@
 #include "engine/decode/readers/ClipReaderPool.h"
 #include "engine/packages/transitions/TransitionCatalog.h"
 #include "core/project/clip/Clip.h"
+#include "core/animation/SpeedRamp.h"
 #include "core/edit/TimelineOps.h"
 #include "core/project/Transition.h"
 
@@ -146,6 +147,11 @@ void AudioMixer::readClipAudio(QVector<float> &out, const drift::Clip &clip, qui
     out.resize(qMax(0, outFrames) * 2);
     std::fill(out.begin(), out.end(), 0.0f);
     if (outFrames <= 0)
+        return;
+    // Dafin: past the 0.1×–8× the stretcher follows (a 20× fast-forward, a freeze frame) the
+    // retimer would clamp the tempo and the sound would slide away from the picture; it stays
+    // silent instead.
+    if (!drift::clipAudioFollowsSpeed(clip))
         return;
 
     const drift::TimeUs startUs = audibleStartUs >= 0 ? qMin(audibleStartUs, clip.timelineStart) : clip.timelineStart;

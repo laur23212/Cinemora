@@ -13,6 +13,7 @@
 #include "core/animation/ClipAnimation.h"
 #include "core/project/media/ImageSequence.h"
 #include "core/animation/Keyframe.h"
+#include "core/animation/SpeedRamp.h"
 #include "core/project/Project.h"
 #include "core/project/clip/Stabilize.h"
 #include "core/shapes/ShapePath.h"
@@ -200,6 +201,12 @@ private slots:
     void speedCurveMappingIsMonotonic();
     void speedCurveSubRangePreservesShape();
     void speedCurveSerialization();
+    // Dafin: Filmora-style speed (core/animation/SpeedRamp).
+    void speedRampPresetsReadBackAsThemselves();
+    void speedRampPresetsAreSmoothAndInRange();
+    void speedKindNamesTheSpeedStrip();
+    void audioFollowsOnlyWhatTheStretcherCan();
+    void freezeFrameHoldsOneFrameAndItsProperties();
     void clipReverseAndFlipSerialization();
     void clipSplitMergeRoundTrip();
     void subtitleClipsMergeWithGaps();
@@ -3690,6 +3697,140 @@ void CoreTest::speedCurveSerialization()
     QCOMPARE(loadedMid.corner, true);
     QCOMPARE(out.speedCurve.retimedDurationUs(out.srcOut - out.srcIn), clip.timelineDuration);
 }
+
+void CoreTest::speedRampPresetsReadBackAsThemselves()
+{
+    const QList<drift::SpeedRampPreset> &presets = drift::speedRampPresets();
+    QCOMPARE(presets.size(), 6);
+    QStringList ids;
+    for (const drift::SpeedRampPreset &preset : presets) {
+        ids << preset.id;
+        const drift::SpeedCurve curve = drift::speedRampPresetCurve(preset.id);
+        QVERIFY2(!curve.isEmpty(), qPrintable(preset.id));
+        QCOMPARE(drift::matchSpeedRampPreset(curve), preset.id);
+        // Survives the project file's JSON round trip as the same preset.
+        QCOMPARE(drift::matchSpeedRampPreset(drift::SpeedCurve::fromJson(curve.toJson())), preset.id);
+    }
+    QCOMPARE(ids, (QStringList{QStringLiteral("montage"), QStringLiteral("hero"), QStringLiteral("bulletTime"),
+                               QStringLiteral("jumper"), QStringLiteral("flashIn"), QStringLiteral("flashOut")}));
+
+    QCOMPARE(drift::matchSpeedRampPreset(drift::SpeedCurve{}), QStringLiteral("none"));
+    QCOMPARE(drift::matchSpeedRampPreset(drift::SpeedCurve::flat(2.0)), QStringLiteral("custom"));
+    QVERIFY(drift::speedRampPresetCurve(QStringLiteral("none")).isEmpty());
+    QVERIFY(drift::speedRampPresetCurve(QStringLiteral("nonsense")).isEmpty());
+}
+
+void CoreTest::speedRampPresetsAreSmoothAndInRange()
+{
+    const drift::SpeedCurve hero = drift::speedRampPresetCurve(QStringLiteral("hero"));
+    // Fast on both sides of a slow-motion middle, through its knots.
+    QVERIFY(qAbs(hero.speedAt(0.25) - 5.0) < 0.05);
+    QVERIFY(qAbs(hero.speedAt(0.5) - 0.3) < 0.05);
+    QVERIFY(qAbs(hero.speedAt(0.75) - 5.0) < 0.05);
+    // Rounded rather than cornered: just past a peak the speed has barely moved.
+    QVERIFY(hero.speedAt(0.26) > 4.9);
+
+    for (const drift::SpeedRampPreset &preset : drift::speedRampPresets()) {
+        const drift::SpeedCurve curve = drift::speedRampPresetCurve(preset.id);
+        for (int i = 0; i <= 100; ++i) {
+            const double speed = curve.speedAt(i / 100.0);
+            QVERIFY2(speed >= drift::kMinCurveSpeed - 1e-9 && speed <= drift::kMaxCurveSpeed + 1e-9,
+                     qPrintable(preset.id));
+        }
+    }
+
+    // A ramp changes how long the clip plays: Bullet Time is slower overall than its brisk 2×
+    // stretches alone, Flash in shorter than the same clip at 1×.
+    const drift::TimeUs span = drift::secondsToUs(10.0);
+    QVERIFY(drift::speedRampPresetCurve(QStringLiteral("bulletTime")).retimedDurationUs(span) > span / 2);
+    QVERIFY(drift::speedRampPresetCurve(QStringLiteral("flashIn")).retimedDurationUs(span) < span);
+}
+
+void CoreTest::speedKindNamesTheSpeedStrip()
+{
+    drift::Clip clip;
+    clip.type = drift::ClipType::Video;
+    clip.srcIn = 0;
+    clip.srcOut = drift::secondsToUs(10.0);
+    clip.timelineDuration = clip.srcOut;
+    QCOMPARE(drift::speedKind(clip), QStringLiteral("normal"));
+    clip.speed = 2.0;
+    QCOMPARE(drift::speedKind(clip), QStringLiteral("fast"));
+    clip.speed = 0.5;
+    QCOMPARE(drift::speedKind(clip), QStringLiteral("slow"));
+    clip.speed = 0.01; // the slowest uniform speed is still a speed, not a freeze
+    QCOMPARE(drift::speedKind(clip), QStringLiteral("slow"));
+    QVERIFY(!drift::isFreezeFrameClip(clip));
+    clip.speedCurve = drift::speedRampPresetCurve(QStringLiteral("montage"));
+    QCOMPARE(drift::speedKind(clip), QStringLiteral("ramp"));
+
+    drift::Clip freeze = clip;
+    drift::makeFreezeFrame(freeze, drift::secondsToUs(3.0), drift::secondsToUs(5.0));
+    QCOMPARE(drift::speedKind(freeze), QStringLiteral("freeze"));
+}
+
+void CoreTest::audioFollowsOnlyWhatTheStretcherCan()
+{
+    drift::Clip clip;
+    clip.type = drift::ClipType::Audio;
+    for (const double speed : {1.0, 0.1, 0.5, 4.0, 8.0}) {
+        clip.speed = speed;
+        QVERIFY2(drift::clipAudioFollowsSpeed(clip), qPrintable(QString::number(speed)));
+    }
+    for (const double speed : {0.01, 0.05, 8.5, 20.0, 100.0}) {
+        clip.speed = speed;
+        QVERIFY2(!drift::clipAudioFollowsSpeed(clip), qPrintable(QString::number(speed)));
+    }
+    // A ramp is held inside the stretcher's range by SpeedCurve itself.
+    clip.speed = 50.0;
+    clip.speedCurve = drift::speedRampPresetCurve(QStringLiteral("jumper"));
+    QVERIFY(drift::clipAudioFollowsSpeed(clip));
+
+    drift::Clip freeze;
+    freeze.srcOut = drift::secondsToUs(10.0);
+    drift::makeFreezeFrame(freeze, drift::secondsToUs(1.0), drift::secondsToUs(5.0));
+    QVERIFY(!drift::clipAudioFollowsSpeed(freeze));
+}
+
+void CoreTest::freezeFrameHoldsOneFrameAndItsProperties()
+{
+    drift::Clip clip;
+    clip.type = drift::ClipType::Video;
+    clip.timelineStart = drift::secondsToUs(2.0);
+    clip.srcIn = drift::secondsToUs(1.0);
+    clip.srcOut = drift::secondsToUs(11.0);
+    clip.timelineDuration = drift::secondsToUs(10.0);
+    clip.reverse = true;
+    clip.fadeInUs = drift::secondsToUs(1.0);
+    clip.opacity.setKeyframe(0, 0.2);
+    clip.opacity.setKeyframe(drift::secondsToUs(4.0), 1.0);
+
+    drift::Clip hold = clip;
+    const drift::TimeUs frameUs = drift::secondsToUs(6.5);
+    drift::makeFreezeFrame(hold, frameUs, drift::secondsToUs(5.0));
+    QVERIFY(drift::isFreezeFrameClip(hold));
+    QVERIFY(!hold.reverse);
+    QCOMPARE(hold.fadeInUs, drift::TimeUs{0});
+    QCOMPARE(hold.timelineDuration, drift::secondsToUs(5.0));
+    QCOMPARE(hold.timelineStart, clip.timelineStart);
+    // Every moment of the freeze shows the same source frame...
+    QVERIFY(qAbs(hold.timelineToSourceUs(hold.timelineStart) - frameUs) <= 1);
+    QVERIFY(qAbs(hold.timelineToSourceUs(hold.timelineStart + drift::secondsToUs(4.9)) - frameUs) <= 1);
+    // ...with its properties held where they were at the frozen moment, not animating on.
+    QCOMPARE(hold.opacity.evaluateAt(0), 0.2);
+    QCOMPARE(hold.opacity.evaluateAt(drift::secondsToUs(4.9)), 0.2);
+
+    drift::setFreezeFrameLength(hold, drift::secondsToUs(8.0));
+    QVERIFY(drift::isFreezeFrameClip(hold));
+    QCOMPARE(hold.timelineDuration, drift::secondsToUs(8.0));
+    QVERIFY(qAbs(hold.timelineToSourceUs(hold.timelineStart + drift::secondsToUs(7.9)) - frameUs) <= 1);
+    QCOMPARE(hold.opacity.evaluateAt(drift::secondsToUs(7.9)), 0.2);
+
+    drift::setFreezeFrameLength(hold, drift::secondsToUs(2.0));
+    QCOMPARE(hold.timelineDuration, drift::secondsToUs(2.0));
+    QCOMPARE(hold.opacity.evaluateAt(drift::secondsToUs(1.9)), 0.2);
+}
+
 
 void CoreTest::clipReverseAndFlipSerialization()
 {

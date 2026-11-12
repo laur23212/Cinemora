@@ -1349,7 +1349,8 @@ public:
     Q_INVOKABLE void clearClipKeyframes(int trackIndex, int clipIndex);
     // Dafin: the timeline toolbar's chroma key button (AppControllerDafin.cpp).
     // {eligible, present, enabled, effectIndex} for a video or image clip, or for the effects
-    // adjustment pinned to one (where the effect lives, and what is selected once it is added).
+    // adjustment pinned to one (where the effect lives). effectIndex counts in that adjustment's
+    // stack, so "fx.<effectIndex>.<param>" addresses the key's settings from the media clip.
     Q_INVOKABLE QVariantMap chromaKeyInfo(int trackIndex, int clipIndex) const;
     // Adds Drift's Chroma Key to the clip with the backdrop colour picked from the frame at the
     // playhead (the dominant saturated hue, the frame's edges counting most), or switches the key the
@@ -1361,6 +1362,48 @@ public:
     // its cell and cut to it with a mask. One undo step; returns how many clips were placed.
     Q_INVOKABLE QVariantList splitScreenLayouts() const;
     Q_INVOKABLE int applySplitScreen(const QString &layoutId);
+    // Dafin: the Video tab's Chroma Key switch. Adds the key like toggleChromaKey (backdrop colour
+    // read from the frame) or switches the existing one on or off. Either way the media clip stays
+    // selected, so the key's settings open right under the switch.
+    Q_INVOKABLE void setChromaKeyOn(int trackIndex, int clipIndex, bool on);
+    // Puts the key's Tolerance, Pedestal, Spill, Edge Feather, Edge Thickness and Alpha Channel back
+    // to the effect's defaults, keeping the picked colour. One undo step.
+    Q_INVOKABLE void resetChromaKey(int trackIndex, int clipIndex);
+    // The Video tab's Reset: position, size, rotation, flips and opacity back to the fitted
+    // defaults, and the chroma key's settings with them. One undo step.
+    Q_INVOKABLE void resetVideoBasics(int trackIndex, int clipIndex);
+
+    // Dafin speed (AppControllerSpeed.cpp): Filmora's Speed tab and the speed strip on clips.
+    // Uniform speed range offered by the UI (drift::kMinUniformSpeed..kMaxUniformSpeed).
+    Q_INVOKABLE double minUniformSpeed() const;
+    Q_INVOKABLE double maxUniformSpeed() const;
+    // Sets the speed that makes the clip last `seconds` (its source range stays). One undo step.
+    Q_INVOKABLE void setClipDurationSeconds(int trackIndex, int clipIndex, double seconds);
+    // [{id, label, points: [{pos, speed, inDx, inDy, outDx, outDy, corner}]}] — Montage, Hero,
+    // Bullet Time, Jumper, Flash in, Flash out.
+    Q_INVOKABLE QVariantList speedRampPresets() const;
+    // "none", a preset id, or "custom" for a ramp that is none of them.
+    Q_INVOKABLE QString clipSpeedRampPreset(int trackIndex, int clipIndex) const;
+    // Ramps the clip itself in place ("none" takes the ramp off). Clips after it on its tracks move
+    // along when it grows into them (or always, with ripple on). One undo step.
+    Q_INVOKABLE void applySpeedRampPreset(int trackIndex, int clipIndex, const QString &presetId);
+    // The clip's ramp points in the form above; empty when it has none.
+    Q_INVOKABLE QVariantList clipSpeedCurvePoints(int trackIndex, int clipIndex) const;
+    // The inline ramp graph: previewSet* while a point is dragged (inside beginPreviewDrag /
+    // cancelPreviewDrag), then setClipSpeedCurvePoints once as the undo step.
+    Q_INVOKABLE void previewSetClipSpeedCurvePoints(int trackIndex, int clipIndex, const QVariantList &points);
+    Q_INVOKABLE void setClipSpeedCurvePoints(int trackIndex, int clipIndex, const QVariantList &points);
+    // Holds the frame at the playhead for `seconds` inside the clip, pushing the rest of the clip
+    // (and its linked audio) later. (-1, -1) means the selected clip. One undo step.
+    Q_INVOKABLE void insertFreezeFrame(int trackIndex = -1, int clipIndex = -1, double seconds = 5.0);
+    // Right-click › Speed › Show Speed Control: the strip on the clip, and its ends retiming the
+    // clip instead of trimming it. Not saved with the project.
+    Q_INVOKABLE bool speedControlVisible(int trackIndex, int clipIndex) const;
+    Q_INVOKABLE void setSpeedControlVisible(int trackIndex, int clipIndex, bool visible);
+    // Dragging an end of a clip whose speed strip is shown: where that end may go and the speed it
+    // gives ({ok, start, duration, speed, kind}), then the one edit on release.
+    Q_INVOKABLE QVariantMap previewClipRetime(int trackIndex, int clipIndex, int edge, double seconds) const;
+    Q_INVOKABLE bool retimeClipEdge(int trackIndex, int clipIndex, int edge, double seconds);
     // Adds an imported Motion Graphics Template (Titles panel) as an editable title at the
     // playhead: its text, a matching built-in style and its length.
     Q_INVOKABLE void addTemplateTitle(const QString &text, const QString &presetId, double durationSeconds,
@@ -2433,6 +2476,15 @@ protected:
     // Dafin chroma key: adds the effect once the backdrop colour has been read (NaN: not found).
     void addChromaKey(const QString &clipId, double hue);
     bool m_chromaDetecting = false;
+    // Dafin speed: clips showing the speed strip (by id), and the one place a retime settles —
+    // clips after `clipId` on its tracks move by its change in length when it grew into them, or
+    // always with ripple on.
+    QSet<QString> m_speedControlIds;
+    void settleRetimedClip(const QString &clipId, drift::TimeUs oldEnd);
+    // The speed strip a timeline row shows: retimed clips always, others while Show Speed Control is on.
+    void fillSpeedStrip(TimelineClipsModel::Row &row, const drift::Clip &clip) const;
+    // Writes a ramp onto the clip and its linked partners, keeping keyframes on their source moments.
+    bool writeClipSpeedCurve(int trackIndex, int clipIndex, const drift::SpeedCurve &curve);
     drift::Clip *textClipAt(int trackIndex, int clipIndex);
     // A quick control's edit on the clip, without the undo bookkeeping.
     bool writeTemplateControl(int trackIndex, int clipIndex, const QString &controlId, const QVariant &value);

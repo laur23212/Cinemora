@@ -11,6 +11,9 @@ QtObject {
     // object each time, so a repeat request still lands; read on creation too, since the panel
     // may not exist yet.
     property var panelRequest: null
+    // Dafin: which page of the Speed tab a right-click › Speed entry asked for ("uniform" or
+    // "ramping"); the Speed tab takes it and clears it.
+    property string speedPageRequest: ""
     property var keyframesActionHandler: null
     property var maskingActionHandler: null
     property var trackingActionHandler: null

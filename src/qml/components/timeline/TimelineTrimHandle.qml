@@ -42,8 +42,9 @@ Rectangle {
         active: owner.tooltipsActive
         sourceComponent: Component {
             ThemedToolTip {
-                text: handle.edge < 0 ? qsTr("Drag to trim the start")
-                                      : qsTr("Drag to trim the end")
+                text: owner.speedMode ? qsTr("Drag to speed the clip up or slow it down")
+                      : handle.edge < 0 ? qsTr("Drag to trim the start")
+                                        : qsTr("Drag to trim the end")
                 visible: owner.showTrimHandles
                          && (handle.areaContainsMouse || handle.areaHovered)
                          && !handle.areaPressed
@@ -89,6 +90,36 @@ Rectangle {
         property real grabOffset: 0
         property real fingerSceneX: 0
         property real fingerSceneY: 0
+        // Dafin: this gesture retimes the clip (Show Speed Control) rather than trimming it.
+        property bool speedRetime: false
+
+        function speedLabel(p) {
+            if (p.kind === "freeze")
+                return qsTr("Freeze %1 s").arg(p.duration.toFixed(1))
+            const rate = p.speed.toFixed(2) + "×"
+            return p.kind === "fast" ? qsTr("Fast %1").arg(rate)
+                 : p.kind === "slow" ? qsTr("Slow %1").arg(rate)
+                 : qsTr("Normal %1").arg(rate)
+        }
+
+        // Dafin: the speed-control drag. The edge goes where the pointer is; the clip's source
+        // stays, so its speed is what changes. Previewed here, one edit on release.
+        function applyRetime(target) {
+            const p = EditorState.previewClipRetime(owner.trackIndex, owner.clipIndex, handle.edge, target)
+            if (!p.ok)
+                return
+            owner.trimPreviewStart = p.start
+            owner.trimPreviewDuration = p.duration
+            owner.trimPreviewIn = owner.clipData.inPoint || 0
+            owner.trimPreviewOut = owner.clipData.outPoint || 0
+            owner.trimPreviewActive = true
+            owner.speedDragKind = p.kind
+            owner.speedDragLabel = speedLabel(p)
+            owner.speedDragActive = true
+            owner.panel.setTrimFollow(owner.clipData.linkId, owner.clipData.id,
+                                     p.start, p.duration, owner.trimPreviewIn, owner.trimPreviewOut,
+                                     [], 0)
+        }
 
         function endTrimLock() {
             if (typeof owner.panel.setScrollLocked === "function")
@@ -109,6 +140,10 @@ Rectangle {
                 return
             lastTrimPx = px
             lastTrimSeconds = target
+            if (speedRetime) {
+                applyRetime(target)
+                return
+            }
             // Previewed, not applied. The reply reports what the trim would do -- snapping
             // and every limit that can stop this edge live inside it, and the one the user
             // needs told, the source running out, has no cue on screen at all.
@@ -171,6 +206,26 @@ Rectangle {
                 EditorState.selectClip(owner.trackIndex, owner.clipIndex)
             if (!wasSelected)
                 Haptics.select()
+            // Dafin: Show Speed Control — the drag retimes, committed once on release.
+            speedRetime = owner.speedMode
+            if (speedRetime) {
+                lastTrimPx = -2147483647
+                lastTrimSeconds = -1
+                owner.panel.snapGuideSeconds = -1
+                trimming = true
+                const rs = owner.clipData.start || 0
+                const redgeX = (handle.edge < 0 ? rs : rs + (owner.clipData.duration || 0))
+                               * owner.panel.pxPerSecond
+                grabOffset = redgeX - mapToItem(owner.trackRow, mouse.x, mouse.y).x
+                const rscene = mapToItem(null, mouse.x, mouse.y)
+                fingerSceneX = rscene.x
+                fingerSceneY = rscene.y
+                if (EditorState.playing)
+                    EditorState.playing = false
+                if (typeof owner.panel.setScrollLocked === "function")
+                    owner.panel.setScrollLocked(true)
+                return
+            }
             // One undo entry and one dirty mark for the whole drag. Without this a trim was
             // invisible to both: it never moved the undo stack index, and the dirty flag is
             // only ever set from that index changing — so trimming, closing, and being asked
@@ -209,6 +264,16 @@ Rectangle {
             endTrimLock()
             Haptics.reset()
             owner.panel.snapGuideSeconds = -1
+            if (trimming && speedRetime) {
+                trimming = false
+                speedRetime = false
+                owner.trimPreviewActive = false
+                owner.speedDragActive = false
+                owner.panel.clearTrimFollow()
+                if (lastTrimSeconds >= 0)
+                    EditorState.retimeClipEdge(owner.trackIndex, owner.clipIndex, handle.edge, lastTrimSeconds)
+                return
+            }
             if (trimming) {
                 trimming = false
                 // The one and only edit of the gesture. Dropping the preview first so the
@@ -225,6 +290,14 @@ Rectangle {
             endTrimLock()
             Haptics.reset()
             owner.panel.snapGuideSeconds = -1
+            if (trimming && speedRetime) {
+                trimming = false
+                speedRetime = false
+                owner.trimPreviewActive = false
+                owner.speedDragActive = false
+                owner.panel.clearTrimFollow()
+                return
+            }
             if (trimming) {
                 trimming = false
                 owner.trimPreviewActive = false

@@ -23,7 +23,85 @@ ThemedContextMenu {
         canPasteAttributes = EditorState.canPasteAttributes()
         canMergeTrackSubtitles = owner.trackType === "subtitle"
                 && EditorState.canMergeAllSubtitlesOnTrack(owner.trackIndex)
+        const clip = EditorState.clipAt(owner.trackIndex, owner.clipIndex) || {}
+        clipReversed = !!clip.reverse
         rebuildMoveToTrackMenu()
+        rebuildSpeedMenu()
+    }
+
+    // Dafin: Filmora's Speed submenu (Show Speed Control, Add Freeze Frame, Uniform Speed, Speed
+    // Ramping) and Reverse, on clips that play at a speed. A submenu cannot be hidden in place, so
+    // it is built for the clip each time the menu opens, as Move to track is.
+    readonly property bool retimable: owner.clipData.kind === "video" || owner.clipData.kind === "audio"
+                                      || owner.clipData.kind === "composite"
+    property bool clipReversed: false
+    property var speedMenu: null
+
+    function rebuildSpeedMenu() {
+        if (speedMenu) {
+            removeMenu(speedMenu)
+            speedMenu = null
+        }
+        if (!retimable)
+            return
+        const sub = speedMenuComponent.createObject(null)
+        let at = count
+        for (let i = 0; i < count; i++) {
+            if (itemAt(i) === reverseItem) {
+                at = i
+                break
+            }
+        }
+        insertMenu(at, sub)
+        speedMenu = sub
+    }
+
+    function openSpeedPage(page) {
+        if (!owner.selected)
+            EditorState.selectClip(owner.trackIndex, owner.clipIndex)
+        ShellBridge.speedPageRequest = page
+        Qt.callLater(() => ShellBridge.navigate("panel:properties.speed"))
+    }
+
+    Component {
+        id: speedMenuComponent
+        ThemedContextMenu {
+            id: speedSub
+            title: qsTr("Speed")
+            readonly property var clipOwner: clipContextMenu.owner
+            readonly property bool controlShown: EditorState.speedControlVisible(clipOwner.trackIndex,
+                                                                                 clipOwner.clipIndex)
+            readonly property bool overClip: EditorState.playheadSeconds >= (clipOwner.clipData.start || 0)
+                                             && EditorState.playheadSeconds < (clipOwner.clipData.start || 0)
+                                                                              + (clipOwner.clipData.duration || 0)
+            ThemedMenuItem {
+                text: speedSub.controlShown ? qsTr("Hide Speed Control") : qsTr("Show Speed Control")
+                icon.name: Theme.icons.gauge
+                onTriggered: EditorState.setSpeedControlVisible(speedSub.clipOwner.trackIndex,
+                                                                speedSub.clipOwner.clipIndex,
+                                                                !speedSub.controlShown)
+            }
+            ThemedMenuItem {
+                text: qsTr("Add Freeze Frame")
+                icon.name: Theme.icons.snowflake
+                visible: speedSub.clipOwner.clipData.kind === "video"
+                enabled: speedSub.overClip
+                // Five seconds, as in Filmora; Speed › Duration changes it afterwards.
+                onTriggered: EditorState.insertFreezeFrame(speedSub.clipOwner.trackIndex,
+                                                           speedSub.clipOwner.clipIndex, 5.0)
+            }
+            ThemedMenuItem {
+                text: qsTr("Uniform Speed")
+                icon.name: Theme.icons.gauge
+                onTriggered: clipContextMenu.openSpeedPage("uniform")
+            }
+            ThemedMenuItem {
+                text: qsTr("Speed Ramping")
+                icon.name: Theme.icons.gauge
+                visible: speedSub.clipOwner.clipData.kind !== "composite"
+                onTriggered: clipContextMenu.openSpeedPage("ramping")
+            }
+        }
     }
 
     property var moveToTrackMenu: null
@@ -233,6 +311,20 @@ ThemedContextMenu {
         visible: owner.clipData.kind === "video"
                  && typeof ShellBridge.main?.openRestore === "function"
         onTriggered: ShellBridge.main.openRestore(owner.trackIndex, owner.clipIndex)
+    }
+    ThemedMenuItem {
+        id: reverseItem
+        // Dafin: as in Filmora's menu, under Speed. Turning reverse on may need a reversed copy
+        // rendered first, which requestClipReverse confirms (ReverseProgressDialog).
+        text: clipContextMenu.clipReversed ? qsTr("Play forward") : qsTr("Reverse")
+        icon.name: Theme.icons.reset
+        visible: owner.clipData.kind === "video" || owner.clipData.kind === "audio"
+        onTriggered: {
+            if (clipContextMenu.clipReversed)
+                EditorState.setClipReverse(owner.trackIndex, owner.clipIndex, false)
+            else
+                EditorState.requestClipReverse(owner.trackIndex, owner.clipIndex)
+        }
     }
     ThemedMenuItem {
         text: qsTr("Unlink")

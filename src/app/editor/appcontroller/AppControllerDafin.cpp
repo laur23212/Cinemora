@@ -642,21 +642,90 @@ void AppController::addChromaKey(const QString &clipId, double hue)
     if (!redirectToEffectHost(&hostTrack, &hostClip, drift::AdjustmentKind::VideoEffects, /*create=*/true))
         return;
     m_project.tracks()[hostTrack].clips[hostClip].effects.append(effect);
-    // The adjustment carrying the stack is what shows the Effects tab (as addEffect does).
-    m_selectedTrack = hostTrack;
-    m_selectedClip = hostClip;
-    m_selection = {qMakePair(hostTrack, hostClip)};
+    // The media clip stays selected: its Video tab shows the key's settings right under the Chroma
+    // Key switch (Main.qml opens it on chromaKeyAdded). Keyed from its effects adjustment, that
+    // adjustment stays selected and the Effects tab shows them.
     pushProjectEdit(before, tr("Chroma key"));
     finishEdit(tr("Chroma key"));
 
+    const bool onMedia = !(trackIndex == hostTrack && clipIndex == hostClip);
     const bool green = detected && hue >= 70.0 && hue <= 170.0;
     const bool blue = detected && hue >= 180.0 && hue <= 260.0;
-    setLastMessage(green  ? tr("Chroma key on: green screen found. Fine-tune Tolerance and Edge Softness in Effects.")
-                   : blue ? tr("Chroma key on: blue screen found. Fine-tune Tolerance and Edge Softness in Effects.")
-                   : detected
-                       ? tr("Chroma key on, keyed on the frame's main colour. Change Key Colour in Effects if needed.")
-                       : tr("Chroma key on. Pick the backdrop with Key Colour's eyedropper in Effects."));
+    if (onMedia) {
+        setLastMessage(green  ? tr("Chroma key on: green screen found. Fine-tune it under Video › Chroma Key.")
+                       : blue ? tr("Chroma key on: blue screen found. Fine-tune it under Video › Chroma Key.")
+                       : detected
+                           ? tr("Chroma key on, keyed on the frame's main colour. Change the colour under Video › Chroma Key if needed.")
+                           : tr("Chroma key on. Pick the backdrop with Select Color under Video › Chroma Key."));
+    } else {
+        setLastMessage(green  ? tr("Chroma key on: green screen found. Fine-tune Tolerance and Edge Softness in Effects.")
+                       : blue ? tr("Chroma key on: blue screen found. Fine-tune Tolerance and Edge Softness in Effects.")
+                       : detected
+                           ? tr("Chroma key on, keyed on the frame's main colour. Change Key Colour in Effects if needed.")
+                           : tr("Chroma key on. Pick the backdrop with Key Colour's eyedropper in Effects."));
+    }
     emit chromaKeyAdded();
+}
+
+void AppController::setChromaKeyOn(int trackIndex, int clipIndex, bool on)
+{
+    const QVariantMap info = chromaKeyInfo(trackIndex, clipIndex);
+    if (!info.value(QStringLiteral("eligible")).toBool())
+        return;
+    const bool present = info.value(QStringLiteral("present")).toBool();
+    if (!present) {
+        if (on)
+            toggleChromaKey(trackIndex, clipIndex); // reads the backdrop colour, then adds the key
+        return;
+    }
+    if (info.value(QStringLiteral("enabled")).toBool() == on)
+        return;
+    int hostTrack = trackIndex;
+    int hostClip = clipIndex;
+    if (!redirectToEffectHost(&hostTrack, &hostClip, drift::AdjustmentKind::VideoEffects, /*create=*/false))
+        return;
+    setEffectEnabled(hostTrack, hostClip, info.value(QStringLiteral("effectIndex")).toInt(), on);
+    setLastMessage(on ? tr("Chroma key on") : tr("Chroma key off"));
+}
+
+void AppController::resetChromaKey(int trackIndex, int clipIndex)
+{
+    const QVariantMap info = chromaKeyInfo(trackIndex, clipIndex);
+    if (!info.value(QStringLiteral("present")).toBool())
+        return;
+    const EffectPresetEntry *def = effectDefForId(chromaKeyEffectId());
+    if (!def)
+        return;
+    int hostTrack = trackIndex;
+    int hostClip = clipIndex;
+    if (!redirectToEffectHost(&hostTrack, &hostClip, drift::AdjustmentKind::VideoEffects, /*create=*/false))
+        return;
+    const int effectIndex = info.value(QStringLiteral("effectIndex")).toInt();
+    const drift::Project before = m_project;
+    drift::Clip &host = m_project.tracks()[hostTrack].clips[hostClip];
+    if (effectIndex < 0 || effectIndex >= host.effects.size())
+        return;
+    drift::Effect &effect = host.effects[effectIndex];
+    // Everything but the picked colour, which is what the key is for.
+    for (const drift::EffectParamSpec &p : def->meta.parameters) {
+        if (p.key == QLatin1String("u_keyHue"))
+            continue;
+        p.insertDefault(effect.parameters);
+        effect.paramKeyframes.remove(p.key);
+    }
+    pushProjectEdit(before, tr("Reset chroma key"));
+    finishEdit(tr("Chroma key settings reset"));
+}
+
+void AppController::resetVideoBasics(int trackIndex, int clipIndex)
+{
+    if (!isValidClipIndex(trackIndex, clipIndex))
+        return;
+    m_undoStack.beginMacro(tr("Reset video"));
+    resetClipTransform(trackIndex, clipIndex);
+    resetChromaKey(trackIndex, clipIndex);
+    m_undoStack.endMacro();
+    setLastMessage(tr("Video settings reset"));
 }
 
 // ---- Stacking (Dafin) -------------------------------------------------------------------------

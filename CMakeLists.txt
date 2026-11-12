@@ -588,6 +588,8 @@ add_library(driftcore STATIC
     src/core/base/CameraEuler.h
     src/core/animation/SpeedCurve.h
     src/core/animation/SpeedCurve.cpp
+    src/core/animation/SpeedRamp.h
+    src/core/animation/SpeedRamp.cpp
     src/core/animation/FadeShape.h
     src/core/animation/FadeShape.cpp
     src/core/animation/Easing.h
@@ -1286,6 +1288,7 @@ target_sources(driftapp PRIVATE
     src/app/editor/appcontroller/AppControllerProject.cpp
     src/app/editor/appcontroller/AppControllerTextLayers.cpp
     src/app/editor/appcontroller/AppControllerDafin.cpp
+    src/app/editor/appcontroller/AppControllerSpeed.cpp
     src/app/editor/appcontroller/AppControllerTemplates.cpp
     src/app/mcp/AgentImageLog.h
     src/app/mcp/AgentImageLog.cpp
@@ -1865,6 +1868,7 @@ qt_add_qml_module(drift
         src/qml/components/properties/PdfInspector.qml
         src/qml/components/properties/MogrtInspector.qml
         src/qml/components/properties/MasksInspector.qml
+        src/qml/components/properties/VideoInspector.qml
         src/qml/components/properties/EffectsInspector.qml
         src/qml/components/properties/FacePropPicker.qml
         src/qml/components/properties/VectorSvgColorRow.qml
@@ -1904,6 +1908,8 @@ qt_add_qml_module(drift
         src/qml/components/properties/SpeedCurveGraphPlayhead.qml
         src/qml/components/properties/SpeedCurveFilmstrip.qml
         src/qml/components/properties/SpeedCurveCanvas.qml
+        src/qml/components/properties/SpeedRampGraph.qml
+        src/qml/components/properties/SpeedRampPresetGrid.qml
         src/qml/components/properties/ShadingLayerHeader.qml
         src/qml/components/properties/PropertiesTabRailSeparator.qml
         src/qml/components/properties/PropertiesSheetTabChip.qml
@@ -2226,6 +2232,7 @@ qt_add_qml_module(drift
         src/qml/components/timeline/TimelineFadeHandle.qml
         src/qml/components/timeline/TimelineVolumeEnvelope.qml
         src/qml/components/timeline/TimelineKeyframeMarkers.qml
+        src/qml/components/timeline/TimelineSpeedStrip.qml
         src/qml/components/timeline/TimelineEmptyState.qml
         src/qml/components/timeline/TimelineCutOverlay.qml
         src/qml/components/timeline/TimelineCutDoomGradient.qml

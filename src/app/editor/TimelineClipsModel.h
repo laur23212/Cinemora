@@ -59,6 +59,12 @@ public:
         VolumeKeysRole,
         // Dafin: seconds from the clip's start of each keyframe diamond the timeline draws.
         KeyTimesRole,
+        // Dafin: the speed strip on the clip — "normal", "fast", "slow", "ramp" or "freeze", empty
+        // when it is not shown — and what it says ("Fast 3.00×").
+        SpeedKindRole,
+        SpeedLabelRole,
+        // Dafin: Show Speed Control is on — the clip's ends retime it instead of trimming it.
+        SpeedControlRole,
     };
     Q_ENUM(Role)
 
@@ -91,6 +97,9 @@ public:
         QVariantList audioEffects;
         QVariantList volumeKeys;
         QVariantList keyTimes;
+        QString speedKind;
+        QString speedLabel;
+        bool speedControl = false;
 
         // Not roles: typed copies for the scene-graph renderer, derived from the fields above so
         // any change to them already arrives as a changed row.

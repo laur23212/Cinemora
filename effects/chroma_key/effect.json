@@ -38,6 +38,28 @@
       "minValue": 0.0,
       "maxValue": 1.0,
       "defaultValue": 1.0
+    },
+    {
+      "identifier": "u_pedestal",
+      "displayName": "Pedestal",
+      "type": "float",
+      "minValue": 0.0,
+      "maxValue": 1.0,
+      "defaultValue": 0.0
+    },
+    {
+      "identifier": "u_edgeThickness",
+      "displayName": "Edge Thickness",
+      "type": "float",
+      "minValue": -10.0,
+      "maxValue": 10.0,
+      "defaultValue": 0.0
+    },
+    {
+      "identifier": "u_alphaView",
+      "displayName": "Alpha Channel",
+      "type": "bool",
+      "defaultValue": 0
     }
   ],
   "pipeline": {
