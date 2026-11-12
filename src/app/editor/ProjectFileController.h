@@ -339,6 +339,6 @@ private:
     bool m_uiReady = false;
     bool m_isolatedSession = false;
 
-    static constexpr int kAutosaveIntervalMs = 15000;
+    static constexpr int kAutosaveIntervalMs = 60000;
     static constexpr int kMaxRecentProjects = 10;
 };

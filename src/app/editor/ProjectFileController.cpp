@@ -92,8 +92,14 @@ ProjectFileController::ProjectFileController(AppController *app, QObject *parent
     // starts fresh, or discards recovery.
     m_autosaveTimer = new QTimer(this);
     connect(m_autosaveTimer, &QTimer::timeout, this, [this] {
-        if (m_dirty)
-            writeRecoveryFile();
+        if (!m_dirty)
+            return;
+        // Dafin: not while the picture is playing or an export is rendering — the snapshot's
+        // GUI-thread part (session state, undo history) is small but is a frame lost for nothing.
+        // The next tick (or the first one after playback stops) takes it.
+        if (m_app->m_playing || m_app->m_exportInProgress)
+            return;
+        writeRecoveryFile();
     });
     m_autosaveTimer->start(kAutosaveIntervalMs);
     connect(qApp, &QCoreApplication::aboutToQuit, this, [this] {
@@ -103,10 +109,15 @@ ProjectFileController::ProjectFileController(AppController *app, QObject *parent
         // A save already writing is let finish; one still waiting its turn is dropped.
         m_queuedSaves.clear();
         m_saveWrite.waitForFinished();
-        if (m_dirty)
+        if (m_dirty) {
             writeRecoveryFile(true);
-        else
+        } else {
             m_recoveryWrite.waitForFinished();
+            // Dafin: a clean exit leaves no recovery file behind — unless one is still waiting for
+            // the user's Restore / Discard answer, which quitting does not give.
+            if (!m_recoveryAvailable)
+                deleteRecoveryFile();
+        }
     });
 }
 
@@ -2191,24 +2202,18 @@ QString writeRecoveryTemp(const drift::Project &project, QJsonObject session,
         return {};
 
     // Write to a temp sibling and rename so a crash mid-write can't corrupt the recovery file
-    // itself.
+    // itself. Dafin: the temp file is itself written atomically (flushed to disk before it exists
+    // under its name), so a power cut can't leave a short one to be renamed into place.
     const QString tmpPath = path + QStringLiteral(".tmp");
-    QFile file(tmpPath);
-    if (!file.open(QIODevice::WriteOnly))
+    if (!dafin::project::atomicWrite(tmpPath, packed))
         return {};
-    file.write(packed);
-    file.close();
     return tmpPath;
 }
 
 void promoteRecoveryTemp(const QString &tmpPath, const QString &path)
 {
-    // Never remove the current file for a temp that is not there to replace it.
-    if (tmpPath.isEmpty() || !QFile::exists(tmpPath))
-        return;
-    if (QFile::exists(path))
-        QFile::remove(path);
-    QFile::rename(tmpPath, path);
+    // One rename over the old file: there is never a moment with no recovery file.
+    dafin::project::atomicReplace(tmpPath, path);
 }
 
 } // namespace
@@ -2285,6 +2290,12 @@ void ProjectFileController::detectRecoveryFile()
 
     const QJsonObject root = QJsonDocument::fromJson(readRecoveryJson(path)).object();
     const QJsonObject meta = root.value(QStringLiteral("__recovery")).toObject();
+    // Dafin: a snapshot older than the project it was taken of (saved after it, then the app died
+    // before the snapshot was cleared) holds nothing the saved file doesn't — don't ask about it.
+    if (!dafin::project::recoveryIsNewer(path, meta.value(QStringLiteral("originalPath")).toString())) {
+        QFile::remove(path);
+        return;
+    }
     m_recoveryInfo = QVariantMap{
         {QStringLiteral("originalPath"), meta.value(QStringLiteral("originalPath")).toString()},
         {QStringLiteral("projectName"), meta.value(QStringLiteral("projectName")).toString()},

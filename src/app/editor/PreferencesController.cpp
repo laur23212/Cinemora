@@ -222,7 +222,7 @@ int normalizedAutosaveInterval(int seconds)
 {
     return seconds == 0 || seconds == 15 || seconds == 30 || seconds == 60 || seconds == 300
         ? seconds
-        : 15;
+        : 60;
 }
 
 // Owned by a live QNetworkDiskCache or an update download; deleting them breaks their owner.
@@ -320,7 +320,7 @@ PreferencesController::PreferencesController(QObject *parent)
     m_networkProxyUser = settings.value(QStringLiteral("network/proxyUser")).toString();
     m_networkProxyPassword = settings.value(QStringLiteral("network/proxyPassword")).toString();
     m_autosaveIntervalSeconds =
-        normalizedAutosaveInterval(settings.value(QStringLiteral("editor/autosaveIntervalSeconds"), 15).toInt());
+        normalizedAutosaveInterval(settings.value(QStringLiteral("editor/autosaveIntervalSeconds"), 60).toInt());
     m_stillDurationSeconds = qBound(0.5,
         settings.value(QStringLiteral("timeline/stillDurationSeconds"), 5.0).toDouble(), 60.0);
     drift::setImageClipDurationUs(drift::secondsToUs(m_stillDurationSeconds));
