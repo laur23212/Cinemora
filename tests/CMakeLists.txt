@@ -17,6 +17,10 @@ qt_add_executable(tst_beatduck tst_beatduck.cpp)
 target_include_directories(tst_beatduck PRIVATE ../src)
 target_link_libraries(tst_beatduck PRIVATE Qt6::Test driftcore)
 add_test(NAME BeatDuck COMMAND tst_beatduck)
+qt_add_executable(tst_snapsticky tst_snapsticky.cpp)
+target_include_directories(tst_snapsticky PRIVATE ../src)
+target_link_libraries(tst_snapsticky PRIVATE Qt6::Test driftcore)
+add_test(NAME SnapSticky COMMAND tst_snapsticky)
 
 qt_add_executable(tst_keyframeview
     tst_keyframeview.cpp

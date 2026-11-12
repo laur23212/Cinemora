@@ -39,6 +39,13 @@ struct SnapTargets {
 TimeUs snapTimeTo(const SnapTargets &targets, TimeUs time, bool snapEnabled,
                   TimeUs thresholdUs = kSnapThresholdUs);
 
+// Sticky form of snapTimeTo for a drag: while `held` is a target the drag is already snapped
+// onto, it keeps winning until `time` is more than `breakAwayUs` from it (breakAwayUs should be
+// a little larger than thresholdUs), so two nearby targets cannot make the edge jitter between
+// them. `held` is updated: the target snapped onto, or -1 when nothing is held.
+TimeUs snapTimeToSticky(const SnapTargets &targets, TimeUs time, bool snapEnabled,
+                        TimeUs thresholdUs, TimeUs breakAwayUs, TimeUs &held);
+
 // `extraTargets` are additional snap positions supplied by the caller — currently the
 // detected beat grid, which is analysis state rather than something the project stores.
 // Core never learns what a beat is; it just snaps to whatever times it is handed.

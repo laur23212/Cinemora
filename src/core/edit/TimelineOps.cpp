@@ -79,6 +79,21 @@ TimeUs snapTimeTo(const SnapTargets &targets, TimeUs time, bool snapEnabled, Tim
     return qMax<TimeUs>(0, best);
 }
 
+TimeUs snapTimeToSticky(const SnapTargets &targets, TimeUs time, bool snapEnabled,
+                        TimeUs thresholdUs, TimeUs breakAwayUs, TimeUs &held)
+{
+    if (!snapEnabled || targets.sorted.empty()) {
+        held = -1;
+        return qMax<TimeUs>(0, time);
+    }
+    if (held >= 0 && std::binary_search(targets.sorted.begin(), targets.sorted.end(), held)
+        && qAbs(held - time) <= qMax(breakAwayUs, thresholdUs))
+        return held;
+    const TimeUs snapped = snapTimeTo(targets, time, true, thresholdUs);
+    held = std::binary_search(targets.sorted.begin(), targets.sorted.end(), snapped) ? snapped : -1;
+    return snapped;
+}
+
 TimeUs snapTime(const Project &project, TimeUs time, bool snapEnabled, TimeUs playheadUs,
                 const QList<TimeUs> &extraTargets, const QString &excludeClipId, TimeUs thresholdUs)
 {

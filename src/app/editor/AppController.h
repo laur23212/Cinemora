@@ -2330,6 +2330,7 @@ protected:
     // the only targets that do move are the dragged clip's own edges.
     drift::SnapTargets m_gestureSnapTargets;
     bool m_trimGestureActive = false;
+    mutable drift::TimeUs m_heldSnapUs = -1; // sticky snap: target the drag is held on, -1 = none
     bool m_trimGestureChanged = false;
     drift::TimeUs m_trimGestureLastInputUs = -1;
     int m_trimGestureLastOutcome = 0;

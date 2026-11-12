@@ -1974,9 +1974,12 @@ const QList<drift::TimeUs> &AppController::extraSnapTargetsCached() const
 
 drift::TimeUs AppController::snapTimeForGesture(drift::TimeUs rawUs) const
 {
+    // Holding Alt turns snapping off for as long as it is held.
+    const bool snapOn = m_snapEnabled && !(QGuiApplication::keyboardModifiers() & Qt::AltModifier);
     if (m_trimGestureActive)
-        return drift::snapTimeTo(m_gestureSnapTargets, rawUs, m_snapEnabled, m_snapThresholdUs);
-    return drift::snapTime(m_project, rawUs, m_snapEnabled, m_playheadUs,
+        return drift::snapTimeToSticky(m_gestureSnapTargets, rawUs, snapOn, m_snapThresholdUs,
+                                       m_snapThresholdUs * 3 / 2, m_heldSnapUs);
+    return drift::snapTime(m_project, rawUs, snapOn, m_playheadUs,
                            extraSnapTargetsCached(), {}, m_snapThresholdUs);
 }
 
@@ -1988,6 +1991,7 @@ void AppController::beginTrimGesture(int trackIndex, int clipIndex, int side)
     m_gestureSnapTargets.build(m_project, m_playheadUs, extraSnapTargetsCached());
     m_trimGestureActive = true;
     m_trimGestureChanged = false;
+    m_heldSnapUs = -1;
     m_trimGestureLastInputUs = -1;
     m_trimGestureLastOutcome = TrimNone;
 }

@@ -109,3 +109,4 @@ each `dafin.exe` frame as function, file and line. It takes about a minute and n
    first release installed by hand.
 
 The Build workflow stays an unpublished dry run; its builds report the version in `CMakeLists.txt`.
+| Sticky snapping, Alt to bypass | Dragging a clip edge holds on a snap point until you pull a little further than it took to snap (break-away 1.5× the snap radius), so neighbouring points no longer make it jitter. Holding Alt turns snapping off while it is held (the Snapping button's tooltip says so). Snap radius was already 8 px at any zoom | `core/edit/TimelineOps.*` (`snapTimeToSticky`), `AppControllerTimeline.cpp` (`snapTimeForGesture`, `beginTrimGesture`), `AppController.h` (`m_heldSnapUs`), `TimelineToolbarActions.qml`, `tests/tst_snapsticky.cpp` |

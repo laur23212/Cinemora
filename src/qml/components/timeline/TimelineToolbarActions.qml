@@ -22,7 +22,7 @@ QtObject {
         // Dafin: Filmora keeps its snapping magnet with the edit tools, so it sits here rather
         // than with the toggles at the right end.
         "snap": { glyph: Theme.icons.magnet, label: qsTr("Snapping"),
-                  tip: qsTr("Snapping — clips, cuts and the playhead line up with each other as you drag"),
+                  tip: qsTr("Snapping — clips, cuts and the playhead line up with each other as you drag. Hold Alt to turn it off while you drag"),
                   shortcut: "toggleSnap" },
         // Dafin: one-click chroma key, motion tracking that follows the element as it is moved
         // or trimmed, and syncing clips recorded together by their sound.
