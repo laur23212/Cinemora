@@ -30,6 +30,8 @@ private slots:
     void migratesCutTrimToSourceLab();
     void migratesSourceLabBinOverride();
     void findsWorkspaceWithPanel();
+    void presetSizesReturnsBuiltInSplit();
+    void snapSizesSettlesOnUsefulFractions();
 
 private:
     QString m_org;
@@ -300,6 +302,44 @@ void WorkspaceStoreTest::findsWorkspaceWithPanel()
     QCOMPARE(store.workspaceWithPanel("sourceViewer"), QStringLiteral("custom-1"));
     store.setActiveId(QStringLiteral("custom-1"));
     QCOMPARE(store.workspaceWithPanel("sourceViewer"), QStringLiteral("custom-1"));
+}
+
+void WorkspaceStoreTest::presetSizesReturnsBuiltInSplit()
+{
+    WorkspaceStore store;
+    const QVariantList top = store.presetSizes("filmora", "main", {});
+    QCOMPARE(top.size(), 2);
+    QCOMPARE(top.at(0).toDouble(), 0.57);
+    const QVariantList row = store.presetSizes("filmora", "main", QVariantList{0});
+    QCOMPARE(row.size(), 3);
+    QVERIFY(store.presetSizes("filmora", "main", QVariantList{1}).isEmpty()); // a panel, not a split
+    QVERIFY(store.presetSizes("filmora", "nope", {}).isEmpty());
+    QVERIFY(store.presetSizes("no-such-workspace", "main", {}).isEmpty());
+}
+
+void WorkspaceStoreTest::snapSizesSettlesOnUsefulFractions()
+{
+    WorkspaceStore store;
+    // 1 % off a half snaps; 5 % off stays where it is.
+    QVariantList snapped = store.snapSizes({0.51, 0.49});
+    QCOMPARE(snapped.size(), 2);
+    QVERIFY(qAbs(snapped.at(0).toDouble() - 0.5) < 1e-9);
+    QVERIFY(qAbs(snapped.at(1).toDouble() - 0.5) < 1e-9);
+    snapped = store.snapSizes({0.55, 0.45});
+    QVERIFY(qAbs(snapped.at(0).toDouble() - 0.55) < 1e-9);
+    // Three sections: the dividers near 1/4 and 2/3 move.
+    snapped = store.snapSizes({0.26, 0.4, 0.34});
+    QVERIFY(qAbs(snapped.at(0).toDouble() - 0.25) < 1e-9);
+    double sum = 0;
+    for (const QVariant &v : snapped)
+        sum += v.toDouble();
+    QVERIFY(qAbs(sum - 1.0) < 1e-9);
+    // A snap that would leave a section under 15 % is refused.
+    snapped = store.snapSizes({0.76, 0.24});
+    QVERIFY(qAbs(snapped.at(0).toDouble() - 0.75) < 1e-9);
+    snapped = store.snapSizes({0.1, 0.9});
+    QVERIFY(qAbs(snapped.at(0).toDouble() - 0.1) < 1e-9);
+    QCOMPARE(store.snapSizes({1.0}).size(), 1);
 }
 
 QTEST_MAIN(WorkspaceStoreTest)

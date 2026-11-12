@@ -47,6 +47,13 @@ public:
     // it would tear the panels down mid-drag.
     Q_INVOKABLE void setSizes(const QString &id, const QString &windowId,
                               const QVariantList &nodePath, const QVariantList &sizes);
+    // Dafin: the built-in sizes of one split (empty when the workspace is not a built-in or the
+    // path is wrong), used when a divider is double-clicked to put it back.
+    Q_INVOKABLE QVariantList presetSizes(const QString &id, const QString &windowId,
+                                         const QVariantList &nodePath) const;
+    // Dafin: pulls each divider onto the nearest of 1/4, 1/3, 1/2, 2/3 or 3/4 when it is
+    // within 2 % of one. Sizes that would leave a section under 15 % come back unchanged.
+    Q_INVOKABLE QVariantList snapSizes(const QVariantList &sizes) const;
     Q_INVOKABLE void setWindowGeometry(const QString &id, const QString &windowId,
                                        const QRect &geometry, const QString &screenName);
 

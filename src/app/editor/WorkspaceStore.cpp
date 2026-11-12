@@ -717,6 +717,79 @@ void WorkspaceStore::setSizes(const QString &id, const QString &windowId,
     });
 }
 
+QVariantList WorkspaceStore::presetSizes(const QString &id, const QString &windowId,
+                                         const QVariantList &nodePath) const
+{
+    const auto preset = m_presets.constFind(id);
+    if (preset == m_presets.constEnd())
+        return {};
+    QVariantList windows;
+    int index = 0;
+    if (!findWindow(preset.value(), windowId, windows, index))
+        return {};
+    QVariantMap node = windows.at(index).toMap().value(QStringLiteral("root")).toMap();
+    for (const QVariant &step : nodePath) {
+        if (!isSplit(node))
+            return {};
+        const QVariantList children = node.value(QStringLiteral("children")).toList();
+        const int child = step.toInt();
+        if (child < 0 || child >= children.size())
+            return {};
+        node = children.at(child).toMap();
+    }
+    if (!isSplit(node))
+        return {};
+    return node.value(QStringLiteral("sizes")).toList();
+}
+
+QVariantList WorkspaceStore::snapSizes(const QVariantList &sizes) const
+{
+    constexpr double kStops[] = {0.25, 1.0 / 3.0, 0.5, 2.0 / 3.0, 0.75};
+    constexpr double kTolerance = 0.02;
+    constexpr double kMinSection = 0.15;
+
+    const int count = sizes.size();
+    if (count < 2)
+        return sizes;
+    double total = 0;
+    for (const QVariant &size : sizes) {
+        if (size.toDouble() <= 0)
+            return sizes;
+        total += size.toDouble();
+    }
+
+    QVariantList plain;
+    QVariantList snapped;
+    double edge = 0;
+    double snappedEdge = 0;
+    bool ok = true;
+    for (int i = 0; i < count; ++i) {
+        const double share = sizes.at(i).toDouble() / total;
+        plain.append(share);
+        if (i == count - 1) {
+            const double last = 1.0 - snappedEdge;
+            ok = ok && last >= kMinSection;
+            snapped.append(last);
+            break;
+        }
+        edge += share;
+        double target = edge;
+        double best = kTolerance;
+        for (const double stop : kStops) {
+            const double distance = std::abs(edge - stop);
+            if (distance <= best) {
+                best = distance;
+                target = stop;
+            }
+        }
+        const double section = target - snappedEdge;
+        ok = ok && section >= kMinSection;
+        snapped.append(section);
+        snappedEdge = target;
+    }
+    return ok ? snapped : plain;
+}
+
 void WorkspaceStore::setWindowGeometry(const QString &id, const QString &windowId,
                                        const QRect &geometry, const QString &screenName)
 {

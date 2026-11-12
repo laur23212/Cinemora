@@ -27,6 +27,31 @@ Rectangle {
     readonly property bool handleHovered: T.SplitHandle.hovered
     readonly property bool handlePressed: T.SplitHandle.pressed
 
+    // Dafin: a quick second click on the same spot asks for the divider's built-in position.
+    // Read from the split's own press state because SplitView consumes the mouse events
+    // before a handler or MouseArea inside the handle could see them.
+    signal resetRequested()
+    property double _lastPressMs: 0
+    property real _lastPressPos: -1000
+    property bool _resetArmed: false
+    Connections {
+        target: root
+        function onHandlePressedChanged() {
+            const pos = root.horizontal ? root.x : root.y
+            if (root.handlePressed) {
+                const now = Date.now()
+                root._resetArmed = now - root._lastPressMs <= Qt.styleHints.mouseDoubleClickInterval
+                                   && Math.abs(pos - root._lastPressPos) < 2
+                root._lastPressMs = now
+                root._lastPressPos = pos
+            } else if (root._resetArmed) {
+                root._resetArmed = false
+                root._lastPressMs = 0
+                root.resetRequested()
+            }
+        }
+    }
+
     onHandlePressedChanged: {
         if (handlePressed)
             Haptics.pickUp()
