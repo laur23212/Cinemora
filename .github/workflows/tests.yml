@@ -507,7 +507,7 @@ jobs:
   windows:
     name: CTest (Windows)
     runs-on: windows-2022
-    timeout-minutes: 120
+    timeout-minutes: 180
     permissions:
       contents: read
       actions: write
