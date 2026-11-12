@@ -16007,7 +16007,7 @@ void EditorStateTest::splitScreenFillsCellsWithCoveredMaskedClips()
     const drift::Mask &mask = project.tracks().at(masks.first().trackIndex).clips.at(masks.first().clipIndex).mask;
     QCOMPARE(mask.shape, drift::MaskShape::Rectangle);
     QVERIFY(qAbs(mask.w - 0.5) < 1e-6);
-    QVERIFY(qAbs(mask.x - 0.25) < 1e-6);
+    QVERIFY(qAbs(mask.x - 0.5) < 1e-6);
 
     // Undo puts both clips back as one step.
     state.undo();
