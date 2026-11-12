@@ -409,7 +409,7 @@ QJsonObject mcpDetailRow(const QVariantMap &clipMap, const QVariantMap &transfor
     } else {
         if (mask.value(QStringLiteral("mediaPath")).toString().isEmpty()) {
             for (const char *key : {"mediaPath", "mediaFgrPath", "mediaSrcOffsetUs", "mediaFit",
-                                    "mediaChannel", "mediaLoop", "mediaTimeBase"})
+                                    "mediaChannel", "mediaLoop", "mediaTimeBase", "brush"})
                 mask.remove(QLatin1String(key));
         }
         if (!mask.value(QStringLiteral("animated")).toBool())
