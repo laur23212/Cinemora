@@ -1,5 +1,7 @@
 #include <QtTest>
 
+#include "ui/theme/ReducedMotion.h"
+
 #include <QColor>
 #include <QDir>
 #include <QByteArray>
@@ -58,6 +60,7 @@ private slots:
     void templateExportAndReplaceImport();
     void sessionOverrideIsNotPersisted();
     void darkModeBindingDoesNotLoop();
+    void reducedMotionZeroesAnimationTokens();
 
 private:
     QString themesDir() const;
@@ -1484,6 +1487,39 @@ QtObject {
     QCOMPARE(host->property("darkMode").toBool(), true);
 
     delete host;
+}
+
+// Dafin: the OS "reduce motion" choice turns every animation duration to 0 and the press squash
+// off, and leaves the tokens alone when it is not set.
+void ThemeManagerTest::reducedMotionZeroesAnimationTokens()
+{
+    QVariantMap motion{{QStringLiteral("durationFast"), 90},   {QStringLiteral("durationBase"), 140},
+                       {QStringLiteral("durationSlow"), 220},  {QStringLiteral("durationPress"), 120},
+                       {QStringLiteral("pressScale"), 0.97},   {QStringLiteral("tooltipDelay"), 400}};
+    const QVariantMap original = motion;
+
+    drift::motion::setReduced(false);
+    drift::motion::reduceTokens(motion);
+    QCOMPARE(motion, original);
+
+    drift::motion::setReduced(true);
+    drift::motion::reduceTokens(motion);
+    drift::motion::setReduced(false);
+    QCOMPARE(motion.value(QStringLiteral("durationFast")).toInt(), 0);
+    QCOMPARE(motion.value(QStringLiteral("durationBase")).toInt(), 0);
+    QCOMPARE(motion.value(QStringLiteral("durationSlow")).toInt(), 0);
+    QCOMPARE(motion.value(QStringLiteral("durationPress")).toInt(), 0);
+    QCOMPARE(motion.value(QStringLiteral("pressScale")).toDouble(), 1.0);
+    QCOMPARE(motion.value(QStringLiteral("tooltipDelay")).toInt(), 400);
+
+    // The built-in themes stay inside the brief: nothing over 250 ms, the common ones 90-220.
+    for (const QString &id : {QStringLiteral("dark"), QStringLiteral("light")}) {
+        QFile file(QStringLiteral(":/themes/%1.json").arg(id));
+        QVERIFY(file.open(QIODevice::ReadOnly));
+        const QJsonObject m = QJsonDocument::fromJson(file.readAll()).object().value(QStringLiteral("motion")).toObject();
+        for (const char *key : {"durationFast", "durationBase", "durationSlow", "durationPress"})
+            QVERIFY2(m.value(QLatin1String(key)).toInt() <= 250, key);
+    }
 }
 
 QTEST_MAIN(ThemeManagerTest)

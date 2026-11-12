@@ -2,6 +2,7 @@
 
 #include "core/base/ZipArchive.h"
 #include "engine/platform/AndroidUri.h"
+#include "ui/theme/ReducedMotion.h"
 
 #include <algorithm>
 #include <cmath>
@@ -1349,8 +1350,13 @@ void ThemeManager::apply(const Loaded &loaded)
     QQmlPropertyMap *maps[] = {
         m_palette, m_semantic, m_components, m_metrics, m_typography, m_motion, m_window,
     };
-    for (int i = 0; i < kGroups.size(); ++i)
-        syncMap(maps[i], loaded.document.value(kGroups.at(i)).toMap());
+    for (int i = 0; i < kGroups.size(); ++i) {
+        QVariantMap group = loaded.document.value(kGroups.at(i)).toMap();
+        // Dafin: operating-system "reduce motion" zeroes the animation durations.
+        if (kGroups.at(i) == QLatin1String("motion"))
+            drift::motion::reduceTokens(group);
+        syncMap(maps[i], group);
+    }
 
     updateWatch();
     emit themeChanged();
