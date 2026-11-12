@@ -828,6 +828,8 @@ add_library(driftengine STATIC
     src/engine/ml/vision/detection/ObjectDetector.cpp
     src/engine/encode/export/Exporter.h
     src/engine/encode/export/Exporter.cpp
+    src/engine/encode/export/HwEncodeFallback.h
+    src/engine/encode/export/HwEncodeFallback.cpp
     src/engine/decode/readers/PreviewVideoFrame.h
     src/engine/decode/readers/ClipReader.h
     src/engine/decode/readers/ClipReader.cpp

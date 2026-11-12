@@ -35,6 +35,14 @@ target_include_directories(tst_polylinedraft PRIVATE ../src)
 target_link_libraries(tst_polylinedraft PRIVATE Qt6::Test Qt6::Core)
 add_test(NAME PolylineDraft COMMAND tst_polylinedraft)
 
+# Dafin: GPU encoder -> CPU fallback decisions (pure logic, no GPU needed).
+qt_add_executable(tst_hwencodefallback
+    tst_hwencodefallback.cpp
+    ../src/engine/encode/export/HwEncodeFallback.cpp)
+target_include_directories(tst_hwencodefallback PRIVATE ../src)
+target_link_libraries(tst_hwencodefallback PRIVATE Qt6::Test Qt6::Core)
+add_test(NAME HwEncodeFallback COMMAND tst_hwencodefallback)
+
 qt_add_executable(tst_trackeroverlay tst_trackeroverlay.cpp)
 target_include_directories(tst_trackeroverlay PRIVATE ../src)
 target_link_libraries(tst_trackeroverlay PRIVATE Qt6::Test Qt6::Core Qt6::Gui)
