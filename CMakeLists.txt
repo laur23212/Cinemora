@@ -1469,6 +1469,11 @@ if(NOT ANDROID AND NOT EMSCRIPTEN)
         src/app/mcp/transport/McpBridge.cpp
         src/app/mcp/transport/McpStdioServer.h
         src/app/mcp/transport/McpStdioServer.cpp
+        # Dafin: heavy work (export) in a separate process, with a heartbeat and a watchdog.
+        src/app/workers/WorkerSupervisor.h
+        src/app/workers/WorkerSupervisor.cpp
+        src/app/workers/WorkerChannel.h
+        src/app/workers/WorkerChannel.cpp
     )
 endif()
 

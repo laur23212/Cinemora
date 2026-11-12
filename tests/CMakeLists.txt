@@ -560,3 +560,12 @@ add_test(NAME AdaptivePolicy COMMAND tst_adaptivepolicy)
 add_executable(tst_safemode tst_safemode.cpp)
 target_include_directories(tst_safemode PRIVATE ../src)
 add_test(NAME SafeMode COMMAND tst_safemode)
+# Dafin: heavy work in a separate process — the supervisor's heartbeat timeout, crash and cancel
+# handling and the watchdog's restart, against the test binary itself as a stand-in worker.
+qt_add_executable(tst_workers
+    tst_workers.cpp
+    ../src/app/workers/WorkerSupervisor.cpp
+    ../src/app/workers/WorkerChannel.cpp)
+target_include_directories(tst_workers PRIVATE ../src)
+target_link_libraries(tst_workers PRIVATE Qt6::Test Qt6::Core)
+add_test(NAME Workers COMMAND tst_workers)
