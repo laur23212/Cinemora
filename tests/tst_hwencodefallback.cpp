@@ -59,6 +59,66 @@ private slots:
         QVERIFY(!shouldRetryOnCpu(true, nv, true, QStringLiteral("Could not write: No space left on device")));
         QVERIFY(!shouldRetryOnCpu(true, nv, true, QStringLiteral("Could not open output: permission denied")));
     }
+
+    // Day 6: the full chain.
+    void familyChainOrder()
+    {
+        const QStringList h264 = familyChain(QStringLiteral("h264"));
+        QCOMPARE(h264.mid(0, 4), (QStringList{QStringLiteral("h264_nvenc"), QStringLiteral("h264_amf"),
+                                              QStringLiteral("h264_qsv"), QStringLiteral("h264_vaapi")}));
+        QCOMPARE(h264.last(), QStringLiteral("h264"));
+        QCOMPARE(familyChain(QStringLiteral("h265_amf")).last(), QStringLiteral("h265"));
+        const QStringList av1 = familyChain(QStringLiteral("av1_qsv"));
+        QCOMPARE(av1.last(), QStringLiteral("av1_svt"));
+        QVERIFY(!av1.contains(QStringLiteral("av1_videotoolbox")));
+        QVERIFY(familyChain(QStringLiteral("vp9")).isEmpty());
+        QVERIFY(familyChain(QStringLiteral("prores")).isEmpty());
+    }
+
+    void chainStartsAtThePickAndEndsOnTheCpu()
+    {
+        const QStringList chain = fallbackChain(QStringLiteral("h264_nvenc"), {});
+        QCOMPARE(chain.first(), QStringLiteral("h264_nvenc"));
+        QCOMPARE(chain.at(1), QStringLiteral("h264_amf"));
+        QCOMPARE(chain.at(2), QStringLiteral("h264_qsv"));
+        QCOMPARE(chain.at(3), QStringLiteral("h264_vaapi"));
+        QCOMPARE(chain.last(), QStringLiteral("h264"));
+        QCOMPARE(chain.count(QStringLiteral("h264")), 1);
+
+        // Picking AMF never goes back up to NVENC.
+        const QStringList amf = fallbackChain(QStringLiteral("h264_amf"), {});
+        QCOMPARE(amf.first(), QStringLiteral("h264_amf"));
+        QVERIFY(!amf.contains(QStringLiteral("h264_nvenc")));
+        QCOMPARE(amf.last(), QStringLiteral("h264"));
+    }
+
+    void chainSkipsKnownBrokenEncoders()
+    {
+        const QSet<QString> broken{QStringLiteral("h264_nvenc"), QStringLiteral("h264_qsv"),
+                                   QStringLiteral("h264")};
+        const QStringList chain = fallbackChain(QStringLiteral("h264_nvenc"), broken);
+        QCOMPARE(chain.first(), QStringLiteral("h264_amf"));
+        QVERIFY(!chain.contains(QStringLiteral("h264_qsv")));
+        // The software encoder is the last resort even if something marked it.
+        QCOMPARE(chain.last(), QStringLiteral("h264"));
+    }
+
+    void softwarePickStaysOnSoftware()
+    {
+        QCOMPARE(fallbackChain(QStringLiteral("h264"), {}), QStringList{QStringLiteral("h264")});
+        QCOMPARE(fallbackChain(QStringLiteral("vp9"), {}), QStringList{QStringLiteral("vp9")});
+    }
+
+    void bestGpuEncoderUsesTheFirstWorkingOne()
+    {
+        const auto all = [](const QString &) { return true; };
+        QCOMPARE(bestGpuEncoder(QStringLiteral("h264"), {}, all), QStringLiteral("h264_nvenc"));
+        QCOMPARE(bestGpuEncoder(QStringLiteral("h264"), {QStringLiteral("h264_nvenc")}, all),
+                 QStringLiteral("h264_amf"));
+        const auto intelOnly = [](const QString &id) { return id.endsWith(QLatin1String("_qsv")); };
+        QCOMPARE(bestGpuEncoder(QStringLiteral("h265"), {}, intelOnly), QStringLiteral("h265_qsv"));
+        QVERIFY(bestGpuEncoder(QStringLiteral("h264"), {}, [](const QString &) { return false; }).isEmpty());
+    }
 };
 
 QTEST_GUILESS_MAIN(TestHwEncodeFallback)

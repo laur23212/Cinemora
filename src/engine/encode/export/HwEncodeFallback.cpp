@@ -6,10 +6,11 @@ namespace drift::hwencode {
 
 namespace {
 
-// Suffixes of the GPU rows in Exporter's codec table (kVideoCodecs).
+// Suffixes of the GPU rows in Exporter's codec table (kVideoCodecs), in fallback-chain order:
+// NVENC, AMF, QuickSync, VAAPI.
 constexpr QLatin1StringView kGpuSuffixes[] = {
-    QLatin1StringView("_nvenc"),        QLatin1StringView("_qsv"),
-    QLatin1StringView("_amf"),          QLatin1StringView("_vaapi"),
+    QLatin1StringView("_nvenc"),        QLatin1StringView("_amf"),
+    QLatin1StringView("_qsv"),          QLatin1StringView("_vaapi"),
     QLatin1StringView("_videotoolbox"), QLatin1StringView("_mediacodec"),
 };
 
@@ -63,6 +64,50 @@ bool shouldRetryOnCpu(bool fallbackEnabled, const QString &videoCodecId, bool en
                       const QString &error)
 {
     return fallbackEnabled && encodeFailed && isGpuEncoderId(videoCodecId) && !isRetryPointless(error);
+}
+
+QStringList familyChain(const QString &videoCodecId)
+{
+    QString software = softwareFallbackCodec(videoCodecId);
+    if (software.isEmpty()
+        && (videoCodecId == QLatin1String("h264") || videoCodecId == QLatin1String("h265")
+            || videoCodecId == QLatin1String("av1_svt")))
+        software = videoCodecId;
+    if (software.isEmpty())
+        return {};
+
+    // Codec ids keep FFmpeg's family prefix except AV1's software row.
+    const QString prefix = software == QLatin1String("av1_svt") ? QStringLiteral("av1") : software;
+    QStringList chain;
+    for (QLatin1StringView suffix : kGpuSuffixes) {
+        // Exporter has no AV1 rows for VideoToolbox or MediaCodec.
+        if (prefix == QLatin1String("av1")
+            && (suffix == QLatin1String("_videotoolbox") || suffix == QLatin1String("_mediacodec")))
+            continue;
+        chain.append(prefix + suffix);
+    }
+    chain.append(software);
+    return chain;
+}
+
+QStringList fallbackChain(const QString &requested, const QSet<QString> &knownBroken)
+{
+    if (!isGpuEncoderId(requested))
+        return {requested};
+
+    const QStringList family = familyChain(requested);
+    const QString software = family.last();
+    QStringList out;
+    bool reached = false;
+    for (const QString &id : family) {
+        reached = reached || id == requested;
+        if (!reached || id == software)
+            continue;
+        if (!knownBroken.contains(id))
+            out.append(id);
+    }
+    out.append(software);
+    return out;
 }
 
 } // namespace drift::hwencode
