@@ -137,6 +137,8 @@ signals:
     void moveCanceled();
     void contextMenuRequested(int clipIndex);
     void toggleSelectionRequested(int clipIndex);
+    // Dafin: double-click on a clip body that has no other double-click action asks for a rename.
+    void renameRequested(int clipIndex);
 
 protected:
     void updatePolish() override;

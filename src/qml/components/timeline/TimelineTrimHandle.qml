@@ -9,6 +9,12 @@ Rectangle {
     required property var owner
     property int edge: -1
 
+    // Dafin: Escape while this edge is being dragged drops the preview and restores the clip.
+    function cancelTrim() {
+        if (trimMouse.trimming)
+            trimMouse.cancelGesture()
+    }
+
     readonly property bool areaContainsMouse: trimMouse.containsMouse
     readonly property bool areaPressed: trimMouse.pressed
     readonly property bool areaHovered: trimHover.hovered
@@ -305,6 +311,18 @@ Rectangle {
                 EditorState.endTrimGesture()
                 EditorState.cancelPreviewDrag()
             }
+        }
+        // Dafin: the Escape path of onCanceled. The button is still down afterwards, so the
+        // release that follows finds `trimming` false and commits nothing.
+        function cancelGesture() {
+            endTrimLock()
+            Haptics.reset()
+            owner.panel.snapGuideSeconds = -1
+            trimming = false
+            owner.trimPreviewActive = false
+            owner.panel.clearTrimFollow()
+            EditorState.endTrimGesture()
+            EditorState.cancelPreviewDrag()
         }
     }
 }

@@ -87,6 +87,7 @@ Item {
         }
         onMoveFinished: (clipIndex, rect) => area.finishMove(clipIndex, rect)
         onContextMenuRequested: (clipIndex) => area.openContextMenu(clipIndex)
+        onRenameRequested: (clipIndex) => area.panel.requestRenameClip(area.trackIndex, clipIndex)
         onToggleSelectionRequested: (clipIndex) => area.panel.toggleInSelection(area.trackIndex, clipIndex)
         onLiftedChanged: {
             if (typeof area.panel.setScrollLocked === "function")

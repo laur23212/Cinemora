@@ -1761,6 +1761,8 @@ void TimelineTrackItem::mouseDoubleClickEvent(QMouseEvent *event)
     }
     if (m_clips->rows().at(index).kind == QLatin1String("composite"))
         m_editor->openCompositeClip(m_trackIndex, index);
+    else
+        emit renameRequested(index); // Dafin: double-click renames
     event->accept();
 }
 
@@ -1839,6 +1841,13 @@ void TimelineTrackItem::hoverLeaveEvent(QHoverEvent *event)
 
 void TimelineTrackItem::keyPressEvent(QKeyEvent *event)
 {
+    // Dafin: Escape puts a clip that is being moved back where it was (the same path as a lost
+    // mouse grab: nothing is committed).
+    if (event->key() == Qt::Key_Escape && m_drag.pressed && (m_drag.moving || m_drag.armed)) {
+        finishPress(true);
+        event->accept();
+        return;
+    }
     if ((event->key() == Qt::Key_Delete || event->key() == Qt::Key_Backspace) && m_editor
         && m_editor->selectionCount() > 0) {
         m_editor->deleteSelectedClip();

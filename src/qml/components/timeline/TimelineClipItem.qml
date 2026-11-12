@@ -52,6 +52,13 @@ Item {
         }
     }
 
+    // Dafin: Escape during a trim drag puts the edge back; nothing is committed.
+    Keys.onEscapePressed: function(event) {
+        leftTrimHandle.cancelTrim()
+        rightTrimHandle.cancelTrim()
+        event.accepted = true
+    }
+
     // The row object from EditorState.clipsModel(trackIndex), whose properties are that model's
     // roles. Required rather than passed in, so this can only ever be a delegate of that model.
     //
