@@ -146,6 +146,20 @@ SettingsPage {
     }
 
     SettingsRow {
+        title: qsTr("Lower preview quality automatically")
+        searchId: "preview-adaptive"
+        description: qsTr("With Auto quality, drops the preview to Half, then Quarter, when playback stutters for over 2 seconds, and back up after 10 smooth seconds. A small badge shows it; sound and export are never affected.")
+        keywords: "auto adaptive stutter lag frames drop resolution"
+        available: EditorState.playback.previewQuality === "auto"
+        query: page.query
+
+        ThemedSwitch {
+            checked: EditorState.playback.adaptivePreview
+            onToggled: EditorState.playback.adaptivePreview = checked
+        }
+    }
+
+    SettingsRow {
         title: qsTr("Decoding")
         searchId: "preview-decoding"
         description: qsTr("How video is decoded for preview. Software is smoother for most clips but uses more CPU. Hardware suits high-quality 4K.")

@@ -549,3 +549,8 @@ qt_add_executable(tst_mogrt
 target_include_directories(tst_mogrt PRIVATE ../src)
 target_link_libraries(tst_mogrt PRIVATE Qt6::Test Qt6::Core Qt6::Gui driftcore ZLIB::ZLIB)
 add_test(NAME Mogrt COMMAND tst_mogrt)
+
+# Pure C++ (no Qt): the automatic preview quality's step rules.
+add_executable(tst_adaptivepolicy tst_adaptivepolicy.cpp)
+target_include_directories(tst_adaptivepolicy PRIVATE ../src)
+add_test(NAME AdaptivePolicy COMMAND tst_adaptivepolicy)

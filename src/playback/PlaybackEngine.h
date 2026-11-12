@@ -41,6 +41,11 @@ class PlaybackEngine : public QObject
     Q_PROPERTY(QString gpuCompositorDetail READ gpuCompositorDetail NOTIFY gpuCompositorStatusChanged)
     Q_PROPERTY(bool playing READ isPlaying NOTIFY playingChanged)
     Q_PROPERTY(QString previewQuality READ previewQuality WRITE setPreviewQuality NOTIFY previewQualityChanged)
+    // Automatic preview quality (the "Auto" choice): steps Full -> Half -> Quarter while playback
+    // cannot keep up and back up when it can. Off keeps the preview at the chosen quality.
+    Q_PROPERTY(bool adaptivePreview READ adaptivePreview WRITE setAdaptivePreview NOTIFY adaptivePreviewChanged)
+    // 0 = the preview is at the quality asked for, 1 = automatically halved, 2 = quartered.
+    Q_PROPERTY(int adaptiveLevel READ adaptiveLevel NOTIFY adaptiveLevelChanged)
     Q_PROPERTY(double playbackRate READ playbackRate WRITE setPlaybackRate NOTIFY playbackRateChanged)
     Q_PROPERTY(QString decodeMode READ decodeMode WRITE setDecodeMode NOTIFY decodeModeChanged)
     Q_PROPERTY(QVariantList decodeModes READ decodeModes NOTIFY decodeModesChanged)
@@ -113,6 +118,9 @@ public:
     bool isPlaying() const { return m_playing; }
     QString previewQuality() const;
     void setPreviewQuality(const QString &quality);
+    bool adaptivePreview() const { return m_adaptivePreview; }
+    void setAdaptivePreview(bool enabled);
+    int adaptiveLevel() const { return m_adaptiveLevel; }
     // Timeline seconds covered per real second. Audio keeps its pitch at every rate; see fillAudio.
     // Only the values the preview offers are accepted, so a typo in QML cannot put the transport
     // somewhere the stretcher has never been tested.
@@ -220,6 +228,8 @@ signals:
     void scopeFrame(const QImage &image);
     void playingChanged();
     void previewQualityChanged();
+    void adaptivePreviewChanged();
+    void adaptiveLevelChanged();
     void playbackRateChanged();
     void decodeModeChanged();
     void decodeModesChanged();
@@ -300,6 +310,8 @@ private:
     // degrading. A saved preference still wins; only fresh installs move.
     QString m_previewQuality = QStringLiteral("auto");
     bool m_pausedUsesOriginal = true;
+    bool m_adaptivePreview = true;
+    int m_adaptiveLevel = 0;
     QString m_decodeMode = QStringLiteral("auto");
     // Baseline for ClipReader's process-wide fallback counter, so the notice fires on
     // a new fallback rather than on every frame after the first one.

@@ -4,6 +4,9 @@
 #include "engine/compositor/GpuCompositor.h"
 #include "engine/compositor/PreviewStream.h"
 
+#include "playback/preview/AdaptivePreviewPolicy.h"
+
+#include <QElapsedTimer>
 #include <QHash>
 #include <QObject>
 #include <QSet>
@@ -130,6 +133,8 @@ public:
 
 signals:
     void frameReady(int stream, const GpuFrameTexture &frame);
+    // The automatic quality moved to another level (1.0 Full, 0.5 Half, 0.25 Quarter).
+    void adaptiveScaleChanged(double scale);
 
 private slots:
     void onWorkerFrameReady(const GpuFrameTexture &frame, drift::TimeUs timeUs,
@@ -181,9 +186,9 @@ private:
     };
     StreamSlot m_slots[kPreviewStreamCount];
     int m_lastServedStream = kPreviewStreamCount - 1;
-    // Adaptive quality: consecutive on-time frames recover; late frames drop scale.
-    int m_lateStreak = 0;
-    int m_onTimeStreak = 0;
+    // Adaptive quality: see AdaptivePreviewPolicy.
+    drift::AdaptivePreviewPolicy m_policy;
+    QElapsedTimer m_clock;
     int m_warmupFramesLeft = 0;
     int m_lateFrameBudgetMs = 100;
     double m_adaptiveScale = 1.0;

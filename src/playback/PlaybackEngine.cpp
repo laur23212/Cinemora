@@ -213,8 +213,16 @@ PlaybackEngine::PlaybackEngine(QObject *parent)
         isKnownProxySize(size))
         drift::ReverseProxyCache::previewProxyShortSide = size;
 
+    m_adaptivePreview = settings.value(QStringLiteral("preview/adaptive"), true).toBool();
+    connect(&m_compositor, &CompositorService::adaptiveScaleChanged, this, [this](double scale) {
+        const int level = scale < 0.3 ? 2 : (scale < 0.7 ? 1 : 0);
+        if (level == m_adaptiveLevel)
+            return;
+        m_adaptiveLevel = level;
+        emit adaptiveLevelChanged();
+    });
     m_compositor.setDropLateFrames(true);
-    m_compositor.setAdaptiveQuality(isAutoQuality());
+    m_compositor.setAdaptiveQuality(isAutoQuality() && m_adaptivePreview);
     m_compositor.setStats(&m_stats);
 
     m_audio->setFillCallback([this](float *stereo, int frames) { return fillAudio(stereo, frames); });
@@ -481,8 +489,20 @@ void PlaybackEngine::setPreviewQuality(const QString &quality)
 
     m_previewQuality = normalized;
     QSettings().setValue(QStringLiteral("preview/quality"), m_previewQuality);
-    m_compositor.setAdaptiveQuality(isAutoQuality());
+    m_compositor.setAdaptiveQuality(isAutoQuality() && m_adaptivePreview);
     emit previewQualityChanged();
+    refreshFrame();
+}
+
+void PlaybackEngine::setAdaptivePreview(bool enabled)
+{
+    if (m_adaptivePreview == enabled)
+        return;
+    m_adaptivePreview = enabled;
+    QSettings().setValue(QStringLiteral("preview/adaptive"), enabled);
+    // Off hands back the requested quality at once (the service resets its level).
+    m_compositor.setAdaptiveQuality(isAutoQuality() && m_adaptivePreview);
+    emit adaptivePreviewChanged();
     refreshFrame();
 }
 

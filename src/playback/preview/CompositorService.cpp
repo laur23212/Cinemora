@@ -11,11 +11,6 @@
 #include <cmath>
 
 namespace {
-constexpr double kAdaptiveScaleMin = 0.25;
-constexpr double kAdaptiveScaleStepDown = 0.75;
-constexpr double kAdaptiveScaleStepUp = 1.25;
-constexpr int kLateBeforeScaleDown = 2;
-constexpr int kOnTimeBeforeScaleUp = 6;
 // Composites at the start of a run open and seek the decoders and are reliably
 // slower than the ones after them. Charging those to the adaptive scale used to
 // downscale the first seconds of every playback.
@@ -129,8 +124,9 @@ void CompositorService::setPlaybackActive(bool active)
     // The scale itself survives across runs — a machine that could not keep up a
     // moment ago still cannot, and relearning that on every play would drop the
     // preview a second or two into each one. Only the streaks restart.
-    m_lateStreak = 0;
-    m_onTimeStreak = 0;
+    if (!m_clock.isValid())
+        m_clock.start();
+    m_policy.restartTimers(m_clock.elapsed());
     m_warmupFramesLeft = active ? kWarmupFrames : 0;
 }
 
@@ -146,10 +142,12 @@ double CompositorService::adaptiveScaleFactor() const
 
 void CompositorService::resetAdaptiveState()
 {
+    const bool changed = m_adaptiveScale != 1.0;
     m_adaptiveScale = 1.0;
-    m_lateStreak = 0;
-    m_onTimeStreak = 0;
+    m_policy.reset();
     m_warmupFramesLeft = 0;
+    if (changed)
+        emit adaptiveScaleChanged(m_adaptiveScale);
 }
 
 FrameCompositor::RenderOptions CompositorService::effectiveOptions(
@@ -167,22 +165,12 @@ void CompositorService::noteFrameLate(bool late)
         --m_warmupFramesLeft;
         return;
     }
-
-    if (late) {
-        m_onTimeStreak = 0;
-        ++m_lateStreak;
-        if (m_lateStreak >= kLateBeforeScaleDown && m_adaptiveScale > kAdaptiveScaleMin + 1e-6) {
-            m_adaptiveScale = qMax(kAdaptiveScaleMin, m_adaptiveScale * kAdaptiveScaleStepDown);
-            m_lateStreak = 0;
-        }
-        return;
-    }
-
-    m_lateStreak = 0;
-    ++m_onTimeStreak;
-    if (m_onTimeStreak >= kOnTimeBeforeScaleUp && m_adaptiveScale < 1.0 - 1e-6) {
-        m_adaptiveScale = qMin(1.0, m_adaptiveScale * kAdaptiveScaleStepUp);
-        m_onTimeStreak = 0;
+    if (!m_clock.isValid())
+        m_clock.start();
+    // Full, Half, Quarter: one level at a time, after 2 s of late frames down and 10 s smooth up.
+    if (m_policy.note(late, m_clock.elapsed())) {
+        m_adaptiveScale = m_policy.scale();
+        emit adaptiveScaleChanged(m_adaptiveScale);
     }
 }
 

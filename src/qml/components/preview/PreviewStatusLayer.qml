@@ -30,6 +30,19 @@ Item {
         seconds: EditorState.audioRecordSeconds
     }
 
+    // The automatic preview quality has stepped down: this is not what the export will look like.
+    // Below the voiceover badge, which only shows while recording.
+    PreviewQualityBadge {
+        visible: !root.compact && EditorState.playback.adaptivePreview
+                 && EditorState.playback.adaptiveLevel > 0
+        level: EditorState.playback.adaptiveLevel
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.margins: Theme.spacingLg
+        anchors.topMargin: Theme.spacingLg + (EditorState.isRecordingAudio ? 36 : 0)
+        z: 11
+    }
+
     // On a brand-new project this — the largest, most central panel — said nothing at all, while
     // the timeline below it explained what to do. The terse gap message below is right when a
     // project has content and the playhead is simply over a gap; it is not an answer to "what do
