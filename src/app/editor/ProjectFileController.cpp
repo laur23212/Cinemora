@@ -1,4 +1,6 @@
 #include "app/editor/ProjectFileController.h"
+#include "app/editor/ProjectSafety.h"
+#include <QLocale>
 #include "app/online/library/SessionFiles.h"
 #include "app/bin/MediaBinController.h"
 #include "app/editor/PreferencesController.h"
@@ -67,6 +69,17 @@ bool projectLocationExists(const QString &path);
 #ifdef Q_OS_ANDROID
 QString materializeContentUrl(const QUrl &url);
 #endif
+
+namespace {
+
+// Whether a project bundle on disk still reads: its header and manifest are intact.
+bool isOpenableProject(const QString &path)
+{
+    QString error;
+    return drift::bundle::readManifest(path, &error).has_value();
+}
+
+} // namespace
 
 ProjectFileController::ProjectFileController(AppController *app, QObject *parent)
     : QObject(parent)
@@ -551,6 +564,7 @@ drift::bundle::WriteRequest ProjectFileController::completeRequest(const SaveCap
     const QJsonObject history = AppController::historyJson(capture.history, &states);
     if (!history.isEmpty())
         root.insert(QStringLiteral("undoHistory"), history);
+    dafin::project::stampVersion(root);
     request.document = root;
 
     // Derived media (mattes, stabilized renders) that only an older undo state points at still
@@ -717,6 +731,11 @@ void ProjectFileController::runBundleSave(const QUrl &url, const std::optional<P
                 return true;
             };
         }
+        // Dafin: the file about to be replaced is kept (last five, in a backups folder beside the
+        // project). Only a file that still opens is kept, so a damaged one never pushes a good
+        // backup out. Not for a content:// document, whose staged path is a cache copy.
+        if (!AndroidUri::isContentUri(url))
+            dafin::project::backupBeforeOverwrite(path, isOpenableProject);
         const bool written = drift::bundle::write(path, request, progress, &error);
         bool ok = written;
         if (ok) {
@@ -1646,8 +1665,11 @@ void ProjectFileController::finishLoad(int generation, const QUrl &url,
     if (generation != m_loadGeneration)
         return;
     if (!result->parsed) {
+        m_backupBeingOpened.clear();
+        m_backupStandsFor.clear();
         m_app->setLastMessage(result->error, QStringLiteral("error"));
         finishProjectLoad(false, result->error);
+        offerBackupFor(url);
         return;
     }
 
@@ -1701,18 +1723,52 @@ void ProjectFileController::finishLoad(int generation, const QUrl &url,
     // Not the staged path: on Android that lives in the cache the startup sweep clears, and
     // Save-in-place has to write back to the document the user actually opened. projectLocation
     // upgrades the picker's one-shot grant to a persistable read+write one on the way.
-    const QString location = projectLocation(url);
+    QString location = projectLocation(url);
+    // Dafin: a backup opened in place of a damaged project is the project: Save writes over it, and
+    // the document counts as unsaved until it does.
+    const bool openedBackup = !m_backupBeingOpened.isEmpty() && url.isLocalFile()
+                              && QFileInfo(url.toLocalFile()) == QFileInfo(m_backupBeingOpened);
+    if (openedBackup)
+        location = m_backupStandsFor;
+    m_backupBeingOpened.clear();
+    m_backupStandsFor.clear();
     setCurrentProjectPath(location);
     addRecentProject(location);
+    if (openedBackup)
+        setDirty(true);
     deleteRecoveryFile();
     m_app->setProjectLayoutChosen(true);
     const int missing = m_app->m_assetLibrary->missingCount();
-    const QString message = missing > 0
-        ? tr("Project loaded, but %n media file(s) could not be found", nullptr, missing)
-        : tr("Project loaded");
+    const QString message = openedBackup
+        ? tr("Opened the backup. Save to replace the damaged project file.")
+        : missing > 0
+            ? tr("Project loaded, but %n media file(s) could not be found", nullptr, missing)
+            : tr("Project loaded");
     m_app->setLastMessage(message, missing > 0 ? QStringLiteral("warning") : QStringLiteral("success"));
     reportMissingAddons(bundle.addons);
     finishProjectLoad(true, message);
+}
+
+void ProjectFileController::offerBackupFor(const QUrl &url)
+{
+    if (!url.isLocalFile())
+        return;
+    const QString path = url.toLocalFile();
+    // A backup that itself fails to open is not offered more backups: that would loop.
+    if (QFileInfo(path).dir().dirName() == QLatin1String("backups"))
+        return;
+    const QString backup = dafin::project::newestGoodBackup(path, isOpenableProject);
+    if (backup.isEmpty())
+        return;
+    emit backupAvailable(path, backup,
+                         QLocale().toString(QFileInfo(backup).lastModified(), QLocale::ShortFormat));
+}
+
+void ProjectFileController::openBackup(const QString &projectPath, const QString &backupPath)
+{
+    m_backupBeingOpened = backupPath;
+    m_backupStandsFor = projectPath;
+    loadProject(QUrl::fromLocalFile(backupPath));
 }
 
 void ProjectFileController::reportMissingAddons(const QList<drift::bundle::AddonRef> &addons)
@@ -2124,6 +2180,7 @@ QString writeRecoveryTemp(const drift::Project &project, QJsonObject session,
         root.insert(it.key(), it.value());
     if (const QJsonObject json = AppController::historyJson(history); !json.isEmpty())
         root.insert(QStringLiteral("undoHistory"), json);
+    dafin::project::stampVersion(root);
     root.insert(QStringLiteral("__recovery"), meta);
 
     // A low level: this runs every few seconds, and the long-range window is what shrinks a

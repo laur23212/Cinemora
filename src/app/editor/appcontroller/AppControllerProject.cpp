@@ -1,3 +1,4 @@
+#include "app/editor/ProjectSafety.h"
 #include "app/platform/DiagnosticsLog.h"
 #include "app/platform/FileDialogs.h"
 #include "engine/platform/AndroidUri.h"
@@ -59,6 +60,7 @@ QByteArray AppController::serializeProjectJson() const
         root.insert(it.key(), it.value());
     if (const QJsonObject history = historyJson(drift::captureHistory(m_undoStack)); !history.isEmpty())
         root.insert(QStringLiteral("undoHistory"), history);
+    dafin::project::stampVersion(root);
     return QJsonDocument(root).toJson(QJsonDocument::Indented);
 }
 
@@ -150,9 +152,18 @@ std::optional<AppController::ParsedProject> AppController::parseProjectJson(cons
     return parseProjectJson(document.object(), error);
 }
 
-std::optional<AppController::ParsedProject> AppController::parseProjectJson(const QJsonObject &root,
+std::optional<AppController::ParsedProject> AppController::parseProjectJson(const QJsonObject &fileRoot,
                                                                              QString *error)
 {
+    // Dafin: older files are brought up to this build's project version first (ProjectSafety.h). A
+    // file from a newer build is still tried — a newer build mostly only adds fields.
+    QJsonObject root = fileRoot;
+    bool fromNewer = false;
+    dafin::project::migrate(root, &fromNewer);
+    if (fromNewer) {
+        qWarning("Project file is from a newer Dafin (projectVersion %d, this build writes %d)",
+                 dafin::project::versionOf(root), dafin::project::kProjectVersion);
+    }
     // Parse into a local and check before touching anything: a project we end up rejecting must
     // leave the open one exactly as it was, session state included.
     QString parseError;

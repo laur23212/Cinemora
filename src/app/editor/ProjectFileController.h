@@ -145,6 +145,8 @@ public:
     // Removes one path from the recents list without deleting the file on disk.
     Q_INVOKABLE void removeRecentProject(const QString &path);
     Q_INVOKABLE void restoreAutosave();
+    // Dafin: opens `backupPath` as the project `projectPath`: Save then replaces the damaged file.
+    Q_INVOKABLE void openBackup(const QString &projectPath, const QString &backupPath);
     Q_INVOKABLE void discardAutosave();
     // Clears dirty + recovery without mutating the timeline. Used when the user
     // chooses Don't Save before quitting so the next launch does not offer restore.
@@ -200,6 +202,9 @@ signals:
     // Addons the freshly opened project needs but that are not installed. Each entry is
     // id / name / version / kinds, for MissingAddonsDialog.
     void missingAddons(const QVariantList &addons);
+    // Dafin: a project would not open but a good backup of it exists (see ProjectSafety.h). QML offers
+    // it in BackupOfferDialog; `savedAt` is the backup's own time, ready to show.
+    void backupAvailable(const QString &projectPath, const QString &backupPath, const QString &savedAt);
     // Terminal result of loadProject()/loadProjectJson()/restoreAutosave(): exactly one per call that
     // reaches a load generation still current when it finishes. A bundle with embedded
     // media raises the "Unpacking project media…" lastMessage first and this only once
@@ -240,6 +245,7 @@ private:
     // Applies a finished load unless a newer one has started since, then releases the
     // pending flag either way the load went.
     void finishLoad(int generation, const QUrl &url, const std::shared_ptr<LoadResult> &result);
+    void offerBackupFor(const QUrl &url);
     // Everything a save reads from the open document, taken on the GUI thread and immutable after:
     // a detached copy of the project, the view state, and the undo states (shared, never the live
     // commands). The worker turns it into the document, so serializing, compressing and writing
@@ -303,6 +309,9 @@ private:
 
     // Save state / autosave / crash recovery.
     QString m_currentProjectPath;
+    // Dafin: set by openBackup(): the backup being opened and the project it stands in for.
+    QString m_backupBeingOpened;
+    QString m_backupStandsFor;
     bool m_dirty = false;
     // Bumped by every setDirty(true). A save records it when it captures the document and only
     // clears the dirty flag if it is unchanged when the write lands: an edit made during the

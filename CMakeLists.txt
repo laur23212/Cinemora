@@ -1307,6 +1307,8 @@ target_sources(driftapp PRIVATE
     src/app/editor/ProjectFileController.cpp
     src/app/platform/DiagnosticsLog.h
     src/app/platform/DiagnosticsLog.cpp
+    src/app/editor/ProjectSafety.h
+    src/app/editor/ProjectSafety.cpp
     src/app/bin/AssetPreviewController.h
     src/app/bin/AssetPreviewController.cpp
     src/app/editor/sessions/SpeedCurveController.h
@@ -2565,6 +2567,7 @@ qt_add_qml_module(drift
         src/qml/components/dialogs/SubtitleProgressDialog.qml
         src/qml/components/shell/CircularProgress.qml
         src/qml/components/dialogs/RecoveryDialog.qml
+        src/qml/components/dialogs/BackupOfferDialog.qml
         src/qml/components/dialogs/UnsavedChangesDialog.qml
         src/qml/components/dialogs/PasteAttributesVideoSection.qml
         src/qml/components/dialogs/PasteAttributesTransitionsSection.qml

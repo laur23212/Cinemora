@@ -529,6 +529,13 @@ ApplicationWindow {
     }
 
     LazyLoader {
+        id: backupOfferDialogLoader
+        sourceComponent: Component {
+            BackupOfferDialog { }
+        }
+    }
+
+    LazyLoader {
         id: subtitleProgressDialogLoader
         sourceComponent: Component {
             SubtitleProgressDialog { }
@@ -1436,6 +1443,11 @@ ApplicationWindow {
 
     Connections {
         target: EditorState.projectFile
+
+        // Dafin: a project would not open but a rotating backup of it does.
+        function onBackupAvailable(projectPath, backupPath, savedAt) {
+            backupOfferDialogLoader.ensure().openFor(projectPath, backupPath, savedAt)
+        }
 
         function onRecoveryChanged() {
             if (EditorState.preferences.needsUiLanguagePrompt || languageChooserDialogLoader.shown)
