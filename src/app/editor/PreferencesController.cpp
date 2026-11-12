@@ -743,6 +743,7 @@ void PreferencesController::loadPerformanceSettings()
     t::frameCacheMiB.store(normalizedFrameCacheMiB(read("frameCacheMiB", t::Defaults::frameCacheMiB)), std::memory_order_relaxed);
     t::continuousReadAhead.store(read("continuousReadAhead", t::Defaults::continuousReadAhead ? 1 : 0) != 0, std::memory_order_relaxed);
     t::preferHardwareExport.store(read("preferHardwareExport", t::Defaults::preferHardwareExport ? 1 : 0) != 0, std::memory_order_relaxed);
+    t::cpuFallbackOnGpuEncodeFailure.store(read("cpuFallbackOnGpuEncodeFailure", t::Defaults::cpuFallbackOnGpuEncodeFailure ? 1 : 0) != 0, std::memory_order_relaxed);
 }
 
 int PreferencesController::staleFrameLagMs() const
@@ -883,6 +884,19 @@ void PreferencesController::setPreferHardwareExport(bool enabled)
     emit performanceChanged();
 }
 
+bool PreferencesController::cpuFallbackOnGpuEncodeFailure() const
+{
+    return drift::tuning::cpuFallbackOnGpuEncodeFailure.load(std::memory_order_relaxed);
+}
+
+void PreferencesController::setCpuFallbackOnGpuEncodeFailure(bool enabled)
+{
+    if (drift::tuning::cpuFallbackOnGpuEncodeFailure.exchange(enabled, std::memory_order_relaxed) == enabled)
+        return;
+    storePerformance("cpuFallbackOnGpuEncodeFailure", enabled ? 1 : 0);
+    emit performanceChanged();
+}
+
 void PreferencesController::resetPerformanceDefaults()
 {
     namespace t = drift::tuning;
@@ -898,6 +912,7 @@ void PreferencesController::resetPerformanceDefaults()
     t::frameCacheMiB.store(t::Defaults::frameCacheMiB, std::memory_order_relaxed);
     t::continuousReadAhead.store(t::Defaults::continuousReadAhead, std::memory_order_relaxed);
     t::preferHardwareExport.store(t::Defaults::preferHardwareExport, std::memory_order_relaxed);
+    t::cpuFallbackOnGpuEncodeFailure.store(t::Defaults::cpuFallbackOnGpuEncodeFailure, std::memory_order_relaxed);
     emit performanceChanged();
 }
 

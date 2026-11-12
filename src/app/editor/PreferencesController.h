@@ -143,6 +143,7 @@ class PreferencesController : public QObject
     Q_PROPERTY(int frameCacheMiB READ frameCacheMiB WRITE setFrameCacheMiB NOTIFY performanceChanged)
     Q_PROPERTY(bool continuousReadAhead READ continuousReadAhead WRITE setContinuousReadAhead NOTIFY performanceChanged)
     Q_PROPERTY(bool preferHardwareExport READ preferHardwareExport WRITE setPreferHardwareExport NOTIFY performanceChanged)
+    Q_PROPERTY(bool cpuFallbackOnGpuEncodeFailure READ cpuFallbackOnGpuEncodeFailure WRITE setCpuFallbackOnGpuEncodeFailure NOTIFY performanceChanged)
     // False inside Flatpak: the sandbox dies with its first process, taking a relaunched child
     // with it, so the UI asks for a manual restart instead.
     Q_PROPERTY(bool canRestart READ canRestart CONSTANT)
@@ -244,6 +245,8 @@ public:
     void setContinuousReadAhead(bool enabled);
     bool preferHardwareExport() const;
     void setPreferHardwareExport(bool enabled);
+    bool cpuFallbackOnGpuEncodeFailure() const;
+    void setCpuFallbackOnGpuEncodeFailure(bool enabled);
     Q_INVOKABLE void resetPerformanceDefaults();
 
     qint64 cacheSizeBytes() const { return m_cacheSizeBytes; }

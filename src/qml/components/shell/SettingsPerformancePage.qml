@@ -316,4 +316,17 @@ SettingsPage {
             onToggled: EditorState.preferences.preferHardwareExport = checked
         }
     }
+
+    SettingsRow {
+        title: qsTr("If the GPU encoder fails, finish the export on the CPU")
+        searchId: "performance-gpu-encoder-cpu-fallback"
+        description: qsTr("When a GPU encoder (NVIDIA, AMD, Intel, VAAPI) cannot start or stops part-way, the export runs once more on the matching software encoder instead of ending with an error. It takes longer, but the file is made.")
+        keywords: "nvenc qsv amf vaapi gpu encode fallback cpu software x264 x265 failed error"
+        query: page.query
+
+        ThemedSwitch {
+            checked: EditorState.preferences.cpuFallbackOnGpuEncodeFailure
+            onToggled: EditorState.preferences.cpuFallbackOnGpuEncodeFailure = checked
+        }
+    }
 }

@@ -20,6 +20,8 @@ struct Defaults
     static constexpr int readerHistoryMiB = 0;
     static constexpr int frameCacheMiB = 0;
     static constexpr bool preferHardwareExport = false;
+    // Dafin: a failed GPU export runs once more on the matching CPU encoder (HwEncodeFallback.h).
+    static constexpr bool cpuFallbackOnGpuEncodeFailure = true;
 };
 
 // Preview frames that finish this far behind the playhead are dropped. 0 never drops for lateness.
@@ -45,6 +47,7 @@ inline std::atomic<int> readerHistoryMiB{Defaults::readerHistoryMiB};
 // Decoded preview frames across all readers. 0 = automatic from physical memory.
 inline std::atomic<int> frameCacheMiB{Defaults::frameCacheMiB};
 inline std::atomic<bool> preferHardwareExport{Defaults::preferHardwareExport};
+inline std::atomic<bool> cpuFallbackOnGpuEncodeFailure{Defaults::cpuFallbackOnGpuEncodeFailure};
 
 inline constexpr unsigned long long kMiB = 1024ull * 1024;
 
