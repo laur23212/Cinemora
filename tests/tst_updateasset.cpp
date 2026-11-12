@@ -24,6 +24,7 @@ private slots:
     void releaseUrlsFollowTheVersion();
     void installerFileName();
     void fileChecksumIsChecked();
+    void installScriptsKeepThePreviousVersion();
 };
 
 void UpdateAssetTest::versionText()
@@ -203,6 +204,44 @@ void UpdateAssetTest::fileChecksumIsChecked()
     QVERIFY(!drift::fileMatchesSha256(file.fileName(), QString(64, QLatin1Char('0'))));
     QVERIFY(!drift::fileMatchesSha256(file.fileName(), QString()));
     QVERIFY(!drift::fileMatchesSha256(file.fileName() + QStringLiteral(".missing"), good));
+}
+
+void UpdateAssetTest::installScriptsKeepThePreviousVersion()
+{
+    drift::InstallScriptArgs args;
+    args.pid = QStringLiteral("4242");
+    args.staged = QStringLiteral("'/c/new'");
+    args.target = QStringLiteral("'/a/Dafin.AppImage'");
+    args.temp = QStringLiteral("'/a/Dafin.AppImage.drift-update'");
+    args.previous = QStringLiteral("'/a/Dafin.AppImage.previous'");
+    args.installDir = QStringLiteral("'C:\\Dafin'");
+    args.exe = QStringLiteral("'C:\\Dafin\\dafin.exe'");
+    args.marker = QStringLiteral("'/c/started-ok'");
+
+    // Install on close: the old version is kept, nothing is started or rolled back.
+    args.relaunch = false;
+    const QString quietLinux = drift::linuxInstallScript(args);
+    QVERIFY(quietLinux.contains(QStringLiteral("cp -f '/a/Dafin.AppImage' '/a/Dafin.AppImage.previous'")));
+    QVERIFY(quietLinux.contains(QStringLiteral("mv -f '/a/Dafin.AppImage.drift-update' '/a/Dafin.AppImage'")));
+    QVERIFY(!quietLinux.contains(QStringLiteral("nohup")));
+    const QString quietWindows = drift::windowsInstallScript(args);
+    QVERIFY(quietWindows.contains(QStringLiteral("robocopy.exe $installDir $previous /MIR")));
+    QVERIFY(!quietWindows.contains(QStringLiteral("/DRIFTUPDATE=1")));
+    QVERIFY(!quietWindows.contains(QStringLiteral("Start-Process -FilePath $exe")));
+
+    // Restart and install: the new copy is watched and the old one restored if it dies.
+    args.relaunch = true;
+    const QString linux = drift::linuxInstallScript(args);
+    QVERIFY(linux.contains(QStringLiteral("while [ \"$waited\" -lt 60 ]")));
+    QVERIFY(linux.contains(QStringLiteral("cp -f '/a/Dafin.AppImage.previous' '/a/Dafin.AppImage.drift-update'")));
+    const QString windows = drift::windowsInstallScript(args);
+    QVERIFY(windows.contains(QStringLiteral("/DRIFTUPDATE=1")));
+    QVERIFY(windows.contains(QStringLiteral("$i -lt 60")));
+    QVERIFY(windows.contains(QStringLiteral("Start-Process -FilePath $exe")));
+    for (const QString &text : {linux, windows})
+        for (const char *placeholder : {"{PID}", "{STAGED}", "{TARGET}", "{TEMP}", "{PREVIOUS}",
+                                        "{INSTALLDIR}", "{EXE}", "{MARKER}", "{TIMEOUT}"})
+            QVERIFY(!text.contains(QLatin1String(placeholder)));
 }
 
 QTEST_GUILESS_MAIN(UpdateAssetTest)

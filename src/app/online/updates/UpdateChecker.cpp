@@ -56,6 +56,8 @@ constexpr int kPeriodicCheckMs = 30 * 60 * 1000;
 // Long enough that the first frame, the project restore and the addon index refresh are all past
 // before a socket is opened. Nothing in the app waits on this.
 constexpr int kStartupDelayMs = 5000;
+// Long enough that a start which fails early (missing library, bad install) never gets here.
+constexpr int kStartedOkDelayMs = 8000;
 
 constexpr int kTransferTimeoutMs = 15000;
 
@@ -147,6 +149,14 @@ UpdateChecker::UpdateChecker(QObject *parent)
         connect(this, changed, this, &UpdateChecker::downloadJobChanged);
 
     scheduleStartup();
+
+    // Tells an install helper that is watching this start that the copy came up: one that dies
+    // before this file appears is rolled back to the version it replaced.
+    QTimer::singleShot(kStartedOkDelayMs, this, [this] {
+        QFile marker(startedMarkerPath());
+        if (marker.open(QIODevice::WriteOnly | QIODevice::Truncate))
+            marker.write(kCurrentVersion.toUtf8());
+    });
 
     m_periodic = new QTimer(this);
     m_periodic->setInterval(kPeriodicCheckMs);
@@ -851,6 +861,11 @@ QString UpdateChecker::updatesDir() const
     return dir;
 }
 
+QString UpdateChecker::startedMarkerPath() const
+{
+    return updatesDir() + QStringLiteral("/started-ok");
+}
+
 QString UpdateChecker::appImagePath() const
 {
     // Set by the AppImage runtime to the file that was launched.
@@ -1170,27 +1185,17 @@ void UpdateChecker::launchStagedInstall()
     QFile script(scriptPath);
     if (!script.open(QIODevice::WriteOnly | QIODevice::Truncate))
         return;
-    // The helper waits out this process, then runs the Inno installer. /DRIFTUPDATE=1 is what
-    // makes a silent install launch Drift again, so it is passed only for "Restart and install";
-    // an install on close leaves Drift closed, as skipifsilent does without it.
-    // -Verb RunAs is the UAC prompt — the installer writes to Program Files.
-    const QString body = QStringLiteral(
-            "$processId = %1\r\n"
-            "$installer = %2\r\n"
-            "while (Get-Process -Id $processId -ErrorAction SilentlyContinue) {\r\n"
-            "    Start-Sleep -Milliseconds 400\r\n"
-            "}\r\n"
-            "try {\r\n"
-            "    Start-Process -FilePath $installer -ArgumentList "
-            "'/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART'%3 "
-            "-Verb RunAs -Wait\r\n"
-            "} catch {\r\n"
-            "    exit 1\r\n"
-            "}\r\n")
-                                 .arg(pid)
-                                 .arg(powerShellQuote(QDir::toNativeSeparators(m_stagedPath)),
-                                      m_relaunch ? QStringLiteral(",'/DRIFTUPDATE=1'") : QString());
-    script.write(body.toUtf8());
+    // The helper waits out this process, keeps the install folder as `previous`, then runs the
+    // Inno installer (UAC prompt). See drift::windowsInstallScript for the rollback.
+    drift::InstallScriptArgs args;
+    args.pid = QString::number(pid);
+    args.staged = powerShellQuote(QDir::toNativeSeparators(m_stagedPath));
+    args.installDir = powerShellQuote(QDir::toNativeSeparators(QCoreApplication::applicationDirPath()));
+    args.exe = powerShellQuote(QDir::toNativeSeparators(QCoreApplication::applicationFilePath()));
+    args.previous = powerShellQuote(QDir::toNativeSeparators(dir + QStringLiteral("/previous")));
+    args.marker = powerShellQuote(QDir::toNativeSeparators(startedMarkerPath()));
+    args.relaunch = m_relaunch;
+    script.write(drift::windowsInstallScript(args).toUtf8());
     script.close();
 
     QProcess helper;
@@ -1251,26 +1256,17 @@ void UpdateChecker::launchStagedInstall()
     QFile script(scriptPath);
     if (!script.open(QIODevice::WriteOnly | QIODevice::Truncate))
         return;
-    // Copied next to the target first so the final mv is a rename on one filesystem: a launcher
-    // that starts Drift mid-update gets the old file or the new one, never half of either.
-    const QString temp = target + QStringLiteral(".drift-update");
-    const QString body = QStringLiteral(
-            "#!/bin/sh\n"
-            "while kill -0 %1 2>/dev/null; do\n"
-            "  sleep 0.4\n"
-            "done\n"
-            "if ! { cp -f %2 %3 && chmod 755 %3 && mv -f %3 %4; }; then\n"
-            "  rm -f %3\n"
-            "  exit 1\n"
-            "fi\n"
-            "rm -f %2\n"
-            "%5\n")
-                                 .arg(QString::number(pid), shellSingleQuote(m_stagedPath),
-                                      shellSingleQuote(temp), shellSingleQuote(target),
-                                      m_relaunch ? QStringLiteral("nohup ") + shellSingleQuote(target)
-                                                         + QStringLiteral(" >/dev/null 2>&1 &")
-                                                 : QString());
-    script.write(body.toUtf8());
+    // Copied next to the target first so the final mv is a rename on one filesystem. The old
+    // AppImage stays beside it as `<name>.previous`; see drift::linuxInstallScript.
+    drift::InstallScriptArgs args;
+    args.pid = QString::number(pid);
+    args.staged = shellSingleQuote(m_stagedPath);
+    args.target = shellSingleQuote(target);
+    args.temp = shellSingleQuote(target + QStringLiteral(".drift-update"));
+    args.previous = shellSingleQuote(target + QStringLiteral(".previous"));
+    args.marker = shellSingleQuote(startedMarkerPath());
+    args.relaunch = m_relaunch;
+    script.write(drift::linuxInstallScript(args).toUtf8());
     script.close();
 
     // The AppImage runtime and AppRun point these at this copy's mount, which is gone once we

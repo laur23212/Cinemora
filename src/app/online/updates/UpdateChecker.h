@@ -213,6 +213,7 @@ private:
     void finishStage();
     void launchStagedInstall();
     QString updatesDir() const;
+    QString startedMarkerPath() const;
     QString macBundleName() const;
     QString appImagePath() const;
 
