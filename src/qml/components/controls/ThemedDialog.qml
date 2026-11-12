@@ -22,6 +22,8 @@ Dialog {
     property real preferredWidth: Theme.dialogWidthMd
     // Set false for dialogs where Enter must not commit (destructive confirms).
     property bool acceptOnReturn: true
+    // Dafin: buttons shown in the footer before Cancel / OK, e.g. Export's "Add to queue".
+    property alias footerExtra: footerExtraRow.data
 
     // A Popup is not an Item, so SafeArea cannot attach to the dialog; the overlay fills
     // the window and does carry them. Without this a full-height dialog on a phone still
@@ -241,6 +243,13 @@ Dialog {
             anchors.rightMargin: Theme.spacing2xl
             anchors.verticalCenter: parent.verticalCenter
             spacing: Theme.spacingLg
+
+            // Dafin: extra buttons a dialog puts before Cancel / OK (footerExtra).
+            Row {
+                id: footerExtraRow
+                spacing: Theme.spacingLg
+                visible: children.length > 0
+            }
 
             ThemedButton {
                 visible: root.showReject

@@ -433,6 +433,35 @@ ThemedDialog {
         }
     }
 
+    // Dafin: "Add to queue" renders these settings in the background (ExportQueue) from a copy of
+    // the project taken now, so editing can go on and more exports can be lined up behind it.
+    footerExtra: [
+        ThemedButton {
+            visible: Qt.platform.os !== "android" && Qt.platform.os !== "ios"
+            text: qsTr("Add to queue")
+            glyph: Theme.icons.listVideo
+            variant: "secondary"
+            tooltip: qsTr("Render in the background while you keep editing")
+            onClicked: root.addToQueue()
+        }
+    ]
+
+    function addToQueue() {
+        var container = isGifExport ? "gif"
+                : isAudioOnly
+                  ? EditorState.exportPreferredAudioOnlyContainer(audioCodecId)
+                  : EditorState.exportPreferredContainer(videoCodecId, audioCodecId)
+        var url = FileDialogs.saveFile(qsTr("Add to export queue"),
+                                       EditorState.exportSaveFilters(container, isAudioOnly),
+                                       EditorState.projectFile.projectName,
+                                       EditorState.exportDefaultSuffix(container, isAudioOnly),
+                                       EditorState.lastExportFolder())
+        if (url == "")
+            return
+        ExportQueue.addFromEditor(url, buildSettings())
+        root.close()
+    }
+
     // With Advanced open this content is ~800px tall against a 560px minimum
     // window height, so it has to scroll: unscrolled, the dialog overflowed the
     // window and took the Export/Cancel buttons off-screen with it.

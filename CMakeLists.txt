@@ -2595,6 +2595,7 @@ qt_add_qml_module(drift
         src/qml/components/dialogs/ProjectLoadDialog.qml
         src/qml/components/dialogs/ExportDialog.qml
         src/qml/components/dialogs/ExportProgressDialog.qml
+        src/qml/components/dialogs/ExportQueuePanel.qml
         src/qml/components/dialogs/CollectMediaDialog.qml
         src/qml/components/dialogs/ImageSequenceDialog.qml
         src/qml/components/dialogs/ProxyPromptDialog.qml
@@ -2732,6 +2733,7 @@ qt_add_qml_module(drift
         src/qml/components/shell/EditorHeaderExtrasButton.qml
         src/qml/components/shell/EditorHeaderExportButton.qml
         src/qml/components/shell/EditorHeaderExportBadge.qml
+        src/qml/components/shell/EditorHeaderExportQueueButton.qml
         src/qml/components/shell/EditorHeaderDownloadsButton.qml
         src/qml/components/shell/DenoiseWaveformLane.qml
         src/qml/components/denoise/DenoiseView.qml

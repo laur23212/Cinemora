@@ -380,7 +380,7 @@ Item {
         defaults: ({
             "left": ["projects", "save", "video"],
             "right": ["downloads", "settings", "separator1", "extras", "notifications", "separator2",
-                      "agent", "shortcuts", "separator3", "exportBadge", "export"]
+                      "agent", "shortcuts", "separator3", "exportQueue", "exportBadge", "export"]
         })
         stored: root.withShortcutsButton(EditorState.preferences.barLayouts["header"])
         layer: headerReorderLayer
@@ -424,7 +424,8 @@ Item {
         "shortcuts": shortcutsComponent,
         "separator3": separatorComponent,
         "exportBadge": exportBadgeComponent,
-        "export": exportComponent
+        "export": exportComponent,
+        "exportQueue": exportQueueComponent
     })
 
     Component {
@@ -503,6 +504,9 @@ Item {
             }
         }
     }
+
+    // Dafin: the background export queue (hidden while it is empty).
+    Component { id: exportQueueComponent; EditorHeaderExportQueueButton { } }
 
     Component {
         id: exportComponent
