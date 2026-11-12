@@ -26,6 +26,9 @@ QtObject {
     // calls done(choice, fps) with choice "sequence", "stills" or "cancel". Left null on shells
     // with no sheet, where numbered images simply import as stills.
     property var sequencePrompt: null
+    // Dafin: set by the host window: function(assetIds) shows the proxy prompt (ProxyPromptDialog).
+    // Left null on shells without it, which keep Drift's toast.
+    property var proxyPrompt: null
 
     // Asset ids still being probed, and what to run once every one of them is done.
     property var _awaitIds: []
@@ -278,7 +281,16 @@ QtObject {
     property Connections _suggestionWatch: Connections {
         target: AssetLibrary
         function onImportSuggestions(proxyIds, vfrIds) {
-            if (proxyIds.length > 0) {
+            // Dafin: the saved answer, else the prompt with the pros and cons.
+            let proxyChoice = "ask"
+            try { proxyChoice = DafinProxies.importChoice } catch (e) { proxyChoice = "ask" }
+            if (proxyIds.length > 0 && proxyChoice === "proxy") {
+                AssetLibrary.createProxies(proxyIds)
+            } else if (proxyIds.length > 0 && proxyChoice === "full") {
+                // Full quality chosen once and remembered: nothing to make.
+            } else if (proxyIds.length > 0 && mediaImport.proxyPrompt) {
+                mediaImport.proxyPrompt(proxyIds)
+            } else if (proxyIds.length > 0) {
                 Toasts.post("info",
                             qsTr("%n clip(s) may play back slowly. A proxy makes previewing smoother; export still uses the original.", "", proxyIds.length),
                             12000, qsTr("Create proxies"),

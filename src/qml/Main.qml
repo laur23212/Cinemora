@@ -487,6 +487,13 @@ ApplicationWindow {
     }
 
     LazyLoader {
+        id: proxyPromptDialogLoader
+        sourceComponent: Component {
+            ProxyPromptDialog { }
+        }
+    }
+
+    LazyLoader {
         id: projectSetupDialogLoader
         sourceComponent: Component {
             ProjectSetupDialog { }
@@ -1268,6 +1275,7 @@ ApplicationWindow {
         MediaImport.sequencePrompt = function (found, done) {
             imageSequenceDialogLoader.ensure().ask(found, done)
         }
+        MediaImport.proxyPrompt = function (ids) { proxyPromptDialogLoader.ensure().ask(ids) }
         window.restoreWindowGeometry()
         window.beginStartupProject()
         // Independent of the project-restore sequence above — it neither gates nor is

@@ -315,6 +315,113 @@ SettingsPage {
         }
     }
 
+    // Dafin proxy media: per-project switch, import prompt, encoder, cache cap and cleanup.
+    SettingsRow {
+        title: qsTr("Use proxies in this project")
+        searchId: "preview-proxy-project"
+        description: qsTr("Turn proxies off for this project only, for example to judge sharpness. Other projects keep the switch above.")
+        keywords: "proxy project per-project"
+        query: page.query
+
+        ThemedSwitch {
+            checked: DafinProxies.projectEnabled
+            onToggled: DafinProxies.projectEnabled = checked
+        }
+    }
+
+    SettingsRow {
+        title: qsTr("After importing heavy clips")
+        searchId: "preview-proxy-import-choice"
+        description: qsTr("4K, HEVC (H.265), 10-bit or very high bitrate clips can stutter in the preview.")
+        keywords: "proxy import ask 4k hevc 10-bit bitrate"
+        query: page.query
+
+        ThemedComboBox {
+            width: Theme.c.settingsRow.controlWidth
+            textRole: "label"
+            valueRole: "id"
+            model: [
+                { id: "ask", label: qsTr("Ask me") },
+                { id: "proxy", label: qsTr("Always create proxies") },
+                { id: "full", label: qsTr("Always use full quality") }
+            ]
+            currentIndex: {
+                for (var i = 0; i < model.length; ++i) {
+                    if (model[i].id === DafinProxies.importChoice)
+                        return i
+                }
+                return 0
+            }
+            onActivated: DafinProxies.importChoice = model[currentIndex].id
+        }
+    }
+
+    SettingsRow {
+        title: qsTr("Proxy encoder")
+        searchId: "preview-proxy-encoder"
+        description: DafinProxies.lastEncoder.length > 0
+                     ? qsTr("Automatic tries NVIDIA, AMD, then Intel, and falls back to the CPU if the graphics card can't. Last proxy made with: %1.").arg(DafinProxies.lastEncoder)
+                     : qsTr("Automatic tries NVIDIA, AMD, then Intel, and falls back to the CPU if the graphics card can't.")
+        keywords: "proxy encoder gpu nvenc amf qsv nvidia amd intel cpu hardware"
+        query: page.query
+
+        ThemedComboBox {
+            width: Theme.c.settingsRow.controlWidth
+            textRole: "label"
+            valueRole: "id"
+            model: [
+                { id: "auto", label: qsTr("Automatic") },
+                { id: "nvidia", label: qsTr("NVIDIA") },
+                { id: "amd", label: qsTr("AMD") },
+                { id: "intel", label: qsTr("Intel") },
+                { id: "cpu", label: qsTr("CPU only") }
+            ]
+            currentIndex: {
+                for (var i = 0; i < model.length; ++i) {
+                    if (model[i].id === DafinProxies.encoder)
+                        return i
+                }
+                return 0
+            }
+            onActivated: DafinProxies.encoder = model[currentIndex].id
+        }
+    }
+
+    SettingsRow {
+        title: qsTr("Proxy cache size limit")
+        searchId: "preview-proxy-cache-limit"
+        description: qsTr("When the cache grows past this, the oldest proxies are deleted.")
+        keywords: "proxy cache size limit disk space"
+        query: page.query
+
+        ThemedComboBox {
+            width: Theme.c.settingsRow.controlWidth
+            model: DafinProxies.cacheLimitChoices.map(function (gb) { return qsTr("%1 GB").arg(gb) })
+            currentIndex: Math.max(0, DafinProxies.cacheLimitChoices.indexOf(DafinProxies.cacheLimitGb))
+            onActivated: DafinProxies.cacheLimitGb = DafinProxies.cacheLimitChoices[currentIndex]
+        }
+    }
+
+    SettingsRow {
+        title: qsTr("Proxy cache")
+        searchId: "preview-proxy-cache-clear"
+        description: qsTr("Using %1. Clearing deletes the proxies; the original media is never touched, and clips play from it until a proxy is made again.")
+                     .arg(DafinProxies.cacheSizeText)
+        keywords: "proxy cache clear delete free space"
+        query: page.query
+
+        ThemedButton {
+            variant: "secondary"
+            text: qsTr("Clear proxy cache")
+            onClicked: {
+                const removed = DafinProxies.clearCache()
+                Toasts.success(qsTr("Deleted %n proxy file(s).", "", removed))
+            }
+        }
+
+        Component.onCompleted: DafinProxies.refreshCacheSize()
+    }
+
     SettingsRow {
         title: qsTr("Proxy name patterns")
         searchId: "preview-proxy-name-patterns"
