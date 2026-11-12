@@ -1153,6 +1153,12 @@ qt_add_executable(drift
     src/core/base/VersionCompare.h
     src/app/online/updates/UpdateChecker.h
     src/app/online/updates/UpdateChecker.cpp
+    src/app/editor/export/ExportQueue.h
+    src/app/editor/export/ExportQueue.cpp
+    src/app/editor/export/ExportQueueEditor.h
+    src/app/editor/export/ExportQueueEditor.cpp
+    src/app/platform/OsNotifier.h
+    src/app/platform/OsNotifier.cpp
     src/app/online/updates/UpdateAsset.h
     src/app/online/updates/UpdateAsset.cpp
     src/app/online/updates/UpdateSafety.cpp

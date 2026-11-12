@@ -45,6 +45,8 @@
 #include "app/online/assets/DriftAssetStore.h"
 #include "app/online/assets/SfxLibrary.h"
 #include "app/online/updates/UpdateChecker.h"
+#include "app/editor/export/ExportQueue.h"
+#include "app/editor/export/ExportQueueEditor.h"
 #include "engine/face/props/FacePropCatalog.h"
 #include "engine/packages/effects/EffectTemplateCatalog.h"
 #include "engine/decode/hw/VaapiZeroCopy.h"
@@ -879,6 +881,9 @@ int main(int argc, char *argv[])
     qmlRegisterType<MarketItemLoader>("Drift", 1, 0, "MarketItemLoader");
     qmlRegisterSingletonInstance("Drift", 1, 0, "Downloads", downloads);
     qmlRegisterSingletonInstance("Drift", 1, 0, "Updates", &updateChecker);
+    static ExportQueue exportQueue; // Dafin: background export queue
+    installExportQueue(exportQueue, editorState);
+    qmlRegisterSingletonInstance("Drift", 1, 0, "ExportQueue", &exportQueue);
     qmlRegisterSingletonInstance("Drift", 1, 0, "LayoutMemory", &layoutStore);
     qmlRegisterSingletonInstance("Drift", 1, 0, "Workspaces", &workspaceStore);
     searchIndex.setSources(&editorState, &workspaceStore, &addonManager, ThemeManager::shared());
