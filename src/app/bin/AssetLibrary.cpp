@@ -9,6 +9,7 @@
 #include "engine/render3d/models/ModelClipRenderer.h"
 #include "engine/render3d/splats/SplatAsset.h"
 #include "engine/render2d/pdf/PdfClipRenderer.h"
+#include "engine/encode/proxies/DafinProxyPolicy.h"
 #include "engine/encode/proxies/PreviewProxyRenderer.h"
 #include "engine/platform/AndroidUri.h"
 #include "engine/encode/proxies/ProxyNaming.h"
@@ -1178,7 +1179,9 @@ void AssetLibrary::startImportJob(const QString &assetId, const QString &absolut
         filled.sourceModifiedMs = fingerprint.sourceModifiedMs;
         const bool ok = probed.has_value();
         const bool video = ok && filled.kind == drift::MediaKind::Video;
-        const bool suggestProxy = video && wantsPreviewProxy(info);
+        // Dafin: also 8-bit HEVC, any 10-bit, and very high bitrate (dafin::proxy::heavyReasons).
+        const bool suggestProxy = video
+            && (wantsPreviewProxy(info) || dafin::proxy::isHeavyVideo(info, fingerprint.sourceSize));
         // Dafin: a Lottie or SVG the vector renderer refused says why.
         QString failReason;
         if (!ok && isVectorPath(absolutePath)) {
@@ -1354,6 +1357,7 @@ void AssetLibrary::applyImportResult(const QString &assetId, const drift::MediaA
 
     // Re-importing a file whose proxy survived in the cache would otherwise suggest another.
     if (suggestProxy && drift::ReverseProxyCache::previewProxiesEnabled
+        && drift::ReverseProxyCache::projectProxiesEnabled
         && drift::ReverseProxyCache::instance()
                .lookupPreview(asset->path, drift::ReverseProxyCache::previewProxyShortSide)
                .isEmpty())
@@ -1481,7 +1485,8 @@ bool AssetLibrary::isVariableFrameRate(const QString &assetId)
 
 bool AssetLibrary::hasProxyForPath(const QString &path) const
 {
-    return !drift::ReverseProxyCache::instance()
+    return drift::ReverseProxyCache::projectProxiesEnabled
+        && !drift::ReverseProxyCache::instance()
                 .lookupPreview(path, drift::ReverseProxyCache::previewProxyShortSide)
                 .isEmpty();
 }
@@ -1572,7 +1577,8 @@ void AssetLibrary::startNextProxy()
         // creating a file because isWritable lies on network shares.
         QString outPath;
         bool beside = false;
-        if (drift::isLocalSourcePath(sourcePath)) {
+        // Dafin: in the proxy cache folder unless "dafin/proxyBesideSource" is set.
+        if (dafin::proxy::besideSource() && drift::isLocalSourcePath(sourcePath)) {
             const QString target = drift::generatedProxyPath(sourcePath, shortSide);
             if (drift::canWriteBeside(target)) {
                 outPath = target;
@@ -1583,7 +1589,7 @@ void AssetLibrary::startNextProxy()
             outPath = drift::newReversePath();
         QString error;
         const bool ok = !outPath.isEmpty()
-            && drift::renderPreviewProxy(sourcePath, shortSide, outPath, &error,
+            && dafin::proxy::renderWithFallback(sourcePath, shortSide, outPath, &error,
                                          [this, posted = -1.0](double fraction) mutable {
                                              // Called per frame; the bar only needs percents.
                                              if (fraction - posted >= 0.01) {
@@ -1605,7 +1611,8 @@ void AssetLibrary::startNextProxy()
             [this, assetId, sourcePath, name, shortSide, outPath, beside, ok, cancelled,
              error]() {
                 m_proxyBuilding.clear();
-                if (!beside && drift::isLocalSourcePath(sourcePath)) {
+                if (!beside && dafin::proxy::besideSource()
+                    && drift::isLocalSourcePath(sourcePath)) {
                     const QString folder =
                         QDir::toNativeSeparators(QFileInfo(sourcePath).absolutePath());
                     if (!m_proxyFallbackFolders.contains(folder))

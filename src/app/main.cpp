@@ -12,6 +12,8 @@
 #include "engine/gpu/device/GpuPreference.h"
 #include "engine/decode/hw/HwAccel.h"
 #include "engine/encode/proxies/ReverseProxyCache.h"
+#include "engine/encode/proxies/DafinProxyPolicy.h"
+#include "app/bin/DafinProxyController.h"
 #include "engine/gpu/GlRuntime.h"
 #include "engine/render2d/skia/SkiaRuntime.h"
 #if !defined(Q_OS_ANDROID) && !defined(Q_OS_WASM)
@@ -815,7 +817,7 @@ int main(int argc, char *argv[])
     // Reversed proxies are a pure cache: dropping one only costs the clip its smooth playback, so
     // they are pruned to a budget rather than kept forever the way mattes are.
     drift::ReverseProxyCache::instance().load();
-    drift::ReverseProxyCache::instance().sweep(drift::ReverseProxyCache::kDefaultMaxBytes);
+    drift::ReverseProxyCache::instance().sweep(dafin::proxy::cacheLimitBytes()); // Dafin: user's cap
 
     qmlRegisterType<PreviewItem>("Drift", 1, 0, "PreviewItem");
     qmlRegisterType<TimelineViewState>("Drift", 1, 0, "TimelineViewState");
@@ -857,6 +859,8 @@ int main(int argc, char *argv[])
     QObject::connect(&editorState, &AppController::exportInProgressChanged, &updateChecker,
                      [] { updateChecker.setExportRunning(editorState.exportInProgress()); });
     qmlRegisterSingletonInstance("Drift", 1, 0, "AssetLibrary", &assetLibrary);
+    static DafinProxyController dafinProxies(&assetLibrary);
+    qmlRegisterSingletonInstance("Drift", 1, 0, "DafinProxies", &dafinProxies);
     qmlRegisterSingletonInstance("Drift", 1, 0, "BinFolderModel", editorState.bin()->folderModel());
     qmlRegisterSingletonInstance("Drift", 1, 0, "EditorState", &editorState);
     qmlRegisterSingletonInstance("Drift", 1, 0, "AppController", &editorState);
