@@ -214,6 +214,7 @@ private:
     void copyMacApp();
     void detachMacImage(bool thenInstall);
     void failPrepare(const QString &message);
+    void abandonInstall();
     void finishStage();
     void launchStagedInstall();
     QString updatesDir() const;

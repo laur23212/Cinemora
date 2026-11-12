@@ -1010,6 +1010,7 @@ void UpdateChecker::finishDownload()
 
     if (cancelled || !reply || reply->error() != QNetworkReply::NoError) {
         QFile::remove(m_partialPath);
+        abandonInstall();
         m_downloadOutcome = cancelled ? QStringLiteral("cancelled") : QStringLiteral("failed");
         emit downloadJobChanged();
         if (!cancelled)
@@ -1020,6 +1021,7 @@ void UpdateChecker::finishDownload()
 
     if (QString::fromLatin1(digest) != m_assetSha256) {
         QFile::remove(m_partialPath);
+        abandonInstall();
         m_downloadOutcome = QStringLiteral("failed");
         setError(tr("Couldn’t download the update: the file didn’t match the release."));
         return;
@@ -1028,6 +1030,7 @@ void UpdateChecker::finishDownload()
     QFile::remove(m_packagePath);
     if (!QFile::rename(m_partialPath, m_packagePath)) {
         QFile::remove(m_partialPath);
+        abandonInstall();
         m_downloadOutcome = QStringLiteral("failed");
         setError(tr("Couldn’t download the update: the cache isn’t writable."));
         return;
@@ -1157,11 +1160,24 @@ void UpdateChecker::detachMacImage(bool thenInstall)
 
 #endif
 
+void UpdateChecker::abandonInstall()
+{
+    // A download or prepare step that failed leaves the running version exactly as it was: no
+    // install waits for the next close, no restart waits for an export, nothing pops up. The
+    // failure is only recorded where the user already looks (Settings > Updates, the downloads
+    // list), and Retry starts over.
+    m_installOnQuit = false;
+    m_relaunch = false;
+    m_restartWhenIdle = false;
+    emit activityChanged();
+}
+
 void UpdateChecker::failPrepare(const QString &message)
 {
     setPreparing(false);
     setDownloading(false);
     m_stagedPath.clear();
+    abandonInstall();
     m_downloadOutcome = QStringLiteral("failed");
     setError(message);
 }
