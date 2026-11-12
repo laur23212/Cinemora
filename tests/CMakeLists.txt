@@ -22,6 +22,12 @@ target_include_directories(tst_snapsticky PRIVATE ../src)
 target_link_libraries(tst_snapsticky PRIVATE Qt6::Test driftcore)
 add_test(NAME SnapSticky COMMAND tst_snapsticky)
 
+# Dafin: workspaces, separate timelines in one project.
+qt_add_executable(tst_workspaces tst_workspaces.cpp)
+target_include_directories(tst_workspaces PRIVATE ../src)
+target_link_libraries(tst_workspaces PRIVATE Qt6::Test driftcore)
+add_test(NAME Workspaces COMMAND tst_workspaces)
+
 qt_add_executable(tst_keyframeview
     tst_keyframeview.cpp
     ../src/app/editor/sessions/KeyframeCurves.cpp
@@ -316,6 +322,7 @@ qt_add_executable(tst_mcp
     ../src/app/editor/sessions/MaskingController.cpp
     ../src/app/editor/sessions/SubtitleController.cpp
     ../src/app/editor/sessions/MogrtTitleController.cpp
+    ../src/app/editor/sessions/WorkspaceController.cpp
     ../src/app/online/library/MogrtInfo.cpp
     ../src/app/online/library/MogrtRenderer.cpp
     ../src/app/editor/sessions/SubtitleCueModel.cpp

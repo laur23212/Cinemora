@@ -72,6 +72,8 @@ PanelFrame {
         EditorState.setSnapRadius(8, pxPerSecond)
     }
     Component.onDestruction: TouchDrag.unregisterTarget(root)
+    // Dafin: zoom and scroll kept per workspace.
+    readonly property WorkspaceViewKeeper workspaceView: WorkspaceViewKeeper { panel: root; flickable: flick }
     // Exposed for clip filmstrip viewport culling (Flickable ids are local).
     readonly property real timelineViewX: flick.contentX
     readonly property real timelineViewW: flick.width

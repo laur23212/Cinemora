@@ -662,6 +662,7 @@ add_library(driftcore STATIC
     src/core/project/Project.cpp
     src/core/project/RenderSnapshot.h
     src/core/project/RenderSnapshot.cpp
+    src/core/project/ProjectWorkspaces.cpp
     src/core/interchange/ImportedTimeline.h
     src/core/interchange/ImportedTimelineProject.h
     src/core/interchange/ImportedTimelineProject.cpp
@@ -1371,6 +1372,8 @@ target_sources(driftapp PRIVATE
     src/app/editor/sessions/SubtitleController.cpp
     src/app/editor/sessions/MogrtTitleController.h
     src/app/editor/sessions/MogrtTitleController.cpp
+    src/app/editor/sessions/WorkspaceController.h
+    src/app/editor/sessions/WorkspaceController.cpp
     src/app/editor/sessions/SubtitleCueModel.h
     src/app/editor/sessions/SubtitleCueModel.cpp
     src/app/editor/sessions/SubtitleCueFilterModel.h
@@ -2283,6 +2286,7 @@ qt_add_qml_module(drift
         src/qml/components/timeline/TimelineGapHover.qml
         src/qml/components/timeline/TimelineFadeHandle.qml
         src/qml/components/timeline/TimelineVolumeEnvelope.qml
+        src/qml/components/timeline/WorkspaceViewKeeper.qml
         src/qml/components/timeline/TimelineKeyframeMarkers.qml
         src/qml/components/timeline/TimelineSpeedStrip.qml
         src/qml/components/timeline/TimelineEmptyState.qml
@@ -2740,6 +2744,9 @@ qt_add_qml_module(drift
         src/qml/components/shell/EditorHeaderNotificationsButton.qml
         src/qml/components/shell/EditorHeaderShortcutsButton.qml
         src/qml/components/shell/ShortcutsPopup.qml
+        src/qml/components/shell/EditorHeaderWorkspaceButton.qml
+        src/qml/components/shell/WorkspacePopup.qml
+        src/qml/components/shell/OpenRenderTimelineLink.qml
         src/qml/components/shell/MotionTrackingFlow.qml
         src/qml/components/shell/EditorHeaderHairline.qml
         src/qml/components/shell/EditorHeaderExtrasWave.qml

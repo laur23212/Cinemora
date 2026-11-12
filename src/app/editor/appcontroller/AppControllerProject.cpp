@@ -4,6 +4,7 @@
 #include "engine/platform/AndroidUri.h"
 #include "app/editor/appcontroller/AppControllerInternal.h"
 #include "app/editor/sessions/MogrtTitleController.h"
+#include "app/editor/sessions/WorkspaceController.h"
 #include "app/editor/sessions/CurveEditorController.h"
 #include "app/jobs/vision/FaceTrackingController.h"
 #include "app/jobs/vision/SegmentationController.h"
@@ -113,6 +114,8 @@ void AppController::resetSessionState()
     m_curves->endFade();
     m_segmentation->endSession();
     endMulticamSession();
+    if (m_workspaces)
+        m_workspaces->forgetSession();
 
     m_clipboard.clear();
     // Keyed by timeline position rather than by source, so entries from the old project would be

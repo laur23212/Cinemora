@@ -9,6 +9,7 @@
 #include "app/editor/sessions/MaskingController.h"
 #include "app/editor/sessions/SubtitleController.h"
 #include "app/editor/sessions/MogrtTitleController.h"
+#include "app/editor/sessions/WorkspaceController.h"
 #include "app/color/ColorController.h"
 #include "app/jobs/audio/DenoiseController.h"
 #include "app/jobs/audio/AudioAlignController.h"
@@ -625,6 +626,7 @@ AppController::AppController(AssetLibrary *assetLibrary, QObject *parent)
     m_masking = new MaskingController(this, this);
     m_subtitles = new SubtitleController(this, this);
     m_mogrt = new MogrtTitleController(this, this);
+    m_workspaces = new WorkspaceController(this, this);
     m_restore = new RestoreController(this, this);
     m_faces = new FaceTrackingController(this, this);
     m_stabilize = new StabilizeController(this, this);

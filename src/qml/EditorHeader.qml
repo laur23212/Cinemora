@@ -378,7 +378,7 @@ Item {
     BarReorder {
         id: headerReorder
         defaults: ({
-            "left": ["projects", "save", "video"],
+            "left": ["projects", "save", "video", "workspace"],
             "right": ["downloads", "settings", "separator1", "extras", "notifications", "separator2",
                       "agent", "shortcuts", "separator3", "exportQueue", "exportBadge", "export"]
         })
@@ -414,6 +414,7 @@ Item {
         "projects": projectsComponent,
         "save": saveComponent,
         "video": videoComponent,
+        "workspace": workspaceComponent,
         "downloads": downloadsComponent,
         "settings": settingsComponent,
         "separator1": separatorComponent,
@@ -490,6 +491,9 @@ Item {
             onClicked: agentAccessDialog.openDialog()
         }
     }
+
+    // Dafin: the project's workspaces (separate timelines), switched from one menu.
+    Component { id: workspaceComponent; EditorHeaderWorkspaceButton { } }
 
     // Dafin: every keyboard shortcut, and changing them, one click away.
     Component { id: shortcutsComponent; EditorHeaderShortcutsButton { } }

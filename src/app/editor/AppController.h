@@ -47,6 +47,7 @@ class KeyframeController;
 class MaskingController;
 class SubtitleController;
 class MogrtTitleController;
+class WorkspaceController;
 class ColorController;
 class DenoiseController;
 class AudioAlignController;
@@ -107,6 +108,7 @@ class AppController : public QObject
     friend class MaskEditSession;
     friend class SubtitleController;
     friend class MogrtTitleController;
+    friend class WorkspaceController;
     friend class RestoreController;
     friend class FaceTrackingController;
     friend class StabilizeController;
@@ -127,6 +129,7 @@ class AppController : public QObject
     Q_MOC_INCLUDE("app/editor/sessions/MaskingController.h")
     Q_MOC_INCLUDE("app/editor/sessions/SubtitleController.h")
     Q_MOC_INCLUDE("app/editor/sessions/MogrtTitleController.h")
+    Q_MOC_INCLUDE("app/editor/sessions/WorkspaceController.h")
     Q_MOC_INCLUDE("app/color/ColorController.h")
     Q_MOC_INCLUDE("app/jobs/audio/DenoiseController.h")
     Q_MOC_INCLUDE("app/jobs/audio/AudioAlignController.h")
@@ -189,6 +192,8 @@ class AppController : public QObject
     Q_PROPERTY(SubtitleController *subtitles READ subtitles CONSTANT)
     // Dafin: .mogrt titles (MogrtTitleController).
     Q_PROPERTY(MogrtTitleController *mogrt READ mogrt CONSTANT)
+    // Dafin: separate timelines in one project (WorkspaceController).
+    Q_PROPERTY(WorkspaceController *workspaces READ workspaces CONSTANT)
     // Video restore and enhance (decompression, upscaling). QML: EditorState.restore.
     Q_PROPERTY(RestoreController *restore READ restore CONSTANT)
     // Face landmark tracking and Face Swap source ingest. QML: EditorState.faces.
@@ -410,6 +415,7 @@ public:
     MaskingController *masking() const { return m_masking; }
     SubtitleController *subtitles() const { return m_subtitles; }
     MogrtTitleController *mogrt() const { return m_mogrt; }
+    WorkspaceController *workspaces() const { return m_workspaces; }
     RestoreController *restore() const { return m_restore; }
     FaceTrackingController *faces() const { return m_faces; }
     StabilizeController *stabilize() const { return m_stabilize; }
@@ -2480,6 +2486,7 @@ protected:
     MaskingController *m_masking = nullptr;
     SubtitleController *m_subtitles = nullptr;
     MogrtTitleController *m_mogrt = nullptr;
+    WorkspaceController *m_workspaces = nullptr;
     RestoreController *m_restore = nullptr;
     FaceTrackingController *m_faces = nullptr;
     StabilizeController *m_stabilize = nullptr;
