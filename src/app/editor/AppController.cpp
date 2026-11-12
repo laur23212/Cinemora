@@ -602,6 +602,8 @@ AppController::AppController(AssetLibrary *assetLibrary, QObject *parent)
 {
     m_jobs = new JobRegistry(this);
     m_cloud = new CloudProviders(this);
+    // Dafin: a long export the last session did not finish is offered for resuming.
+    QTimer::singleShot(0, this, [this] { refreshUnfinishedExport(); });
     m_project.resetToDefaultTimeline();
     m_project.setAuthor(QSettings().value(QStringLiteral("authorName")).toString());
     if (m_assetLibrary)

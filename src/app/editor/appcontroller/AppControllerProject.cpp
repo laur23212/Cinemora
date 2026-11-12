@@ -19,6 +19,7 @@
 #include "engine/EngineTuning.h"
 #include "engine/encode/export/Exporter.h"
 #include "engine/encode/export/EncoderProbe.h"
+#include "engine/encode/export/SegmentedExport.h"
 #include "engine/encode/export/HwEncodeFallback.h"
 #include "engine/packages/assets/EmojiCatalog.h"
 // Engine-internal by its own header comment, and included here only for releaseCaches(): the GPU
@@ -720,6 +721,66 @@ void AppController::retryExport()
     exportWithSettings(m_retryExportUrl, m_retryExportSettings, /*rememberChoice=*/false);
 }
 
+void AppController::refreshUnfinishedExport()
+{
+    QVariantMap info;
+#ifndef Q_OS_ANDROID
+    const QList<SegmentedExport::PendingJob> jobs = SegmentedExport::pendingJobs();
+    if (!jobs.isEmpty()) {
+        const SegmentedExport::PendingJob &job = jobs.first(); // newest
+        const QUrl url(job.outputUrl);
+        info = QVariantMap{
+            {QStringLiteral("dir"), job.dir},
+            {QStringLiteral("name"), url.isValid() && !job.outputUrl.isEmpty()
+                                         ? exportDisplayName(url)
+                                         : QFileInfo(job.outputPath).fileName()},
+            {QStringLiteral("path"), job.outputPath},
+            {QStringLiteral("segmentsDone"), job.segmentsDone},
+            {QStringLiteral("segmentsTotal"), job.segmentsTotal},
+            {QStringLiteral("percent"),
+             job.segmentsTotal > 0 ? (100 * job.segmentsDone) / job.segmentsTotal : 0},
+            {QStringLiteral("updated"), QLocale().toString(job.updated, QLocale::ShortFormat)},
+        };
+    }
+#endif
+    if (info == m_unfinishedExport)
+        return;
+    m_unfinishedExport = info;
+    emit unfinishedExportChanged();
+}
+
+void AppController::resumeUnfinishedExport()
+{
+    const QString dir = m_unfinishedExport.value(QStringLiteral("dir")).toString();
+    if (dir.isEmpty())
+        return;
+    if (m_exportInProgress) {
+        setLastMessage(tr("Export already in progress"), QStringLiteral("warning"));
+        return;
+    }
+    drift::Project snapshot;
+    QVariantMap settings;
+    QString outputPath;
+    QString outputUrlText;
+    QString error;
+    if (!SegmentedExport::loadJob(dir, &snapshot, &settings, &outputPath, &outputUrlText, &error)) {
+        setLastMessage(error, QStringLiteral("error"));
+        return;
+    }
+    QUrl outputUrl(outputUrlText);
+    if (outputUrlText.isEmpty() || !outputUrl.isValid())
+        outputUrl = QUrl::fromLocalFile(outputPath);
+    startExportJob(snapshot, settings, outputPath, outputUrl, /*resume=*/true);
+}
+
+void AppController::discardUnfinishedExport()
+{
+    SegmentedExport::discardJob(m_unfinishedExport.value(QStringLiteral("dir")).toString());
+    m_unfinishedExport.clear();
+    emit unfinishedExportChanged();
+    refreshUnfinishedExport(); // an older one may still be there
+}
+
 void AppController::exportProject(const QUrl &outputUrl)
 {
     exportWithSettings(outputUrl, exportDefaultSettings());
@@ -802,6 +863,16 @@ void AppController::exportWithSettings(const QUrl &outputUrl, const QVariantMap 
     m_retryExportUrl = outputUrl;
     m_retryExportSettings = settings;
 
+    // Snapshot the project so edits during export can't race the encoder. Always the main
+    // timeline, even while a composite's tab is open.
+    startExportJob(m_project.sequenceView({}), settings, outputPath, outputUrl, /*resume=*/false);
+}
+
+void AppController::startExportJob(const drift::Project &snapshot, const QVariantMap &settings,
+                                   const QString &outputPath, const QUrl &outputUrl, bool resume)
+{
+    const ExportSettings exportSettings = Exporter::settingsFromMap(settings);
+
     // Stop playback so the decode pool isn't driven from two threads at once.
     setPlaying(false);
 
@@ -813,13 +884,20 @@ void AppController::exportWithSettings(const QUrl &outputUrl, const QVariantMap 
     emit exportInProgressChanged();
     setLastMessage(tr("Exporting…"));
 
-    // Snapshot the project so edits during export can't race the encoder. Always the main
-    // timeline, even while a composite's tab is open.
-    const drift::Project snapshot = m_project.sequenceView({});
-
     const bool disposable = writeTargetIsDisposable(outputUrl);
+    // Dafin: a long export renders in segments a crash cannot take away (SegmentedExport); the
+    // job keeps the dialog's settings and the chosen target so the next launch can resume it.
+    SegmentedExport::Options segmentOptions;
+    segmentOptions.settingsMap = settings;
+    segmentOptions.outputUrl = outputUrl.toString();
+    segmentOptions.resume = resume;
+    if (resume && !m_unfinishedExport.isEmpty()) {
+        m_unfinishedExport.clear();
+        emit unfinishedExportChanged();
+    }
 
-    m_exportFuture = QtConcurrent::run([this, snapshot, settings, exportSettings, outputPath, outputUrl, disposable]() {
+    m_exportFuture = QtConcurrent::run([this, snapshot, settings, exportSettings, outputPath, outputUrl, disposable,
+                                        segmentOptions]() {
         // Spans the encode *and* the copy into the user's document. Exporter::run takes its own
         // hold, but that one ends when run() returns — and the commit below is the phase that
         // would otherwise lose a multi-minute render to a screen that idled out mid-copy. The
@@ -917,11 +995,15 @@ void AppController::exportWithSettings(const QUrl &outputUrl, const QVariantMap 
             // editor); otherwise, and on Android, it runs here as before. Frames patched over
             // during the export (warnings) are only collected for an in-editor run.
             bool handled = false;
+            // Dafin: a long video export renders in resumable segments, in the editor, so its
+            // finished parts survive a crash; shorter ones go to the worker process below.
+            const bool segmented = SegmentedExport::supports(attempt, outputPath)
+                                   && snapshot.durationUs() >= qint64(segmentOptions.minDurationSeconds * 1000000.0);
 #if !defined(Q_OS_ANDROID) && !defined(Q_OS_WASM)
             QVariantMap attemptSettings = settings;
             attemptSettings.insert(QStringLiteral("videoCodecId"), attempt.videoCodecId);
             attemptSettings.insert(QStringLiteral("videoPreset"), attempt.videoPreset);
-            const WorkerExport worker = exportInWorkerProcess(
+            const WorkerExport worker = segmented ? WorkerExport{} : exportInWorkerProcess(
                 snapshot, attemptSettings, outputPath, [&report](double fraction) { report(fraction); },
                 [this] {
                     return m_exportCancel.loadRelaxed() != 0 || Exporter::BackgroundHold::cancelRequested();
@@ -944,8 +1026,17 @@ void AppController::exportWithSettings(const QUrl &outputUrl, const QVariantMap 
                 error = worker.error;
             }
 #endif
-            if (!handled)
-                ok = Exporter::run(snapshot, attempt, outputPath, &error, report, &warnings);
+            if (!handled) {
+                if (segmented) {
+                    SegmentedExport::Options attemptOptions = segmentOptions;
+                    // A second encoder cannot continue parts the first one made.
+                    if (!previousId.isEmpty())
+                        attemptOptions.resume = false;
+                    ok = SegmentedExport::run(snapshot, attempt, outputPath, attemptOptions, &error, report);
+                } else {
+                    ok = Exporter::run(snapshot, attempt, outputPath, &error, report, &warnings);
+                }
+            }
             if (workerBroke)
                 break; // reported with Retry; another encoder would not fix a crashing worker
             if (ok) {
@@ -1048,6 +1139,9 @@ void AppController::exportWithSettings(const QUrl &outputUrl, const QVariantMap 
                                       : error.isEmpty() ? tr("Export failed") : error,
                                    severity);
                 }
+                // A failed long export keeps its finished parts; offer them again next launch.
+                if (!ok && !cancelled)
+                    refreshUnfinishedExport();
                 emit exportFinished(ok);
             },
             Qt::QueuedConnection);

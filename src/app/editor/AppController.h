@@ -290,6 +290,10 @@ class AppController : public QObject
     Q_PROPERTY(QStringList undoHistory READ undoHistory NOTIFY undoHistoryChanged)
     Q_PROPERTY(int undoIndex READ undoIndex NOTIFY undoHistoryChanged)
     Q_PROPERTY(bool exportInProgress READ exportInProgress NOTIFY exportInProgressChanged)
+    // Dafin: a long export that did not finish (crash, power cut, failure) and can be resumed from
+    // its last finished segment: {dir, name, path, segmentsDone, segmentsTotal, percent, updated}.
+    // Empty when there is none.
+    Q_PROPERTY(QVariantMap unfinishedExport READ unfinishedExport NOTIFY unfinishedExportChanged)
     // True while (and after) an export an MCP agent started, until the next export begins.
     // The progress dialog closes itself when such an export ends: nobody at the desk asked for it.
     Q_PROPERTY(bool exportByAgent READ exportByAgent NOTIFY exportInProgressChanged)
@@ -500,6 +504,7 @@ public:
     QStringList undoHistory() const;
     int undoIndex() const { return m_undoStack.index(); }
     bool exportInProgress() const { return m_exportInProgress; }
+    QVariantMap unfinishedExport() const { return m_unfinishedExport; }
     bool exportByAgent() const { return m_exportByAgent; }
     // Set by the MCP dispatcher around the call that starts an export, so the start
     // records who asked for it. Not invokable.
@@ -1797,6 +1802,9 @@ public:
     // Dafin: runs the last export again with the same file and settings, after its worker
     // process crashed or stopped responding (exportWorkerFailed).
     Q_INVOKABLE void retryExport();
+    // Dafin: continue or throw away the unfinished export the start-up dialog offers.
+    Q_INVOKABLE void resumeUnfinishedExport();
+    Q_INVOKABLE void discardUnfinishedExport();
     // Copies the finished export into the shared media collection and hands it to the system share
     // sheet. Deferred to this point rather than done as part of the export because it is a second
     // full copy of the video, and most exports are never shared. Android only; false/no-op elsewhere.
@@ -1880,6 +1888,7 @@ signals:
     void undoStackChanged();
     void undoHistoryChanged();
     void exportInProgressChanged();
+    void unfinishedExportChanged();
     void exportProgressChanged();
     void canShareExportChanged();
     void exportHistoryChanged();
@@ -2353,6 +2362,11 @@ protected:
     bool m_subtitleEditing = false;
     int m_selectedSubtitleCue = -1;
     bool m_exportInProgress = false;
+    // Dafin: resumable exports (SegmentedExport).
+    QVariantMap m_unfinishedExport;
+    void refreshUnfinishedExport();
+    void startExportJob(const drift::Project &snapshot, const QVariantMap &settings,
+                        const QString &outputPath, const QUrl &outputUrl, bool resume);
     // Dafin: set while exportWithSettings runs again after the template titles' final renders.
     bool m_mogrtExportReady = false;
     bool m_exportByAgent = false;
