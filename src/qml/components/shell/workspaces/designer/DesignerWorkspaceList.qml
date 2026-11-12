@@ -45,6 +45,9 @@ Column {
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
+                    // Dafin: double-click renames (the first click has already selected the row).
+                    onDoubleClicked: if (row.selected && !root.designer.creating && root.designer.draft)
+                        root.designer.renaming = true
                     onClicked: {
                         if (!row.selected || root.designer.creating)
                             root.designer.guard(() => root.designer.load(row.modelData.id))

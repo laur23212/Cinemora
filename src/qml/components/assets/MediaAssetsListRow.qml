@@ -173,6 +173,8 @@ Rectangle {
                 EditorState.bin.currentFolderId = root.folderId
             else if (kind === "composite")
                 EditorState.openCompositeAsset(root.assetId)
+            else
+                root.host.renameRequested(root.assetIndex) // Dafin: double-click renames
         }
         }
         DragHandler {
