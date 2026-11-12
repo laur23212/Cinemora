@@ -213,7 +213,7 @@ PanelFrame {
             "editFriendlyLabel": qsTr("Edit-friendly"),
             "editFriendlyTooltip": qsTr("Converted to a constant frame rate for smooth editing"),
             "vfrTooltip": qsTr("Variable frame rate. This clip can drift out of sync with its audio. Right-click it and choose Convert to edit-friendly format."),
-            "missingTooltip": qsTr("Media file not found. Use Replace media… on this item to point it at the file again."),
+            "missingTooltip": qsTr("Media offline: the file was not found. Find it in the Media panel and choose Locate file… to point it at the file again."),
             "spanToolTip": qsTr("Transform layer: moves, scales and turns every track its bracket covers")
         })
     }

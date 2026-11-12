@@ -35,10 +35,20 @@ ThemedContextMenu {
         visible: root.host.selectedAssetIds.length <= 1
         onTriggered: root.host.renameRequested(root.assetIndex)
     }
+    // Media offline: the same file picker as Replace media…, named for what the user wants. After
+    // it, the panel offers to relink the other missing files from the same folder.
+    ThemedMenuItem {
+        text: qsTr("Locate file…")
+        icon.name: Theme.icons.folderInput
+        visible: root.kind !== "composite" && root.host.selectedAssetIds.length <= 1
+                 && AssetLibrary.isMissing(root.assetId)
+        onTriggered: root.host.replaceRequested(root.assetIndex)
+    }
     ThemedMenuItem {
         text: qsTr("Replace media…")
         icon.name: Theme.icons.refresh
         visible: root.kind !== "composite" && root.host.selectedAssetIds.length <= 1
+                 && !AssetLibrary.isMissing(root.assetId)
         onTriggered: root.host.replaceRequested(root.assetIndex)
     }
     // Flat rather than a nested menu: a sub-menu's entry can't be hidden per asset kind.

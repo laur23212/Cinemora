@@ -137,7 +137,7 @@ Rectangle {
         background: Theme.c.missingMediaWarning.background
         foreground: Theme.c.missingMediaWarning.foreground
         cornerRadius: Theme.c.missingMediaWarning.radius
-        tip: qsTr("Media file not found. Use Replace media… on this item to point it at the file again.")
+        tip: qsTr("Media offline: the file was not found. Right-click and choose Locate file… to point it at the file again.")
         visible: !root.isFolder && host.missingOf(root.assetId)
     }
 
