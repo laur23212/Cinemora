@@ -549,6 +549,59 @@ void ClipReader::setHardwareFallbackCount(quint64 count)
     g_hwFallbackCount.store(count, std::memory_order_relaxed);
 }
 
+namespace {
+// Dafin: see ClipReader::isSoftwareOnlySource.
+QMutex g_softwareOnlyMutex;
+QStringList g_softwareOnly; // newest last
+bool g_softwareOnlyLoaded = false;
+const QString kSoftwareOnlyKey = QStringLiteral("decode/softwareOnlySources");
+constexpr int kSoftwareOnlyMax = 200;
+
+void loadSoftwareOnlyLocked()
+{
+    if (g_softwareOnlyLoaded)
+        return;
+    g_softwareOnlyLoaded = true;
+    g_softwareOnly = QSettings().value(kSoftwareOnlyKey).toStringList();
+}
+
+void rememberSoftwareOnly(const QString &path)
+{
+    if (path.isEmpty())
+        return;
+    QMutexLocker lock(&g_softwareOnlyMutex);
+    loadSoftwareOnlyLocked();
+    g_softwareOnly.removeAll(path);
+    g_softwareOnly.append(path);
+    while (g_softwareOnly.size() > kSoftwareOnlyMax)
+        g_softwareOnly.removeFirst();
+    QSettings().setValue(kSoftwareOnlyKey, g_softwareOnly);
+    qWarning("ClipReader: %s will use software decoding from now on", qUtf8Printable(path));
+}
+} // namespace
+
+bool ClipReader::isSoftwareOnlySource(const QString &path)
+{
+    QMutexLocker lock(&g_softwareOnlyMutex);
+    loadSoftwareOnlyLocked();
+    return g_softwareOnly.contains(path);
+}
+
+QStringList ClipReader::softwareOnlySources()
+{
+    QMutexLocker lock(&g_softwareOnlyMutex);
+    loadSoftwareOnlyLocked();
+    return g_softwareOnly;
+}
+
+void ClipReader::clearSoftwareOnlySources()
+{
+    QMutexLocker lock(&g_softwareOnlyMutex);
+    g_softwareOnlyLoaded = true;
+    g_softwareOnly.clear();
+    QSettings().remove(kSoftwareOnlyKey);
+}
+
 QString ClipReader::lastHardwareFailure()
 {
     QMutexLocker lock(&g_hwFailureMutex);
@@ -1159,6 +1212,11 @@ bool ClipReader::tryOpenHardwareDecoder()
     const HardwareDecodeMode mode = hardwareDecodeMode();
     if (mode == HardwareDecodeMode::Software)
         return false;
+    // Dafin: this file's hardware decode already failed once (here or on an earlier start).
+    if (isSoftwareOnlySource(m_path)) {
+        m_hwAccelDisabled = true;
+        return false;
+    }
     if (mode == HardwareDecodeMode::Auto && !hardwareDecodeIsWorthIt() && !zeroCopyProven())
         return false;
     // Sandy/Ivy Intel: D3D11VA decode plus a CPU preview upload is slower than
@@ -1379,6 +1437,7 @@ bool ClipReader::fallbackFromHardwareDecoder()
         return openSoftwareVideoDecoder();
 
     g_hwFallbackCount.fetch_add(1, std::memory_order_relaxed);
+    rememberSoftwareOnly(m_path);
     teardownVideoDecoder();
     m_hwAccelDisabled = true;
     return openSoftwareVideoDecoder();

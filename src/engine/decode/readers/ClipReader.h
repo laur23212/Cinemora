@@ -9,6 +9,7 @@
 #include <QList>
 #include <QSize>
 #include <QString>
+#include <QStringList>
 #include <QVector>
 
 #include <limits>
@@ -140,6 +141,14 @@ public:
     // Why the most recent of those happened: backend, codec, the failing call's error and the
     // last error FFmpeg logged. Empty while nothing has fallen back.
     static QString lastHardwareFailure();
+
+    // Dafin: media files whose hardware decode failed once. Every later reader of the same file
+    // (preview, export, thumbnails, after a restart) opens it on software straight away instead of
+    // failing on the GPU again. Kept in settings (decode/softwareOnlySources, newest 200) and
+    // cleared by EncoderProbe when the GPU or its driver changes.
+    static bool isSoftwareOnlySource(const QString &path);
+    static QStringList softwareOnlySources();
+    static void clearSoftwareOnlySources();
 
     // For drift::diag::ProbeScope alone: the raw stored backend (-1 for "nothing yet") and the
     // means to put both counters back after a diagnostics sweep has written its own answers
