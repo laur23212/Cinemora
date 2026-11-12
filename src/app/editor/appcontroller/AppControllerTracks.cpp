@@ -5,6 +5,8 @@
 #include "app/mcp/McpController.h"
 #include "app/jobs/vision/SegmentationController.h"
 #include "app/editor/ProjectFileController.h"
+#include "app/editor/PreferencesController.h"
+#include <cmath>
 #include "ui/preview/PreviewController.h"
 
 #include "engine/decode/readers/ClipReaderPool.h"
@@ -208,6 +210,10 @@ QHash<QString, QString> defaultShortcuts()
         // Timeline zoom is QML state too, so these take the same route as the tool modes.
         {QStringLiteral("zoomIn"), QStringLiteral("Ctrl+=")},
         {QStringLiteral("zoomOut"), QStringLiteral("Ctrl+-")},
+        // Dafin: interface size. Ctrl+- already zooms the timeline out, so "smaller" is Ctrl+Shift+-.
+        {QStringLiteral("uiScaleUp"), QStringLiteral("Ctrl++")},
+        {QStringLiteral("uiScaleDown"), QStringLiteral("Ctrl+Shift+-")},
+        {QStringLiteral("uiScaleReset"), QStringLiteral("Ctrl+0")},
         // The global search field lives in EditorHeader, so this is QML-only as well.
         {QStringLiteral("search"), QStringLiteral("Ctrl+K")},
         // QML owns the window, so triggerAction only raises the request — same shape as the
@@ -227,6 +233,24 @@ QHash<QString, QString> defaultShortcuts()
         {QStringLiteral("workspace.8"), QStringLiteral("Alt+8")},
         {QStringLiteral("workspace.9"), QStringLiteral("Alt+9")},
     };
+}
+
+// Dafin: Ctrl+Plus / Ctrl+Shift+Minus / Ctrl+0 move the interface size one step (0 resets to 100%).
+void dafinStepUiScale(PreferencesController *prefs, int direction)
+{
+    if (!prefs)
+        return;
+    static const double kSteps[] = {0.8, 0.9, 1.0, 1.1, 1.25, 1.5};
+    constexpr int kCount = int(sizeof(kSteps) / sizeof(kSteps[0]));
+    int index = 2;
+    double best = 1e9;
+    for (int i = 0; i < kCount; ++i) {
+        if (std::abs(kSteps[i] - prefs->uiScale()) < best) {
+            best = std::abs(kSteps[i] - prefs->uiScale());
+            index = i;
+        }
+    }
+    prefs->setUiScale(direction == 0 ? 1.0 : kSteps[qBound(0, index + direction, kCount - 1)]);
 }
 
 } // namespace
@@ -1772,6 +1796,9 @@ void AppController::triggerAction(const QString &actionId)
         toggleBeatMarkers();
     else if (actionId == QStringLiteral("autoDuck"))
         toggleAutoDuck();
+    else if (actionId == QStringLiteral("uiScaleUp") || actionId == QStringLiteral("uiScaleDown")
+             || actionId == QStringLiteral("uiScaleReset"))
+        dafinStepUiScale(m_preferences, actionId == QStringLiteral("uiScaleUp") ? 1 : actionId == QStringLiteral("uiScaleDown") ? -1 : 0);
     // Picking the elements and the point is QML's: the shell runs the flow (MotionTrackingFlow).
     else if (actionId == QStringLiteral("motionTrack"))
         emit motionTrackingRequested();

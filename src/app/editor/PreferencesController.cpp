@@ -11,6 +11,11 @@
 #include "engine/decode/hw/VaapiZeroCopy.h"
 #include "engine/platform/AndroidUri.h"
 #include "core/edit/TimelineOps.h"
+// Dafin: live interface size needs Qt's private high-DPI scaler; without it a change waits for a restart.
+#if __has_include(<private/qhighdpiscaling_p.h>)
+#include <private/qhighdpiscaling_p.h>
+#define DAFIN_LIVE_UI_SCALE 1
+#endif
 
 #include <QCoreApplication>
 #include <QDir>
@@ -178,7 +183,7 @@ void applyNetworkProxy(const QString &mode, const QString &host, int port, const
 
 double normalizeUiScale(double scale)
 {
-    static const double kSteps[] = {1.0, 1.25, 1.5, 1.75, 2.0};
+    static const double kSteps[] = {0.8, 0.9, 1.0, 1.1, 1.25, 1.5}; // Dafin: 80%..150%
     double best = 1.0;
     double bestDist = std::numeric_limits<double>::max();
     for (double step : kSteps) {
@@ -1142,6 +1147,15 @@ void PreferencesController::setUiScale(double scale)
         settings.remove(QStringLiteral("ui/scale"));
     else
         settings.setValue(QStringLiteral("ui/scale"), m_uiScale);
+    // Dafin: apply at once unless the user's own QT_SCALE_FACTOR is in charge.
+#ifdef DAFIN_LIVE_UI_SCALE
+    if (!qEnvironmentVariableIsSet("QT_SCALE_FACTOR") || g_uiScaleFromSettings) {
+        const double factor = m_uiScale / g_osDisplayScale;
+        QHighDpiScaling::setGlobalFactor(factor);
+        qputenv("QT_SCALE_FACTOR", QByteArray::number(factor, 'g', 4));
+        g_uiScaleFromSettings = true;
+    }
+#endif
     emit uiScaleChanged();
 }
 

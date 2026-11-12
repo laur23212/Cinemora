@@ -123,7 +123,7 @@ SettingsPage {
         description: EditorState.preferences.uiScaleNeedsRestart
                      ? qsTr("Restart Drift to apply this size.")
                      : Qt.platform.os === "windows"
-                       ? qsTr("100% fits a 1080p screen, whatever your Windows display scale is.")
+                       ? qsTr("100% fits a 1080p screen, whatever your Windows display scale is. Ctrl+Plus, Ctrl+Shift+Minus and Ctrl+0 change it anywhere.")
                        : qsTr("Makes buttons, text, and icons larger, on top of your display settings.")
         keywords: "scale zoom dpi"
         query: page.query
@@ -133,11 +133,12 @@ SettingsPage {
             textRole: "label"
             valueRole: "id"
             model: [
+                { id: 0.8,  label: "80%" },
+                { id: 0.9,  label: "90%" },
                 { id: 1.0,  label: Qt.platform.os === "windows" ? "100%" : qsTr("100% (system)") },
+                { id: 1.1,  label: "110%" },
                 { id: 1.25, label: "125%" },
-                { id: 1.5,  label: "150%" },
-                { id: 1.75, label: "175%" },
-                { id: 2.0,  label: "200%" }
+                { id: 1.5,  label: "150%" }
             ]
             currentIndex: {
                 const opts = model

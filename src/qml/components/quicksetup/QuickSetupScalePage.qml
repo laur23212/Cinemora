@@ -9,7 +9,7 @@ QuickSetupPage {
     glyph: Theme.icons.zoomIn
     contentMaxWidth: 760
 
-    readonly property var scales: [1.0, 1.25, 1.5, 1.75, 2.0]
+    readonly property var scales: [0.8, 0.9, 1.0, 1.1, 1.25, 1.5]
     property real recommended: EditorState.preferences.uiScale
     readonly property real applied: EditorState.preferences.appliedUiScale > 0
                                     ? EditorState.preferences.appliedUiScale : 1.0
