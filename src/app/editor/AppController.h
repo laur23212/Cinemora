@@ -907,6 +907,8 @@ public:
     // clips on other tracks (e.g. a companion audio clip) follow along to stay in sync.
     // At 0 it closes the gap before the first clip, moving the track to the timeline start.
     Q_INVOKABLE void closeGap(int trackIndex, double gapStartSeconds);
+    // Dafin: closes every gap on the track (-1 = the selected track). One undo step.
+    Q_INVOKABLE void removeAllGaps(int trackIndex = -1);
     Q_INVOKABLE void alignSelectedClipLeft();
     Q_INVOKABLE void alignSelectedClipRight();
     // Mirrors drift::Haptics::TrimState (Haptics.h), which has documented since it was written
@@ -1632,9 +1634,9 @@ public:
     Q_INVOKABLE bool hasEmptyTracks() const;
     Q_INVOKABLE void addBookmark(double seconds, const QString &label);
     Q_INVOKABLE void removeBookmark(int index);
-    Q_INVOKABLE void updateBookmark(int index, double seconds, const QString &label);
-    // Dafin: "#rrggbb" or empty (theme colour); one undo step, saved in the project.
+    // Dafin: marker colour ("#rrggbb", empty = default). One undo step.
     Q_INVOKABLE void setBookmarkColor(int index, const QString &color);
+    Q_INVOKABLE void updateBookmark(int index, double seconds, const QString &label);
     Q_INVOKABLE void goToBookmark(int index);
     // Seek to the next/previous bookmark by time (wraps). No-op when empty.
     Q_INVOKABLE void goToNextBookmark();

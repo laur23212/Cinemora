@@ -394,4 +394,9 @@ void rebaseKeyframesForSplitTail(Clip &tail, TimeUs offset);
 
 bool sliceClipToTimelineRange(const Clip &src, TimeUs start, TimeUs end, Clip &out, double fps = 0);
 
+// Dafin: "Remove all gaps". Slides each clip of the track left so it starts where the one before
+// it ends (the first one at 0). Clips that already overlap keep their overlap. Returns the ids of
+// the clips that moved; empty when there was no gap.
+QSet<QString> closeAllGapsInTrack(Track &track);
+
 } // namespace drift

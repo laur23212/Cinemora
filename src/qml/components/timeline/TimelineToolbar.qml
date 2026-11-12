@@ -170,6 +170,7 @@ Item {
         case "bookmark": EditorState.toggleBookmarkAtPlayhead(); break
         case "previousBookmark": EditorState.goToPreviousBookmark(); break
         case "nextBookmark": EditorState.goToNextBookmark(); break
+        case "removeGaps": EditorState.removeAllGaps(-1); break
         case "markIn": EditorState.markWorkAreaIn(); break
         case "markOut": EditorState.markWorkAreaOut(); break
         case "loop": EditorState.toggleLoopWorkArea(); break

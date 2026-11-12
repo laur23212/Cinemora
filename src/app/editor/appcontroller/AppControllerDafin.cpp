@@ -1150,3 +1150,27 @@ bool AppController::undoIfAtIndex(int undoIndex)
     undo();
     return true;
 }
+
+// Dafin: "Remove all gaps" for one track (-1 = the selected track).
+void AppController::removeAllGaps(int trackIndex)
+{
+    if (trackIndex < 0)
+        trackIndex = m_selectedTrack;
+    if (trackIndex < 0 || trackIndex >= m_project.tracks().size())
+        return;
+
+    // Snapshot first: QList is copy-on-write, see closeGap().
+    const drift::Project before = m_project;
+    drift::Track &track = m_project.tracks()[trackIndex];
+    const QSet<QString> movedIds = drift::closeAllGapsInTrack(track);
+    if (movedIds.isEmpty()) {
+        setLastMessage(tr("No gaps on this track"), QStringLiteral("info"));
+        return;
+    }
+    for (const drift::Clip &clip : track.clips) {
+        if (movedIds.contains(clip.id))
+            syncLinkedPartnersFrom(m_project, clip, movedIds);
+    }
+    pushProjectEdit(before, tr("Remove all gaps"));
+    finishEdit(tr("Gaps removed"));
+}

@@ -2096,4 +2096,25 @@ void rebaseClipLayout(Project &project, int oldWidth, int oldHeight, int newWidt
     });
 }
 
+QSet<QString> closeAllGapsInTrack(Track &track)
+{
+    QList<int> order;
+    for (int i = 0; i < track.clips.size(); ++i)
+        order.append(i);
+    std::stable_sort(order.begin(), order.end(), [&](int a, int b) {
+        return track.clips.at(a).timelineStart < track.clips.at(b).timelineStart;
+    });
+    QSet<QString> moved;
+    TimeUs cursor = 0;
+    for (int index : std::as_const(order)) {
+        Clip &clip = track.clips[index];
+        if (clip.timelineStart > cursor) {
+            clip.timelineStart = cursor;
+            moved.insert(clip.id);
+        }
+        cursor = std::max(cursor, clip.timelineEnd());
+    }
+    return moved;
+}
+
 } // namespace drift

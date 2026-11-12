@@ -1729,6 +1729,7 @@ QVariantList AppController::actions() const
         action(QStringLiteral("bladeTool"), tr("Cut tool / Brush mask")),
         action(QStringLiteral("addKeyframe"), tr("Add or remove keyframe at the playhead")),
         action(QStringLiteral("toggleSnap"), tr("Turn timeline snapping on or off")),
+        action(QStringLiteral("removeAllGaps"), tr("Remove all gaps on the selected track")),
         action(QStringLiteral("chromaKey"), tr("Chroma key on the selected clip")),
         action(QStringLiteral("syncAudio"), tr("Sync clips by their audio")),
         action(QStringLiteral("motionTrack"), tr("Motion tracking")),

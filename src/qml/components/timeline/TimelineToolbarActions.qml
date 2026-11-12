@@ -26,6 +26,9 @@ QtObject {
                   shortcut: "toggleSnap" },
         // Dafin: one-click chroma key, motion tracking that follows the element as it is moved
         // or trimmed, and syncing clips recorded together by their sound.
+        "removeGaps": { glyph: Theme.icons.linkTwo, label: qsTr("Remove all gaps"),
+                        tip: qsTr("Remove all gaps — closes every gap on the selected track"),
+                        shortcut: "removeAllGaps" },
         "chromaKey": { glyph: Theme.icons.chromaKey, label: qsTr("Chroma key"),
                        tip: qsTr("Chroma key — takes out the green or blue background of the selected clip, with the colour read from the frame at the playhead. Click again to turn it off or on"),
                        shortcut: "chromaKey" },

@@ -53,6 +53,7 @@ private slots:
     void imageSequenceFpsRationals();
     void imageSequenceDisplayName();
     void imageSequenceDetection();
+    void closeAllGapsAndMarkerColor();
     void timeConversion();
     void transcriptJsonRoundTrip();
     void transcriptWordsInRange();
@@ -8515,6 +8516,35 @@ void CoreTest::imageSequenceDetection()
     QCOMPARE(found.size(), 2);
     QCOMPARE(found[0].sequence.pattern, dir.filePath(QStringLiteral("m_%03d.png")));
     QCOMPARE(found[1].sequence.pattern, dir.filePath(QStringLiteral("m_%05d.png")));
+}
+
+void CoreTest::closeAllGapsAndMarkerColor()
+{
+    drift::Track track;
+    auto make = [](const char *id, double start, double len) {
+        drift::Clip c;
+        c.id = QString::fromLatin1(id);
+        c.timelineStart = drift::secondsToUs(start);
+        c.timelineDuration = drift::secondsToUs(len);
+        return c;
+    };
+    track.clips = {make("b", 5.0, 2.0), make("a", 1.0, 2.0), make("c", 7.0, 1.0)};
+    const QSet<QString> moved = drift::closeAllGapsInTrack(track);
+    QCOMPARE(moved.size(), 2);
+    QCOMPARE(track.clips[1].timelineStart, drift::secondsToUs(0.0)); // a: leading gap closed
+    QCOMPARE(track.clips[0].timelineStart, drift::secondsToUs(2.0)); // b: right after a
+    QCOMPARE(track.clips[2].timelineStart, drift::secondsToUs(4.0)); // c: already touched b's old end, follows b
+    QVERIFY(drift::closeAllGapsInTrack(track).isEmpty());          // nothing left to close
+
+    drift::Project project;
+    project.bookmarks().append({.timeUs = drift::secondsToUs(1.0), .label = QStringLiteral("A"),
+                                .color = QStringLiteral("#e5484d")});
+    project.bookmarks().append({.timeUs = drift::secondsToUs(2.0), .label = QStringLiteral("B")});
+    QString error;
+    const drift::Project loaded = drift::Project::fromJson(project.toJson(), &error);
+    QCOMPARE(loaded.bookmarks().size(), 2);
+    QCOMPARE(loaded.bookmarks()[0].color, QStringLiteral("#e5484d"));
+    QVERIFY(loaded.bookmarks()[1].color.isEmpty());
 }
 
 QTEST_MAIN(CoreTest)

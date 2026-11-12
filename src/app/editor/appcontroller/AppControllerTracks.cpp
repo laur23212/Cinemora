@@ -184,6 +184,8 @@ QHash<QString, QString> defaultShortcuts()
         {QStringLiteral("addKeyframe"), QStringLiteral("Alt+K")},
         // Dafin: the toolbar's snapping magnet (N, as in DaVinci Resolve).
         {QStringLiteral("toggleSnap"), QStringLiteral("N")},
+        // Dafin: the toolbar's "Remove all gaps" button. Not bound out of the box.
+        {QStringLiteral("removeAllGaps"), QString()},
         // Dafin: the toolbar's chroma key, audio sync and motion tracking buttons. Registered so they
         // can be given a key in the Shortcuts menu; none is bound out of the box.
         {QStringLiteral("chromaKey"), QString()},
@@ -1760,6 +1762,8 @@ void AppController::triggerAction(const QString &actionId)
         toggleKeyframeAtPlayhead();
     else if (actionId == QStringLiteral("toggleSnap"))
         setSnapEnabled(!m_snapEnabled);
+    else if (actionId == QStringLiteral("removeAllGaps"))
+        removeAllGaps(-1);
     else if (actionId == QStringLiteral("chromaKey"))
         toggleChromaKey();
     else if (actionId == QStringLiteral("syncAudio"))
