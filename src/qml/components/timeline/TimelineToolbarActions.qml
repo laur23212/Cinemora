@@ -35,6 +35,14 @@ QtObject {
         "syncAudio": { glyph: Theme.icons.audioSync, label: qsTr("Sync audio"),
                        tip: qsTr("Sync audio — lines up clips recorded at the same time, such as a camera and separate microphones, by their sound. The video stays put and the recordings move to match it. Select the clips, or just the video"),
                        shortcut: "syncAudio" },
+        // Dafin: bookmarks on the beats of the selected music, and the music lowered under speech
+        // as dots on its volume line.
+        "beatMarkers": { glyph: Theme.icons.beatMarkers, label: qsTr("Beat markers"),
+                         tip: qsTr("Beat markers — select the music and click: a marker lands on every beat, so cuts and clips snap to the music. Click again to remove them"),
+                         shortcut: "beatMarkers" },
+        "autoDuck": { glyph: Theme.icons.autoDuck, label: qsTr("Auto ducking"),
+                      tip: qsTr("Auto ducking — select the music and click: it goes quieter wherever a voice on another track speaks. The dips are dots on its volume line, so you can drag them afterwards"),
+                      shortcut: "autoDuck" },
         "separateAudio": { glyph: Theme.icons.audioLines, label: qsTr("Show audio on separate track"),
                            shortcut: "separateAudio" },
         "unlink": { glyph: Theme.icons.unlink, label: qsTr("Unlink video and audio"),
@@ -89,10 +97,14 @@ QtObject {
         "select", "cut", "keyframe", "snap", "speedControl", "freezeFrame", "deleteLeft", "deleteRight",
         "separator", "undo", "redo",
         "delete", "separator", "chromaKey", "motionTrack", "syncAudio", "separator", "separateAudio",
+        "select", "cut", "keyframe", "snap", "deleteLeft", "deleteRight", "separator", "undo", "redo",
+        "delete", "separator", "chromaKey", "motionTrack", "syncAudio", "beatMarkers", "autoDuck", "separator",
+        "separateAudio",
         "unlink", "link"
     ]
-    // Dafin's tools, which join a toolbar arranged before they existed as a group after Delete.
-    readonly property var dafinTools: ["chromaKey", "motionTrack", "syncAudio"]
+    // Dafin's tools, which join a toolbar arranged before they existed as a group after Delete
+    // (or, when some are already there, right after the last of them).
+    readonly property var dafinTools: ["chromaKey", "motionTrack", "syncAudio", "beatMarkers", "autoDuck"]
     readonly property var defaultMenuItems: [
         "trimStart", "trimEnd", "separator", "copy", "paste", "duplicate", "separator",
         "bookmark", "previousBookmark", "nextBookmark", "markIn", "markOut", "loop",
@@ -135,15 +147,21 @@ QtObject {
                 at = toolbarItems.indexOf("cut")
             toolbarItems.splice(at + 1, 0, "snap")
         }
-        // ...and chroma key, motion tracking and audio sync, together after Delete (else at the
+        // ...and chroma key, motion tracking, audio sync, beat markers and auto ducking: right after
+        // whichever of them is already on the toolbar, else together after Delete (else at the
         // end), between separators.
         const missing = dafinTools.filter((id) => !seen[id])
         if (missing.length > 0) {
             for (const id of missing)
                 seen[id] = true
+            let last = -1
+            for (const id of dafinTools)
+                last = Math.max(last, toolbarItems.indexOf(id))
             const at = toolbarItems.indexOf("delete")
             const group = ["separator"].concat(missing)
-            if (at >= 0)
+            if (last >= 0)
+                toolbarItems.splice(last + 1, 0, ...missing)
+            else if (at >= 0)
                 toolbarItems.splice(at + 1, 0, ...group, "separator")
             else
                 toolbarItems.push(...group)

@@ -62,6 +62,12 @@ Item {
             label = qsTr("Motion tracking — the selected element follows a point. Click to correct the point, pick a new one or stop")
         else if (id === "syncAudio" && EditorState.audioAlign.running)
             label = qsTr("Sync audio — listening to the clips… %1%").arg(Math.round(EditorState.audioAlign.progress * 100))
+        else if (id === "beatMarkers" && toolbar.beatMarkersBusy)
+            label = qsTr("Beat markers — finding the beats…")
+        else if (id === "beatMarkers" && toolbar.beatMarkersState.count > 0)
+            label = qsTr("Beat markers — the selected music has %n beat marker(s). Click to remove them", "", toolbar.beatMarkersState.count)
+        else if (id === "autoDuck" && toolbar.autoDuckBusy)
+            label = qsTr("Auto ducking — listening for speech…")
         return meta.shortcut ? withShortcut(label, meta.shortcut) : label
     }
 
@@ -71,6 +77,23 @@ Item {
         EditorState.selectedTrack >= 0 && EditorState.selectedClip >= 0
         ? EditorState.chromaKeyInfo(EditorState.selectedTrack, EditorState.selectedClip)
         : ({ eligible: false, present: false, enabled: false }))
+    // ...beat markers ({eligible, count, busy}): lit while the selected music has markers...
+    readonly property var beatMarkersState: (EditorState.selectedClipData, EditorState.tracksRevision,
+        EditorState.bookmarks, toolbar.beatMarkersBusy,
+        EditorState.selectedTrack >= 0 && EditorState.selectedClip >= 0
+        ? EditorState.beatMarkersInfo(EditorState.selectedTrack, EditorState.selectedClip)
+        : ({ eligible: false, count: 0, busy: false }))
+    property bool beatMarkersBusy: false
+    property bool autoDuckBusy: false
+    Connections {
+        target: EditorState
+        function onBeatMarkersBusyChanged() {
+            toolbar.beatMarkersBusy = EditorState.beatMarkersInfo(-1, -1).busy === true
+        }
+        function onAutoDuckBusyChanged() {
+            toolbar.autoDuckBusy = EditorState.autoDuckInfo(-1, -1).busy === true
+        }
+    }
     // ...and the selected element follows a tracked point: the motion tracking button lights up.
     readonly property bool selectedFollows: (EditorState.tracksRevision,
         !!EditorState.selectedClipData.id
@@ -113,6 +136,8 @@ Item {
                                                !toolbar.speedControlOn)
             break
         case "chromaKey": EditorState.toggleChromaKey(-1, -1); break
+        case "beatMarkers": EditorState.toggleBeatMarkers(-1, -1); break
+        case "autoDuck": EditorState.autoDuckMusic(-1, -1); break
         case "motionTrack": ShellBridge.motionTrackingRequested(); break
         case "syncAudio":
             if (EditorState.audioAlign.running)
@@ -178,6 +203,8 @@ Item {
         case "chromaKey": return toolbar.chromaKeyState.enabled === true
         case "motionTrack": return !!ShellBridge.motionPick || toolbar.selectedFollows
         case "syncAudio": return EditorState.audioAlign.running
+        case "beatMarkers": return toolbar.beatMarkersBusy || toolbar.beatMarkersState.count > 0
+        case "autoDuck": return toolbar.autoDuckBusy
         case "trimStart": return panel.timelineTool === "trimStart"
         case "trimEnd": return panel.timelineTool === "trimEnd"
         case "markIn": return EditorState.workAreaInSeconds >= 0

@@ -189,6 +189,8 @@ QHash<QString, QString> defaultShortcuts()
         {QStringLiteral("chromaKey"), QString()},
         {QStringLiteral("syncAudio"), QString()},
         {QStringLiteral("motionTrack"), QString()},
+        {QStringLiteral("beatMarkers"), QString()},
+        {QStringLiteral("autoDuck"), QString()},
         // Masking workspace tools. The masking panel claims these only while the pointer is over the
         // preview or it has focus or hover (never in 3D mode), so they stay free on the timeline.
         {QStringLiteral("maskingPolygonTool"), QStringLiteral("P")},
@@ -1762,6 +1764,10 @@ void AppController::triggerAction(const QString &actionId)
         toggleChromaKey();
     else if (actionId == QStringLiteral("syncAudio"))
         m_audioAlign->syncSimilarAudio();
+    else if (actionId == QStringLiteral("beatMarkers"))
+        toggleBeatMarkers();
+    else if (actionId == QStringLiteral("autoDuck"))
+        autoDuckMusic();
     // Picking the elements and the point is QML's: the shell runs the flow (MotionTrackingFlow).
     else if (actionId == QStringLiteral("motionTrack"))
         emit motionTrackingRequested();

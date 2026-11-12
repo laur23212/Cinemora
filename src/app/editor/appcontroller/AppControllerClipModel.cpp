@@ -1732,6 +1732,8 @@ QVariantList AppController::actions() const
         action(QStringLiteral("chromaKey"), tr("Chroma key on the selected clip")),
         action(QStringLiteral("syncAudio"), tr("Sync clips by their audio")),
         action(QStringLiteral("motionTrack"), tr("Motion tracking")),
+        action(QStringLiteral("beatMarkers"), tr("Beat markers on the selected music")),
+        action(QStringLiteral("autoDuck"), tr("Auto ducking: lower the music under speech")),
         action(QStringLiteral("maskingPolygonTool"), tr("Polygon mask tool")),
         action(QStringLiteral("maskingAiTool"), tr("AI object mask tool")),
         action(QStringLiteral("maskingBrushSmaller"), tr("Decrease brush size")),

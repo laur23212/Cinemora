@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/edit/BeatDuckPlan.h"
 #include "core/edit/TimelineOps.h"
 #include "core/edit/commands/ProjectCommands.h"
 #include "engine/audio/analysis/AudioOnsets.h"
@@ -1404,6 +1405,15 @@ public:
     // gives ({ok, start, duration, speed, kind}), then the one edit on release.
     Q_INVOKABLE QVariantMap previewClipRetime(int trackIndex, int clipIndex, int edge, double seconds) const;
     Q_INVOKABLE bool retimeClipEdge(int trackIndex, int clipIndex, int edge, double seconds);
+    // Dafin: the timeline toolbar's Beat markers button. Finds the beats of the selected music clip
+    // (locally, that clip alone) and drops a bookmark on each, or takes the ones it made in that
+    // clip's stretch away again. Info: {eligible, count (beat markers in the clip), busy}.
+    Q_INVOKABLE QVariantMap beatMarkersInfo(int trackIndex, int clipIndex) const;
+    Q_INVOKABLE void toggleBeatMarkers(int trackIndex = -1, int clipIndex = -1);
+    // ...and its Auto ducking button: lowers the selected music where something on another track
+    // speaks over it, as dots on the music's volume line. Info: {eligible, busy}.
+    Q_INVOKABLE QVariantMap autoDuckInfo(int trackIndex, int clipIndex) const;
+    Q_INVOKABLE void autoDuckMusic(int trackIndex = -1, int clipIndex = -1);
     // Adds an imported Motion Graphics Template (Titles panel) as an editable title at the
     // playhead: its text, a matching built-in style and its length.
     Q_INVOKABLE void addTemplateTitle(const QString &text, const QString &presetId, double durationSeconds,
@@ -1887,6 +1897,8 @@ signals:
     void openMulticamWindowRequested();
     // Dafin: a chroma key was just added to the selected clip; the shell shows its settings.
     void chromaKeyAdded();
+    void beatMarkersBusyChanged();
+    void autoDuckBusyChanged();
     // Dafin: the "motionTrack" action reached triggerAction (from an agent, say); the shell's
     // motion tracking flow takes it from there, as the toolbar button does.
     void motionTrackingRequested();
@@ -2485,6 +2497,13 @@ protected:
     void fillSpeedStrip(TimelineClipsModel::Row &row, const drift::Clip &clip) const;
     // Writes a ramp onto the clip and its linked partners, keeping keyframes on their source moments.
     bool writeClipSpeedCurve(int trackIndex, int clipIndex, const drift::SpeedCurve &curve);
+    // Dafin beat markers and auto ducking (AppControllerBeatsDucking.cpp).
+    void applyBeatMarkers(const QString &clipId, const AudioBeatAnalysis &analysis, drift::TimeUs startUs,
+                          drift::TimeUs endUs);
+    void applyAutoDuck(const QString &musicId, const QList<drift::beatduck::Span> &speech,
+                       drift::TimeUs analysedStartUs);
+    bool m_beatMarkersBusy = false;
+    bool m_autoDuckBusy = false;
     drift::Clip *textClipAt(int trackIndex, int clipIndex);
     // A quick control's edit on the clip, without the undo bookkeeping.
     bool writeTemplateControl(int trackIndex, int clipIndex, const QString &controlId, const QVariant &value);

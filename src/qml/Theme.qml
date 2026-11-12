@@ -653,11 +653,13 @@ QtObject {
         crop: "crop",
         diamondPlus: "diamond-plus",
         diamondMinus: "diamond-minus",
-        // Dafin's own, drawn in Lucide's style: the timeline toolbar's chroma key, motion tracking
-        // and audio sync buttons.
+        // Dafin's own, drawn in Lucide's style: the timeline toolbar's chroma key, motion tracking,
+        // audio sync, beat markers and auto ducking buttons.
         chromaKey: "chroma-key",
         motionTrack: "motion-track",
         audioSync: "audio-sync",
+        beatMarkers: "beat-markers",
+        autoDuck: "auto-duck",
         mask: "square-dashed",
         puzzle: "puzzle",
         bug: "bug",

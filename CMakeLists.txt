@@ -681,6 +681,8 @@ add_library(driftcore STATIC
     src/core/interchange/OtioReader.cpp
     src/core/edit/TimelineOps.h
     src/core/edit/TimelineOps.cpp
+    src/core/edit/BeatDuckPlan.h
+    src/core/edit/BeatDuckPlan.cpp
     src/core/edit/MaskSpace.h
     src/core/edit/MaskSpace.cpp
     src/core/edit/CutOps.h
@@ -1289,6 +1291,7 @@ target_sources(driftapp PRIVATE
     src/app/editor/appcontroller/AppControllerTextLayers.cpp
     src/app/editor/appcontroller/AppControllerDafin.cpp
     src/app/editor/appcontroller/AppControllerSpeed.cpp
+    src/app/editor/appcontroller/AppControllerBeatsDucking.cpp
     src/app/editor/appcontroller/AppControllerTemplates.cpp
     src/app/mcp/AgentImageLog.h
     src/app/mcp/AgentImageLog.cpp

@@ -12,6 +12,12 @@ target_link_libraries(tst_core PRIVATE Qt6::Test driftcore)
 target_compile_definitions(tst_core PRIVATE DRIFT_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
 add_test(NAME Core COMMAND tst_core)
 
+# Dafin: planning behind the Beat markers and Auto ducking buttons.
+qt_add_executable(tst_beatduck tst_beatduck.cpp)
+target_include_directories(tst_beatduck PRIVATE ../src)
+target_link_libraries(tst_beatduck PRIVATE Qt6::Test driftcore)
+add_test(NAME BeatDuck COMMAND tst_beatduck)
+
 qt_add_executable(tst_keyframeview
     tst_keyframeview.cpp
     ../src/app/editor/sessions/KeyframeCurves.cpp
@@ -262,6 +268,7 @@ qt_add_executable(tst_mcp
     ../src/app/editor/appcontroller/AppControllerTextLayers.cpp
     ../src/app/editor/appcontroller/AppControllerDafin.cpp
     ../src/app/editor/appcontroller/AppControllerSpeed.cpp
+    ../src/app/editor/appcontroller/AppControllerBeatsDucking.cpp
     ../src/app/editor/appcontroller/AppControllerTemplates.cpp
     ../src/app/mcp/McpController.cpp
     ../src/app/mcp/AgentImageLog.cpp
