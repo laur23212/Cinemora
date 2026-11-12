@@ -18,4 +18,10 @@ namespace drift {
 bool renderPreviewProxy(const QString &sourcePath, int shortSide, const QString &outPath,
                         QString *errorOut, const std::function<bool(double)> &onProgress);
 
+// Dafin: the same with a named FFmpeg H.264 encoder ("h264_nvenc", "h264_amf", "h264_qsv");
+// nullptr is the default (CPU) encoder. dafin::proxy::renderWithFallback picks and falls back.
+bool renderPreviewProxy(const QString &sourcePath, int shortSide, const QString &outPath,
+                        QString *errorOut, const std::function<bool(double)> &onProgress,
+                        const char *encoderName);
+
 } // namespace drift

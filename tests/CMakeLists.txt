@@ -577,3 +577,10 @@ qt_add_executable(tst_workers
 target_include_directories(tst_workers PRIVATE ../src)
 target_link_libraries(tst_workers PRIVATE Qt6::Test Qt6::Core)
 add_test(NAME Workers COMMAND tst_workers)
+
+# Dafin: proxy media — heavy-clip rules, GPU encoder fallback order, settings, cache cap and clear.
+qt_add_executable(tst_proxypolicy tst_proxypolicy.cpp)
+target_include_directories(tst_proxypolicy PRIVATE ../src)
+target_link_libraries(tst_proxypolicy PRIVATE Qt6::Test Qt6::Gui driftengine driftcore)
+add_test(NAME ProxyPolicy COMMAND tst_proxypolicy)
+set_tests_properties(ProxyPolicy PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")

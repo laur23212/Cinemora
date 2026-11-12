@@ -81,6 +81,17 @@ public:
     // Set from QSettings by PlaybackEngine; read on the compositor threads.
     static std::atomic<bool> previewProxiesEnabled;
     static std::atomic<int> previewProxyShortSide;
+    // Dafin: the open project's "Use proxies in this project" switch (DafinProxyController).
+    // Preview reads a proxy only when this and previewProxiesEnabled are both on.
+    static std::atomic<bool> projectProxiesEnabled;
+
+    // Dafin "Clear proxy cache": forgets and deletes every preview proxy in the cache folder.
+    // Returns how many were removed. Reversed renders and proxies beside the media stay.
+    int clearPreviews();
+    // Dafin cache cap at runtime: deletes the oldest cached proxies (preview and reversed) until
+    // the tracked files fit in maxBytes. The newest one always stays. Unlike sweep() it leaves
+    // .part files alone, so a render in progress is safe.
+    void trimToSize(qint64 maxBytes);
 
     // Reads the on-disk index, dropping entries whose proxy or source is gone or whose source has
     // changed since the render.

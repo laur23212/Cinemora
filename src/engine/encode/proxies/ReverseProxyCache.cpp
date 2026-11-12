@@ -14,6 +14,8 @@
 #include <QStandardPaths>
 #include <QUuid>
 
+#include <algorithm>
+
 namespace drift {
 
 namespace {
@@ -27,7 +29,8 @@ QString indexPath()
 QString previewProxyPath(const Clip &clip)
 {
     if (clip.type != ClipType::Video || clip.path.isEmpty()
-        || !ReverseProxyCache::previewProxiesEnabled.load(std::memory_order_relaxed))
+        || !ReverseProxyCache::previewProxiesEnabled.load(std::memory_order_relaxed)
+        || !ReverseProxyCache::projectProxiesEnabled.load(std::memory_order_relaxed))
         return {};
     return ReverseProxyCache::instance().lookupPreview(
         clip.path, ReverseProxyCache::previewProxyShortSide.load(std::memory_order_relaxed));
@@ -36,6 +39,7 @@ QString previewProxyPath(const Clip &clip)
 } // namespace
 
 std::atomic<bool> ReverseProxyCache::previewProxiesEnabled{true};
+std::atomic<bool> ReverseProxyCache::projectProxiesEnabled{true};
 #ifdef Q_OS_ANDROID
 std::atomic<int> ReverseProxyCache::previewProxyShortSide{540};
 #else
@@ -199,6 +203,86 @@ void ReverseProxyCache::removePreview(const QString &sourcePath)
     // Outside m_mutex: releasing joins decoder threads, and one may be resolving a read through
     // this cache.
     for (const QString &proxyPath : removed) {
+        ClipReaderPool::instance().releasePath(proxyPath);
+        QFile::remove(proxyPath);
+    }
+}
+
+int ReverseProxyCache::clearPreviews()
+{
+    QStringList removed;
+    {
+        QMutexLocker lock(&m_mutex);
+        for (auto it = m_entries.begin(); it != m_entries.end();) {
+            QList<Entry> &list = it.value();
+            for (int i = list.size() - 1; i >= 0; --i) {
+                if (list.at(i).preview) {
+                    removed.append(list.at(i).proxyPath);
+                    list.removeAt(i);
+                }
+            }
+            if (list.isEmpty())
+                it = m_entries.erase(it);
+            else
+                ++it;
+        }
+        saveLocked();
+    }
+    // Outside m_mutex, as in removePreview.
+    for (const QString &proxyPath : removed) {
+        ClipReaderPool::instance().releasePath(proxyPath);
+        QFile::remove(proxyPath);
+    }
+    return int(removed.size());
+}
+
+void ReverseProxyCache::trimToSize(qint64 maxBytes)
+{
+    struct Item
+    {
+        QString proxyPath;
+        qint64 size = 0;
+        qint64 mtimeMs = 0;
+    };
+    QList<Item> items;
+    qint64 total = 0;
+    {
+        QMutexLocker lock(&m_mutex);
+        for (auto it = m_entries.cbegin(); it != m_entries.cend(); ++it) {
+            for (const Entry &entry : it.value()) {
+                const QFileInfo file(entry.proxyPath);
+                if (!file.exists())
+                    continue;
+                items.append({entry.proxyPath, file.size(), file.lastModified().toMSecsSinceEpoch()});
+                total += file.size();
+            }
+        }
+    }
+    if (total <= maxBytes || items.size() < 2)
+        return;
+    std::sort(items.begin(), items.end(),
+              [](const Item &a, const Item &b) { return a.mtimeMs < b.mtimeMs; });
+    QSet<QString> victims;
+    for (int i = 0; i < items.size() - 1 && total > maxBytes; ++i) {
+        victims.insert(items.at(i).proxyPath);
+        total -= items.at(i).size;
+    }
+    {
+        QMutexLocker lock(&m_mutex);
+        for (auto it = m_entries.begin(); it != m_entries.end();) {
+            QList<Entry> &list = it.value();
+            for (int i = list.size() - 1; i >= 0; --i) {
+                if (victims.contains(list.at(i).proxyPath))
+                    list.removeAt(i);
+            }
+            if (list.isEmpty())
+                it = m_entries.erase(it);
+            else
+                ++it;
+        }
+        saveLocked();
+    }
+    for (const QString &proxyPath : victims) {
         ClipReaderPool::instance().releasePath(proxyPath);
         QFile::remove(proxyPath);
     }

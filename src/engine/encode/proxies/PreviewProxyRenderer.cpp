@@ -33,6 +33,13 @@ QSize proxySizeFor(int width, int height, int shortSide)
 bool renderPreviewProxy(const QString &sourcePath, int shortSide, const QString &outPath,
                         QString *errorOut, const std::function<bool(double)> &onProgress)
 {
+    return renderPreviewProxy(sourcePath, shortSide, outPath, errorOut, onProgress, nullptr);
+}
+
+bool renderPreviewProxy(const QString &sourcePath, int shortSide, const QString &outPath,
+                        QString *errorOut, const std::function<bool(double)> &onProgress,
+                        const char *encoderName)
+{
     ProxySource source;
     if (!source.open(sourcePath, errorOut))
         return false;
@@ -48,6 +55,7 @@ bool renderPreviewProxy(const QString &sourcePath, int shortSide, const QString 
     options.size = proxySizeFor(source.dec->width, source.dec->height, shortSide);
     options.crf = "23";
     options.preset = "superfast";
+    options.encoderName = encoderName;
 
     ProxyEncoder encoder;
     if (!encoder.open(outPath, source.dec, stream->time_base, source.frameRate(),

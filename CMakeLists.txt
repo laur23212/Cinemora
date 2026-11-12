@@ -1003,6 +1003,8 @@ add_library(driftengine STATIC
     src/engine/encode/proxies/ProxyEncoder.cpp
     src/engine/encode/proxies/PreviewProxyRenderer.h
     src/engine/encode/proxies/PreviewProxyRenderer.cpp
+    src/engine/encode/proxies/DafinProxyPolicy.h
+    src/engine/encode/proxies/DafinProxyPolicy.cpp
     src/engine/encode/MediaEditor.h
     src/engine/encode/MediaEditor.cpp
     src/engine/encode/writers/AudioFileWriter.h
@@ -1387,6 +1389,8 @@ target_sources(driftapp PRIVATE
     src/app/jobs/audio/VoiceLibrary.cpp
     src/app/bin/AssetLibrary.h
     src/app/bin/AssetLibrary.cpp
+    src/app/bin/DafinProxyController.h
+    src/app/bin/DafinProxyController.cpp
     src/app/bin/BinFolderListModel.h
     src/app/bin/BinFolderListModel.cpp
     src/app/editor/TimelineClipsModel.h
@@ -2585,6 +2589,7 @@ qt_add_qml_module(drift
         src/qml/components/dialogs/ExportProgressDialog.qml
         src/qml/components/dialogs/CollectMediaDialog.qml
         src/qml/components/dialogs/ImageSequenceDialog.qml
+        src/qml/components/dialogs/ProxyPromptDialog.qml
         src/qml/components/dialogs/ReverseProgressDialog.qml
         src/qml/components/dialogs/SubtitleProgressDialog.qml
         src/qml/components/shell/CircularProgress.qml
@@ -2918,6 +2923,7 @@ if(Qt6LinguistTools_FOUND)
             src/engine/encode/proxies/ReverseRenderer.cpp
             src/engine/encode/proxies/ProxyEncoder.cpp
             src/engine/encode/proxies/PreviewProxyRenderer.cpp
+            src/engine/encode/proxies/DafinProxyPolicy.cpp
             src/engine/encode/MediaEditor.cpp
             src/engine/project/ProjectBundle.cpp
             src/engine/face/props/FacePropImport.cpp

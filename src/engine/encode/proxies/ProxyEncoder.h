@@ -37,6 +37,9 @@ public:
         // Short GOP rather than all-intra: a keyframe every twelve frames keeps scrubbing cheap at
         // roughly a third of the size.
         int gopSize = 12;
+        // Dafin: an FFmpeg H.264 encoder by name (h264_nvenc, h264_amf, h264_qsv) for GPU
+        // encoding; nullptr keeps the default (CPU) encoder. GPU encoders get NV12 frames.
+        const char *encoderName = nullptr;
     };
 
     ~ProxyEncoder() { abort(); }
