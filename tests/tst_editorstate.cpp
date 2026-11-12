@@ -15,6 +15,7 @@
 #include "app/jobs/audio/VoiceLibrary.h"
 #include "app/editor/sessions/CurveEditorController.h"
 #include "app/editor/sessions/SubtitleController.h"
+#include "app/editor/sessions/WorkspaceController.h"
 #include "app/jobs/vision/StabilizeController.h"
 #include "app/bin/MediaBinController.h"
 #include "app/editor/sessions/SpeedCurveController.h"
@@ -167,6 +168,7 @@ private slots:
     void slowerClipMovesWhatItRunsInto();
     void speedStripShowsOnRetimedClipsAndWithSpeedControl();
     void chromaKeyResetKeepsTheColourAndSwitchesInPlace();
+    void workspacesKeepTimelinesAndUndoApart();
     void pastedEffectsKeepTheKeyframeGraphSelection();
     void copiedSingleEffectRoutesToTheRightList();
     void pastedAudioEffectsAreDroppedOnClipsWithNoAudio();
@@ -16455,6 +16457,61 @@ void EditorStateTest::splitScreenFillsCellsWithCoveredMaskedClips()
     QVERIFY(drift::linkedMaskAdjustments(project, t, c).isEmpty());
 }
 
+// Dafin: a queued render's timeline is a workspace of its own, with its own undo list.
+void EditorStateTest::workspacesKeepTimelinesAndUndoApart()
+{
+    AssetLibrary library;
+    AppController state(&library);
+    drift::Project &project = *state.project();
+    project.tracks().clear();
+    drift::Track track{.type = drift::TrackType::Video};
+    track.id = QStringLiteral("v1");
+    for (int i = 0; i < 2; ++i) {
+        drift::Clip clip;
+        clip.id = i == 0 ? QStringLiteral("a") : QStringLiteral("b");
+        clip.type = drift::ClipType::Video;
+        clip.timelineStart = drift::secondsToUs(2.0 * i);
+        clip.timelineDuration = drift::secondsToUs(2.0);
+        clip.srcOut = clip.timelineDuration;
+        track.clips.append(clip);
+    }
+    project.tracks().append(track);
+    WorkspaceController *workspaces = state.workspaces();
+    QCOMPARE(workspaces->count(), 1);
+
+    // Queuing keeps a copy as a new workspace; the open one stays open.
+    const QString render = workspaces->addRenderTimelineFromOpen();
+    QCOMPARE(workspaces->count(), 2);
+    const QString mainId = workspaces->activeId();
+    QVERIFY(!render.isEmpty() && mainId != render);
+    QCOMPARE(project.workspaces().at(project.workspaceIndex(render)).name,
+             QStringLiteral("Render timeline 1"));
+
+    // An edit on the main timeline leaves the copy whole, and the copy's undo list empty.
+    state.selectClip(0, 0);
+    state.deleteSelectedClip();
+    QCOMPARE(project.tracks().at(0).clips.size(), 1);
+    QVERIFY(state.undoAvailable());
+    QVERIFY(workspaces->switchTo(render));
+    QCOMPARE(project.tracks().at(0).clips.size(), 2);
+    QVERIFY(!state.undoAvailable());
+
+    // Back again, the main timeline's own undo list is there.
+    QVERIFY(workspaces->switchTo(mainId));
+    QCOMPARE(project.tracks().at(0).clips.size(), 1);
+    QVERIFY(state.undoAvailable());
+    state.undo();
+    QCOMPARE(project.tracks().at(0).clips.size(), 2);
+    QCOMPARE(project.workspaces().size(), 2);
+
+    // Closing the open one opens its neighbour; the last one cannot be closed.
+    QVERIFY(workspaces->close(mainId));
+    QCOMPARE(workspaces->activeId(), render);
+    QVERIFY(!workspaces->close(render));
+    const QString second = workspaces->addRenderTimelineFromOpen();
+    QCOMPARE(project.workspaces().at(project.workspaceIndex(second)).name,
+             QStringLiteral("Render timeline 2"));
+}
+
 QTEST_MAIN(EditorStateTest)
 #include "tst_editorstate.moc"
-
