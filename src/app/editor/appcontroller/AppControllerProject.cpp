@@ -18,6 +18,7 @@
 #include "engine/project/ProjectDependencies.h"
 #include "engine/EngineTuning.h"
 #include "engine/encode/export/Exporter.h"
+#include "engine/encode/export/EncoderProbe.h"
 #include "engine/encode/export/HwEncodeFallback.h"
 #include "engine/packages/assets/EmojiCatalog.h"
 // Engine-internal by its own header comment, and included here only for releaseCaches(): the GPU
@@ -711,33 +712,72 @@ void AppController::exportWithSettings(const QUrl &outputUrl, const QVariantMap 
         // On the worker: probing a disconnected network share can block for many seconds.
         error = exportTargetProblem(outputUrl, outputPath);
         const bool targetOk = error.isEmpty();
-        bool ok = targetOk && Exporter::run(snapshot, exportSettings, outputPath, &error, report);
-        // Dafin: a GPU encoder that refused to open or stopped part-way gets one more run on the
-        // matching software encoder (Settings > Performance). Same snapshot, same frames, same
-        // settings apart from the encoder, so the picture is the one the preview shows.
+        // Dafin: the encoder chain (HwEncodeFallback.h). A GPU pick runs on itself, then on the
+        // GPU encoders after it (NVENC, AMF, QuickSync, VAAPI), then on the matching software
+        // encoder — skipping any that failed the start-up test encode or an earlier export on
+        // this GPU and driver (EncoderProbe.h). A failure part-way restarts the same snapshot on
+        // the next one, so the picture is the one the preview shows; the app keeps running.
+        // Settings > Performance › "If the GPU encoder fails…" off keeps the single encoder.
+        const bool chainEnabled = drift::tuning::cpuFallbackOnGpuEncodeFailure.load(std::memory_order_relaxed);
+        const QStringList chain = chainEnabled
+                                      ? drift::hwencode::fallbackChain(exportSettings.videoCodecId,
+                                                                       drift::encoderprobe::knownBroken())
+                                      : QStringList{exportSettings.videoCodecId};
+        bool ok = false;
         bool finishedOnCpu = false;
-        if (!ok
-            && drift::hwencode::shouldRetryOnCpu(
-                drift::tuning::cpuFallbackOnGpuEncodeFailure.load(std::memory_order_relaxed),
-                exportSettings.videoCodecId, targetOk, error)) {
-            ExportSettings cpuSettings = exportSettings;
-            cpuSettings.videoCodecId = drift::hwencode::softwareFallbackCodec(exportSettings.videoCodecId);
-            const QVariantMap cpuCodec = Exporter::videoCodecById(cpuSettings.videoCodecId);
-            if (cpuCodec.value(QStringLiteral("available")).toBool()) {
-                // GPU presets (p4, balanced…) mean nothing to x264/x265/SVT; CRF/bitrate carry over.
-                const QString preset = cpuCodec.value(QStringLiteral("defaultPreset")).toString();
-                cpuSettings.videoPreset = preset.isEmpty() ? QStringLiteral("medium") : preset;
-                qWarning("Export: GPU encoder %s failed (%s); exporting again on %s",
-                         qPrintable(exportSettings.videoCodecId), qPrintable(error),
-                         qPrintable(cpuSettings.videoCodecId));
-                const QString gpuError = error;
-                error.clear();
-                ok = Exporter::run(snapshot, cpuSettings, outputPath, &error, report);
-                finishedOnCpu = ok;
-                if (!ok && error.isEmpty())
-                    error = gpuError;
+        QStringList fallbacks; // "NVENC → AMF" steps, for the notice
+        QString usedCodecId;
+        QString previousId;
+        QString firstError;
+        for (const QString &codecId : chain) {
+            if (!targetOk)
+                break;
+            ExportSettings attempt = exportSettings;
+            if (codecId != exportSettings.videoCodecId) {
+                const QVariantMap codec = Exporter::videoCodecById(codecId);
+                if (!codec.value(QStringLiteral("available")).toBool())
+                    continue;
+                attempt.videoCodecId = codecId;
+                // Presets don't carry between vendors (p4, balanced, medium…); CRF/bitrate do.
+                const QString preset = codec.value(QStringLiteral("defaultPreset")).toString();
+                attempt.videoPreset = preset.isEmpty() ? QStringLiteral("medium") : preset;
             }
+            if (!previousId.isEmpty()) {
+                qWarning("Export: encoder %s failed (%s); exporting again on %s", qPrintable(previousId),
+                         qPrintable(error), qPrintable(codecId));
+                fallbacks.append(QStringLiteral("%1 → %2").arg(previousId, codecId));
+                const QString from = previousId;
+                QMetaObject::invokeMethod(
+                    this,
+                    [this, from, codecId]() {
+                        setLastMessage(tr("The %1 encoder failed; continuing the export on %2.")
+                                           .arg(Exporter::videoCodecById(from).value(QStringLiteral("label")).toString(),
+                                                Exporter::videoCodecById(codecId).value(QStringLiteral("label")).toString()),
+                                       QStringLiteral("warning"));
+                    },
+                    Qt::QueuedConnection);
+                error.clear();
+            }
+            ok = Exporter::run(snapshot, attempt, outputPath, &error, report);
+            if (ok) {
+                usedCodecId = codecId;
+                finishedOnCpu = !fallbacks.isEmpty() && !drift::hwencode::isGpuEncoderId(codecId);
+                break;
+            }
+            if (firstError.isEmpty())
+                firstError = error;
+            // Only an encoder failure moves down the chain: a cancel, a full disk or a refused
+            // folder would fail the same way on every encoder.
+            if (!drift::hwencode::shouldRetryOnCpu(chainEnabled, codecId, true, error))
+                break;
+            drift::encoderprobe::markBroken(codecId, error);
+            previousId = codecId;
         }
+        if (!ok && error.isEmpty())
+            error = firstError;
+        if (ok && !fallbacks.isEmpty())
+            qWarning("Export: finished on %s after %s", qPrintable(usedCodecId),
+                     qPrintable(fallbacks.join(QStringLiteral(", "))));
         // Before the commit: on Android the staged file is gone once it has been streamed out.
         const qint64 sizeBytes = ok ? QFileInfo(outputPath).size() : 0;
         // Android: the encoder needs a real file, and the document the user picked is only
@@ -781,7 +821,7 @@ void AppController::exportWithSettings(const QUrl &outputUrl, const QVariantMap 
 
         QMetaObject::invokeMethod(
             this,
-            [this, ok, finishedOnCpu, error, outputUrl, sizeBytes, thumbnail, durationSeconds]() {
+            [this, ok, finishedOnCpu, usedFallback = !fallbacks.isEmpty(), error, outputUrl, sizeBytes, thumbnail, durationSeconds]() {
                 m_exportInProgress = false;
                 m_exportProgress = ok ? 1.0 : 0.0;
                 if (ok)
@@ -802,7 +842,8 @@ void AppController::exportWithSettings(const QUrl &outputUrl, const QVariantMap 
                                                      : QStringLiteral("error");
                 setLastMessage(ok ? (finishedOnCpu
                                          ? tr("Export complete. The GPU encoder failed, so it finished on the CPU.")
-                                         : tr("Export complete"))
+                                         : usedFallback ? tr("Export complete. The first GPU encoder failed, so another one finished it.")
+                                                        : tr("Export complete"))
                                   : error.isEmpty() ? tr("Export failed") : error,
                                severity);
                 emit exportFinished(ok);
