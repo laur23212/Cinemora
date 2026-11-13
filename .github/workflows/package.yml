@@ -747,6 +747,9 @@ jobs:
       - name: Configure
         shell: pwsh
         run: |
+          # Dafin: the channel/version arguments go in as an array of strings. Written out as text in
+          # the command line, PowerShell cuts -DDAFIN_VERSION=2.8.0 at the first dot ("not '2'").
+          $channelArgs = @($env:DRIFT_CHANNEL_ARGS -split '\s+' | Where-Object { $_ })
           cmake -B build -G Ninja `
             -DCMAKE_BUILD_TYPE=Release `
             -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}\vcpkg\scripts\buildsystems\vcpkg.cmake `
@@ -763,7 +766,7 @@ jobs:
             -DDRIFT_PCH=OFF `
             -DCMAKE_POLICY_DEFAULT_CMP0141=NEW `
             -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded `
-            ${{ env.DRIFT_CHANNEL_ARGS }}
+            @channelArgs
 
       # No --target list any more: the tests have to be built here, and building everything is
       # what also gets tools/ compiled by MSVC. Until this job ran ctest, Windows was the one
