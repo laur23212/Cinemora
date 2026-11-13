@@ -12,6 +12,14 @@
 #include <QSGTexture>
 #include <QScreen>
 
+// GLES headers on Android do not define these two; the values are the same everywhere.
+#ifndef GL_SYNC_GPU_COMMANDS_COMPLETE
+#define GL_SYNC_GPU_COMMANDS_COMPLETE 0x9117
+#endif
+#ifndef GL_TIMEOUT_IGNORED
+#define GL_TIMEOUT_IGNORED 0xFFFFFFFFFFFFFFFFull
+#endif
+
 // Textures the render thread drew and has since rebound away from; dropped after the next
 // buffer swap. Shared with the frameSwapped connection, which runs on the render thread and may
 // fire while the item is being destroyed on the GUI thread.
@@ -390,11 +398,3 @@ QSGNode *PreviewItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
 }
 
 #include "moc_PreviewItem.cpp"
-
-// GLES headers on Android do not define these two; the values are the same everywhere.
-#ifndef GL_SYNC_GPU_COMMANDS_COMPLETE
-#define GL_SYNC_GPU_COMMANDS_COMPLETE 0x9117
-#endif
-#ifndef GL_TIMEOUT_IGNORED
-#define GL_TIMEOUT_IGNORED 0xFFFFFFFFFFFFFFFFull
-#endif
