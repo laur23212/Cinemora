@@ -220,7 +220,7 @@ jobs:
         run: |
           # vcpkg zlib 1.4 no longer names its static library zs.lib; take whichever exists.
           $zlibDir = "${{ github.workspace }}\vcpkg\installed\${{ matrix.arch }}-windows-static-md\lib"
-          $zlibLib = @("zs.lib","z.lib","zlib.lib","zlibstatic.lib") | ForEach-Object { Join-Path $zlibDir $_ } | Where-Object { Test-Path $_ } | Select-Object -First 1
+          $zlibLib = @("zs.lib","libzs.lib","z.lib","zlib.lib","zlibstatic.lib") | ForEach-Object { Join-Path $zlibDir $_ } | Where-Object { Test-Path $_ } | Select-Object -First 1
           if (-not $zlibLib) { Get-ChildItem $zlibDir | Out-Host; throw "no static zlib in $zlibDir" }
           cmake -B build -G Ninja `
             -DCMAKE_BUILD_TYPE=Release `
