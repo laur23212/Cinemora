@@ -1749,7 +1749,7 @@ void AppController::triggerAction(const QString &actionId)
     else if (actionId == QStringLiteral("pasteAttributes"))
         requestPasteAttributes();
     else if (actionId == QStringLiteral("split"))
-        splitAtPlayhead();
+        splitSelectionOrAllAtPlayhead();
     else if (actionId == QStringLiteral("merge"))
         mergeSelectedClips();
     else if (actionId == QStringLiteral("separateAudio"))

@@ -1629,6 +1629,27 @@ void AppController::closeGap(int trackIndex, double gapStartSeconds)
 
 void AppController::splitAtPlayhead()
 {
+    splitAtPlayheadImpl(nullptr);
+}
+
+// Scissors on the playhead: with clips selected only those are cut at the playhead (a linked
+// partner such as its audio goes with it); with nothing selected every clip under it is cut.
+void AppController::splitSelectionOrAllAtPlayhead()
+{
+    QSet<QString> selectedIds;
+    auto addSelected = [this, &selectedIds](int trackIndex, int clipIndex) {
+        if (isValidClipIndex(trackIndex, clipIndex))
+            selectedIds.insert(m_project.tracks().at(trackIndex).clips.at(clipIndex).id);
+    };
+    addSelected(m_selectedTrack, m_selectedClip);
+    for (const QPair<int, int> &pair : std::as_const(m_selection))
+        addSelected(pair.first, pair.second);
+
+    splitAtPlayheadImpl(selectedIds.isEmpty() ? nullptr : &selectedIds);
+}
+
+void AppController::splitAtPlayheadImpl(const QSet<QString> *onlyIds)
+{
     const drift::Project before = m_project;
     bool splitAny = false;
     QSet<QString> handledLinkIds;
@@ -1646,6 +1667,8 @@ void AppController::splitAtPlayhead()
         drift::Track &track = m_project.tracks()[trackIndex];
         for (int clipIndex = 0; clipIndex < track.clips.size(); ++clipIndex) {
             drift::Clip &clip = track.clips[clipIndex];
+            if (onlyIds && !onlyIds->contains(clip.id))
+                continue;
             if (!clip.containsTime(m_playheadUs))
                 continue;
             if (m_playheadUs == clip.timelineStart)
@@ -1685,7 +1708,9 @@ void AppController::splitAtPlayhead()
         pushProjectEdit(before, tr("Split at current time"));
         finishEdit(tr("Split at current time"));
     } else {
-        setLastMessage(tr("Nothing to split here — move to a clip first"), QStringLiteral("warning"));
+        setLastMessage(onlyIds ? tr("The selected clip isn't under the cut bar — move the bar onto it")
+                               : tr("Nothing to split here — move to a clip first"),
+                       QStringLiteral("warning"));
     }
 }
 

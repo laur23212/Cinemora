@@ -930,6 +930,7 @@ public:
     Q_INVOKABLE void splitSelectedClipLeft();
     Q_INVOKABLE void splitSelectedClipRight();
     Q_INVOKABLE void splitAtPlayhead();
+    Q_INVOKABLE void splitSelectionOrAllAtPlayhead();
     Q_INVOKABLE void splitClipAt(int trackIndex, int clipIndex, double seconds);
     Q_INVOKABLE void splitClipLeftAt(int trackIndex, int clipIndex, double seconds);
     Q_INVOKABLE void splitClipRightAt(int trackIndex, int clipIndex, double seconds);
@@ -2258,6 +2259,7 @@ protected:
     void restoreFilmstripsAfterLoad();
     void normalizeSelection();
     bool isValidClipIndex(int trackIndex, int clipIndex) const;
+    void splitAtPlayheadImpl(const QSet<QString> *onlyIds);
     // Indices of the tracks removeEmptyTracks() would delete, ascending.
     QList<int> removableEmptyTrackIndices() const;
     // Adds a video Drift rendered to the bin as one undoable edit; returns its asset id.

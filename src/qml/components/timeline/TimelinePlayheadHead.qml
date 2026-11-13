@@ -27,4 +27,22 @@ Item {
             }
         }
     }
+
+    // Scissors chip on the head: click it to cut at the bar (TimelinePlayhead.qml reads the click,
+    // the drag area has to stay on top so dragging the head still moves the bar).
+    Rectangle {
+        id: scissorsChip
+        width: 18
+        height: 18
+        radius: 9
+        x: (parent.width - width) / 2
+        y: -1
+        color: Theme.c.timelinePlayheadHead.background
+        IconGlyph {
+            anchors.centerIn: parent
+            glyph: Theme.icons.scissors
+            iconSize: 12
+            iconColor: "white"
+        }
+    }
 }

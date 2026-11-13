@@ -9,6 +9,8 @@ Item {
     property Flickable view
     property var interpolator
     readonly property bool headDragging: playheadDragArea.drag.active
+    // The scissors chip on the head: a press-and-release on it without moving cuts at the bar.
+    readonly property real scissorsHitHeight: 22
     y: 0
     // Above the seek strip (z: 2), otherwise the scrub area
     // covers the handle and swallows the press before drag starts.
@@ -54,14 +56,31 @@ Item {
         drag.threshold: 0
         drag.minimumX: 0
         drag.maximumX: view.contentWidth - Theme.playheadLineWidth
-        onPressed: panel.beginPlayheadSeek()
+        property real pressStartX: 0
+        property bool pressedOnScissors: false
+        onPressed: (mouse) => {
+            pressStartX = playhead.x
+            pressedOnScissors = mouse.y < playhead.scissorsHitHeight
+            panel.beginPlayheadSeek()
+        }
         onReleased: {
             playhead.finishSeek()
+            // Scissors: nothing selected cuts every clip under the bar, a selection cuts only that.
+            if (pressedOnScissors && Math.abs(playhead.x - pressStartX) < 2)
+                EditorState.splitSelectionOrAllAtPlayhead()
+            pressedOnScissors = false
             panel.endPlayheadSeek()
         }
         onCanceled: {
+            pressedOnScissors = false
             playhead.finishSeek()
             panel.endPlayheadSeek()
+        }
+
+        ThemedToolTip {
+            text: qsTr("Cut at the bar — the selected clip, or every clip under it when nothing is selected")
+            visible: playheadDragArea.containsMouse && !playheadDragArea.pressed
+                     && playheadDragArea.mouseY < playhead.scissorsHitHeight
         }
     }
 
