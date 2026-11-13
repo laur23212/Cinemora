@@ -642,13 +642,17 @@ jobs:
       - name: Configure
         shell: pwsh
         run: |
+          # vcpkg zlib 1.4 no longer names its static library zs.lib; take whichever exists.
+          $zlibDir = "${{ github.workspace }}\vcpkg\installed\x64-windows-static-md\lib"
+          $zlibLib = @("zs.lib","z.lib","zlib.lib","zlibstatic.lib") | ForEach-Object { Join-Path $zlibDir $_ } | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $zlibLib) { Get-ChildItem $zlibDir | Out-Host; throw "no static zlib in $zlibDir" }
           cmake -B build -G Ninja `
             -DCMAKE_BUILD_TYPE=Release `
             -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}\vcpkg\scripts\buildsystems\vcpkg.cmake `
             -DCMAKE_PREFIX_PATH="${{ env.QT_ROOT_DIR }};${{ github.workspace }}\.deps\ffmpeg;${{ github.workspace }}\vcpkg\installed\x64-windows-static-md" `
             -DFETCHCONTENT_BASE_DIR=${{ env.FETCHCONTENT_BASE_DIR }} `
             -DZLIB_INCLUDE_DIR=${{ github.workspace }}\vcpkg\installed\x64-windows-static-md\include `
-            -DZLIB_LIBRARY=${{ github.workspace }}\vcpkg\installed\x64-windows-static-md\lib\zs.lib `
+            -DZLIB_LIBRARY=$zlibLib `
             -DDRIFT_BUNDLE_ONNXRUNTIME=OFF `
             -DDRIFT_WITH_SKIA=ON `
             -DCMAKE_C_COMPILER_LAUNCHER=ccache `

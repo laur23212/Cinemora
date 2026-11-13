@@ -16524,6 +16524,8 @@ void EditorStateTest::workspacesKeepTimelinesAndUndoApart()
     const QString second = workspaces->addRenderTimelineFromOpen();
     QCOMPARE(project.workspaces().at(project.workspaceIndex(second)).name,
              QStringLiteral("Render timeline 2"));
+}
+
 // Dafin: the start screen's "On this computer" tab. The walk finds Dafin, Filmora and Premiere
 // projects whatever the case of their extension, and leaves out hidden folders, Premiere's
 // auto-save copies, folders past the depth limit and anything past the file cap.
