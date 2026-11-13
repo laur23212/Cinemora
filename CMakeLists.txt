@@ -1187,6 +1187,8 @@ qt_add_executable(drift
     src/app/editor/LayoutStore.cpp
     src/app/editor/WorkspaceStore.h
     src/app/editor/WorkspaceStore.cpp
+    src/app/editor/TutorialContent.h
+    src/app/editor/TutorialContent.cpp
     src/app/editor/SearchIndex.h
     src/app/editor/SearchIndex.cpp
     src/app/platform/FileDialogs.h

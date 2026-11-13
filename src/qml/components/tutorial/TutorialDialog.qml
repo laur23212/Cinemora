@@ -56,7 +56,7 @@ ThemedDialog {
                     visible: Tutorial.categories.length === 0
                     size: "sm"
                     tone: "default"
-                    text: qsTr("The tutorial could not be loaded.")
+                    text: qsTr("The tutorial could not be loaded.") + (Tutorial.loadError !== "" ? "\n" + Tutorial.loadError : "")
                 }
 
                 Repeater {

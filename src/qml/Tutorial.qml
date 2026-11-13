@@ -1,6 +1,7 @@
 pragma Singleton
 import QtQuick
 import QtQuick.Window
+import Drift
 
 // Dafin tutorial: the feature list and tour steps (resources/tutorial/tutorial.json, compiled into
 // the app), and the registry that maps a tour id such as "bar.export" to the real UI element
@@ -18,14 +19,9 @@ QtObject {
     function load() {
         if (root.loaded)
             return
-        let text = ""
-        try {
-            const xhr = new XMLHttpRequest()
-            xhr.open("GET", "qrc:/tutorial/tutorial.json", false)
-            xhr.send()
-            text = xhr.responseText
-        } catch (e) {
-            root.loadError = String(e)
+        const text = TutorialContent.readJson()
+        if (text === "") {
+            root.loadError = TutorialContent.lastError() || "tutorial.json is empty"
             return
         }
         let doc = null
