@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>Create. Edit. Share.</strong><br>
-  A free, open-source video editor for Windows and Linux, made to feel like Filmora.
+  A free, open-source video editor for Windows and Linux, Filmora-inspired.
 </p>
 
 <p align="center">
@@ -41,7 +41,7 @@ so the move stays possible.
 
 ## Everything in one place
 
-Dafin keeps the layout Filmora users know: media library on the left, properties beside it,
+Dafin is Filmora-inspired in its layout: media library on the left, properties beside it,
 preview on top, timeline below. Panels are dark grey with a teal accent, video clips are purple
 and audio clips are teal.
 
