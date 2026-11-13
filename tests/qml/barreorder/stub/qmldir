@@ -4,3 +4,5 @@ BarReorder 1.0 BarReorder.qml
 BarReorderHandle 1.0 BarReorderHandle.qml
 BarReorderLayer 1.0 BarReorderLayer.qml
 BarSlot 1.0 BarSlot.qml
+singleton Tutorial 1.0 Tutorial.qml
+TourTarget 1.0 TourTarget.qml
