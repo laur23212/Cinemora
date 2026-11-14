@@ -652,7 +652,7 @@ jobs:
             -DCMAKE_PREFIX_PATH="${{ env.QT_ROOT_DIR }};${{ github.workspace }}\.deps\ffmpeg;${{ github.workspace }}\vcpkg\installed\x64-windows-static-md" `
             -DFETCHCONTENT_BASE_DIR=${{ env.FETCHCONTENT_BASE_DIR }} `
             -DZLIB_INCLUDE_DIR=${{ github.workspace }}\vcpkg\installed\x64-windows-static-md\include `
-            -DZLIB_LIBRARY=$zlibLib `
+            "-DZLIB_LIBRARY=$zlibLib" `
             -DDRIFT_BUNDLE_ONNXRUNTIME=OFF `
             -DDRIFT_WITH_SKIA=ON `
             -DCMAKE_C_COMPILER_LAUNCHER=ccache `

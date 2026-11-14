@@ -760,7 +760,7 @@ jobs:
             -DCMAKE_PREFIX_PATH="${{ env.QT_ROOT_DIR }};${{ github.workspace }}\.deps\ffmpeg;${{ github.workspace }}\vcpkg\installed\${{ matrix.arch }}-windows-static-md" `
             -DFETCHCONTENT_BASE_DIR=${{ env.FETCHCONTENT_BASE_DIR }} `
             -DZLIB_INCLUDE_DIR=${{ github.workspace }}\vcpkg\installed\${{ matrix.arch }}-windows-static-md\include `
-            -DZLIB_LIBRARY=$zlibLib `
+            "-DZLIB_LIBRARY=$zlibLib" `
             -DDRIFT_BUNDLE_ONNXRUNTIME=OFF `
             -DDRIFT_BUNDLE_CORE_PACKAGES_ONLY=ON `
             -DDRIFT_WITH_SKIA=ON `
